@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Models;
 using HorizontalAlignment = Avalonia.Layout.HorizontalAlignment;
@@ -11,21 +14,27 @@ namespace FastTreeDataGrid.Control.Controls;
 internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 {
     private readonly List<ContentControl> _cells = new();
+    private readonly List<Thumb> _grips = new();
     private readonly List<Border> _separators = new();
     private readonly List<double> _columnOffsets = new();
     private readonly IBrush _separatorBrush = new SolidColorBrush(Color.FromRgb(210, 210, 210));
+    private const double GripWidth = 6;
 
     public double HeaderHeight { get; set; } = 32;
+
+    public event Action<int, double>? ColumnResizeRequested;
 
     public void BindColumns(IReadOnlyList<FastTreeDataGridColumn> columns, IReadOnlyList<double> widths)
     {
         EnsureCellCount(columns.Count);
+        EnsureGripCount(columns.Count);
         var offset = 0d;
 
         for (var i = 0; i < columns.Count; i++)
         {
             var column = columns[i];
             var cell = _cells[i];
+            var grip = _grips[i];
             var width = widths[i];
 
             cell.Width = width;
@@ -36,6 +45,14 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             Canvas.SetLeft(cell, offset);
             Canvas.SetTop(cell, 0);
             offset += width;
+
+            grip.Tag = i;
+            grip.Width = GripWidth;
+            grip.Height = HeaderHeight;
+            grip.IsVisible = column.CanUserResize;
+            grip.IsHitTestVisible = column.CanUserResize;
+            Canvas.SetLeft(grip, offset - (GripWidth / 2));
+            Canvas.SetTop(grip, 0);
         }
 
         Width = offset;
@@ -57,11 +74,19 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         for (var i = 0; i < _cells.Count && i < widths.Count; i++)
         {
             var cell = _cells[i];
+            var grip = i < _grips.Count ? _grips[i] : null;
             var width = widths[i];
             cell.Width = width;
             Canvas.SetLeft(cell, offset);
             Canvas.SetTop(cell, 0);
             offset += width;
+
+            if (grip is not null)
+            {
+                Canvas.SetLeft(grip, offset - (GripWidth / 2));
+                Canvas.SetTop(grip, 0);
+                grip.Height = HeaderHeight;
+            }
         }
 
         Width = offset;
@@ -99,6 +124,31 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         }
 
         EnsureSeparatorCount(Math.Max(0, count - 1));
+    }
+
+    private void EnsureGripCount(int count)
+    {
+        while (_grips.Count < count)
+        {
+            var grip = new Thumb
+            {
+                Width = GripWidth,
+                Background = Brushes.Transparent,
+                Cursor = new Cursor(StandardCursorType.SizeWestEast),
+            };
+
+            grip.DragDelta += GripOnDragDelta;
+            Children.Add(grip);
+            _grips.Add(grip);
+        }
+
+        while (_grips.Count > count)
+        {
+            var last = _grips[^1];
+            last.DragDelta -= GripOnDragDelta;
+            Children.Remove(last);
+            _grips.RemoveAt(_grips.Count - 1);
+        }
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -165,6 +215,14 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             Canvas.SetLeft(separator, offset - 0.5);
             Canvas.SetTop(separator, 0);
             separator.Height = height;
+        }
+    }
+
+    private void GripOnDragDelta(object? sender, VectorEventArgs e)
+    {
+        if (sender is Thumb thumb && thumb.Tag is int index)
+        {
+            ColumnResizeRequested?.Invoke(index, e.Vector.X);
         }
     }
 }

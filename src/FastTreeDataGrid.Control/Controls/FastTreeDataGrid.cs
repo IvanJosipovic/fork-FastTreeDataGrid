@@ -133,15 +133,14 @@ public class FastTreeDataGrid : TemplatedControl
         if (_headerPresenter is not null)
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
+            _headerPresenter.ColumnResizeRequested += OnColumnResizeRequested;
         }
 
         if (_scrollViewer is not null)
         {
             _scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-            _scrollViewer.Background = Brushes.Transparent;
             _scrollViewer.PropertyChanged += OnScrollViewerPropertyChanged;
-            _scrollViewer.AddHandler(InputElement.PointerPressedEvent, OnScrollViewerPointerPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         }
 
         _columnsDirty = true;
@@ -215,11 +214,14 @@ public class FastTreeDataGrid : TemplatedControl
         if (_scrollViewer is not null)
         {
             _scrollViewer.PropertyChanged -= OnScrollViewerPropertyChanged;
-            _scrollViewer.RemoveHandler(InputElement.PointerPressedEvent, OnScrollViewerPointerPressed);
             _scrollViewer = null;
         }
 
-        _headerPresenter = null;
+        if (_headerPresenter is not null)
+        {
+            _headerPresenter.ColumnResizeRequested -= OnColumnResizeRequested;
+            _headerPresenter = null;
+        }
         _presenter = null;
     }
 
@@ -231,23 +233,59 @@ public class FastTreeDataGrid : TemplatedControl
         }
     }
 
-    private void OnScrollViewerPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void OnColumnResizeRequested(int columnIndex, double delta)
     {
-        if (e.Handled || _presenter is null)
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
         {
             return;
         }
 
-        var point = e.GetPosition(_presenter);
-        if (!_presenter.Bounds.Contains(point))
+        var column = _columns[columnIndex];
+        if (!column.CanUserResize)
         {
             return;
         }
 
-        if (_presenter.HandlePointer(point, e))
+        var currentWidth = columnIndex < _columnWidths.Count ? _columnWidths[columnIndex] : column.ActualWidth;
+        if (double.IsNaN(currentWidth) || double.IsInfinity(currentWidth) || currentWidth <= 0)
         {
-            e.Handled = true;
+            currentWidth = Math.Max(column.ActualWidth, column.PixelWidth);
         }
+
+        var minWidth = Math.Max(column.MinWidth, 16);
+        var maxWidth = double.IsPositiveInfinity(column.MaxWidth) ? double.PositiveInfinity : Math.Max(column.MaxWidth, minWidth);
+        var newWidth = currentWidth + delta;
+        if (double.IsNaN(newWidth) || double.IsInfinity(newWidth))
+        {
+            return;
+        }
+
+        newWidth = Math.Clamp(newWidth, minWidth, maxWidth);
+        if (Math.Abs(newWidth - currentWidth) < 0.5)
+        {
+            return;
+        }
+
+        column.SizingMode = ColumnSizingMode.Pixel;
+        column.PixelWidth = newWidth;
+        column.CachedAutoWidth = newWidth;
+        column.ActualWidth = newWidth;
+
+        if (columnIndex < _columnWidths.Count)
+        {
+            _columnWidths[columnIndex] = newWidth;
+        }
+
+        _columnOffsets.Clear();
+        var cumulative = 0d;
+        for (var i = 0; i < _columnWidths.Count; i++)
+        {
+            cumulative += _columnWidths[i];
+            _columnOffsets.Add(cumulative);
+        }
+
+        _columnsDirty = false;
+        RequestViewportUpdate();
     }
 
     private void RequestViewportUpdate()

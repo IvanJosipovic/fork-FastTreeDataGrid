@@ -31,6 +31,9 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<bool> IsHierarchyProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(IsHierarchy));
 
+    public static readonly StyledProperty<bool> CanUserResizeProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanUserResize), true);
+
     public static readonly StyledProperty<Func<IFastTreeDataGridValueProvider?, object?, Widget?>?> WidgetFactoryProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, Func<IFastTreeDataGridValueProvider?, object?, Widget?>?>(nameof(WidgetFactory));
 
@@ -86,6 +89,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(IsHierarchyProperty);
         set => SetValue(IsHierarchyProperty, value);
+    }
+
+    public bool CanUserResize
+    {
+        get => GetValue(CanUserResizeProperty);
+        set => SetValue(CanUserResizeProperty, value);
     }
 
     public double ActualWidth { get; internal set; }
