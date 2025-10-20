@@ -30,11 +30,33 @@
     <Setter Property="Background" Value="{DynamicResource FastTreeDataGrid.HeaderBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FastTreeDataGrid.HeaderBorder}" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
-    <Setter Property="Padding" Value="4,0,4,0" />
+    <Setter Property="Padding" Value="0" />
   </Style>
 
   <Style Selector="controls|FastTreeDataGridHeaderPresenter > ContentControl">
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Padding" Value="8,0,8,0" />
+  </Style>
+
+  <Style Selector="controls|FastTreeDataGridHeaderPresenter > Thumb">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FastTreeDataGrid.HeaderBorder}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Thumb">
+          <Border Background="{TemplateBinding Background}">
+            <Border Width="1"
+                    Margin="3,4"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch"
+                    Background="{TemplateBinding BorderBrush}" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style Selector="controls|FastTreeDataGridHeaderPresenter > Thumb:pointerover">
+    <Setter Property="Background" Value="#22000000" />
   </Style>
 </Styles>

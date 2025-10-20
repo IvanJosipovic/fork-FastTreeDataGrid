@@ -18,7 +18,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     private readonly List<Border> _separators = new();
     private readonly List<double> _columnOffsets = new();
     private readonly IBrush _separatorBrush = new SolidColorBrush(Color.FromRgb(210, 210, 210));
-    private const double GripWidth = 6;
+    private const double GripWidth = 8;
 
     public double HeaderHeight { get; set; } = 32;
 
@@ -140,6 +140,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             grip.DragDelta += GripOnDragDelta;
             Children.Add(grip);
             _grips.Add(grip);
+            grip.SetValue(Canvas.ZIndexProperty, 10);
         }
 
         while (_grips.Count > count)
@@ -191,10 +192,12 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             {
                 Background = _separatorBrush,
                 Width = 1,
+                IsHitTestVisible = false,
             };
 
             Children.Add(separator);
             _separators.Add(separator);
+            separator.SetValue(Canvas.ZIndexProperty, 0);
         }
 
         while (_separators.Count > count)
@@ -215,6 +218,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             Canvas.SetLeft(separator, offset - 0.5);
             Canvas.SetTop(separator, 0);
             separator.Height = height;
+            separator.IsHitTestVisible = false;
+            separator.SetValue(Canvas.ZIndexProperty, 0);
         }
     }
 
