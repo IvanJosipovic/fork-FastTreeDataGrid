@@ -1,0 +1,40 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control">
+  <Styles.Resources>
+    <SolidColorBrush x:Key="FastTreeDataGrid.HeaderBackground" Color="#FFE2E2E2" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.HeaderBorder" Color="#FFB8B8B8" />
+  </Styles.Resources>
+
+  <Style Selector="controls|FastTreeDataGrid">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="controls:FastTreeDataGrid">
+          <Grid RowDefinitions="Auto,*">
+            <Border Grid.Row="0" x:Name="PART_HeaderHost" Classes="HeaderHost">
+              <controls:FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
+            </Border>
+            <ScrollViewer Grid.Row="1"
+                          x:Name="PART_ScrollViewer"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+              <controls:FastTreeDataGridPresenter x:Name="PART_Presenter" />
+            </ScrollViewer>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style Selector="controls|FastTreeDataGrid /template/ Border.HeaderHost">
+    <Setter Property="Background" Value="{DynamicResource FastTreeDataGrid.HeaderBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FastTreeDataGrid.HeaderBorder}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="4,0,4,0" />
+  </Style>
+
+  <Style Selector="controls|FastTreeDataGridHeaderPresenter > ContentControl">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Padding" Value="8,0,8,0" />
+  </Style>
+</Styles>

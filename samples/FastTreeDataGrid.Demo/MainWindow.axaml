@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:fast="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+        mc:Ignorable="d"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1024"
+        d:DesignHeight="768"
+        x:Class="FastTreeDataGrid.Demo.MainWindow"
+        Title="FastTreeDataGrid Prototype">
+  <Grid RowDefinitions="Auto,*" Margin="12">
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <TextBlock Text="FastTreeDataGrid Canvas Prototype" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock Text="(click rows to expand or collapse)" VerticalAlignment="Center" Foreground="#666" />
+    </StackPanel>
+
+    <TabControl Grid.Row="1" Margin="0,12,0,0">
+      <TabItem Header="Files">
+        <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+          <fast:FastTreeDataGrid x:Name="FilesGrid"
+                                 ItemsSource="{Binding FilesSource}"
+                                 RowHeight="28"
+                                 IndentWidth="18"
+                                 HeaderHeight="34" />
+        </Border>
+      </TabItem>
+      <TabItem Header="Countries">
+        <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+          <fast:FastTreeDataGrid x:Name="CountriesGrid"
+                                 ItemsSource="{Binding CountriesSource}"
+                                 RowHeight="28"
+                                 IndentWidth="18"
+                                 HeaderHeight="34" />
+        </Border>
+      </TabItem>
+      <TabItem Header="Crypto">
+        <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+          <fast:FastTreeDataGrid x:Name="CryptoGrid"
+                                 ItemsSource="{Binding Crypto.CryptoSource}"
+                                 RowHeight="28"
+                                 IndentWidth="18"
+                                 HeaderHeight="34" />
+        </Border>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>
