@@ -68,6 +68,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         foreach (var row in _rows)
         {
             var rowRect = new Rect(0, row.Top, Width, row.Height);
+
+            // Transparent fill ensures pointer hit-testing works across the entire row surface.
+            context.FillRectangle(Brushes.Transparent, rowRect);
+
             if (row.IsSelected)
             {
                 context.FillRectangle(_selectionBrush, rowRect);
