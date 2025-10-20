@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Widgets;
 
 namespace FastTreeDataGrid.Control.Controls;
 
@@ -84,12 +85,14 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
             foreach (var cell in row.Cells)
             {
-                if (cell.FormattedText is null)
+                if (cell.Widget is { } widget)
                 {
-                    continue;
+                    widget.Draw(context);
                 }
-
-                context.DrawText(cell.FormattedText, cell.TextOrigin);
+                else if (cell.FormattedText is { } formatted)
+                {
+                    context.DrawText(formatted, cell.TextOrigin);
+                }
             }
 
             // Horizontal separator
@@ -223,14 +226,16 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
     internal sealed class CellRenderInfo
     {
-        public CellRenderInfo(Rect bounds, FormattedText? formattedText, Point textOrigin)
+        public CellRenderInfo(Rect bounds, Widget? widget, FormattedText? formattedText, Point textOrigin)
         {
             Bounds = bounds;
+            Widget = widget;
             FormattedText = formattedText;
             TextOrigin = textOrigin;
         }
 
         public Rect Bounds { get; }
+        public Widget? Widget { get; }
         public FormattedText? FormattedText { get; }
         public Point TextOrigin { get; }
     }

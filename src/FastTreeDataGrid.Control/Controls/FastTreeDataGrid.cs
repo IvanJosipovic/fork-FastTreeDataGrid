@@ -9,10 +9,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Control.Widgets;
 
 namespace FastTreeDataGrid.Control.Controls;
 
@@ -163,6 +165,12 @@ public class FastTreeDataGrid : TemplatedControl
         }
         else if (change.Property == BoundsProperty)
         {
+            var oldBounds = change.GetOldValue<Rect>();
+            var newBounds = change.GetNewValue<Rect>();
+            if (Math.Abs(newBounds.Width - oldBounds.Width) > 0.5)
+            {
+                _columnsDirty = true;
+            }
             RequestViewportUpdate();
         }
         else if (change.Property == HeaderHeightProperty && _headerPresenter is not null)
@@ -227,7 +235,12 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void OnScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == ScrollViewer.OffsetProperty || e.Property == ScrollViewer.ViewportProperty)
+        if (e.Property == ScrollViewer.ViewportProperty)
+        {
+            _columnsDirty = true;
+            RequestViewportUpdate();
+        }
+        else if (e.Property == ScrollViewer.OffsetProperty)
         {
             RequestViewportUpdate();
         }
@@ -395,31 +408,60 @@ public class FastTreeDataGrid : TemplatedControl
                     }
                 }
 
-                var text = GetCellText(row, column);
-                FormattedText? formatted = null;
-                if (!string.IsNullOrEmpty(text))
+                var contentWidth = Math.Max(0, width - indentOffset - (cellPadding * 2));
+                var contentBounds = new Rect(x + indentOffset + cellPadding, top, contentWidth, rowHeight);
+
+                Widget? widget = null;
+                if (column.WidgetFactory is { } factory)
                 {
-                    var emSize = CalculateCellFontSize(rowHeight);
-                    formatted = new FormattedText(
-                        text,
-                        culture,
-                        FlowDirection.LeftToRight,
-                        typeface,
-                        emSize,
-                        textBrush)
-                    {
-                        MaxTextWidth = Math.Max(0, width - indentOffset - (cellPadding * 2)),
-                        Trimming = TextTrimming.CharacterEllipsis,
-                    };
+                    widget = factory(row.ValueProvider, row.Item);
                 }
 
-                var textOrigin = formatted is null
-                    ? new Point(x + indentOffset + cellPadding, top + (rowHeight / 2))
-                    : new Point(
-                        x + indentOffset + cellPadding,
-                        top + Math.Max(0, (rowHeight - formatted.Height) / 2));
+                FormattedText? formatted = null;
+                Point textOrigin = new(contentBounds.X, contentBounds.Y + (rowHeight / 2));
 
-                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(bounds, formatted, textOrigin));
+                if (widget is null)
+                {
+                    var textWidget = new FormattedTextWidget
+                    {
+                        Key = column.ValueKey,
+                        EmSize = CalculateCellFontSize(rowHeight),
+                        Foreground = GetImmutableBrush(textBrush),
+                    };
+                    textWidget.UpdateValue(row.ValueProvider, row.Item);
+                    textWidget.Arrange(contentBounds);
+                    textWidget.Invalidate();
+                    widget = textWidget;
+
+                    var text = textWidget.Text ?? string.Empty;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        formatted = new FormattedText(
+                            text,
+                            culture,
+                            FlowDirection.LeftToRight,
+                            typeface,
+                            textWidget.EmSize,
+                            textBrush)
+                        {
+                            MaxTextWidth = contentWidth,
+                            Trimming = TextTrimming.CharacterEllipsis,
+                        };
+
+                        textOrigin = new Point(
+                            contentBounds.X,
+                            contentBounds.Y + Math.Max(0, (rowHeight - formatted.Height) / 2));
+                }
+                }
+                else
+                {
+                    widget.Key ??= column.ValueKey;
+                    widget.Foreground ??= GetImmutableBrush(textBrush);
+                    widget.UpdateValue(row.ValueProvider, row.Item);
+                    widget.Arrange(contentBounds);
+                }
+
+                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(bounds, widget, formatted, textOrigin));
 
                 if (column.SizingMode == ColumnSizingMode.Auto && formatted is not null)
                 {
@@ -458,6 +500,16 @@ public class FastTreeDataGrid : TemplatedControl
         }
 
         return _columns.Count > 0 ? 0 : -1;
+    }
+
+    private static ImmutableSolidColorBrush GetImmutableBrush(IBrush brush)
+    {
+        return brush switch
+        {
+            ImmutableSolidColorBrush immutable => immutable,
+            SolidColorBrush solid => new ImmutableSolidColorBrush(solid.Color),
+            _ => new ImmutableSolidColorBrush(Color.FromRgb(33, 33, 33))
+        };
     }
 
     internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit)

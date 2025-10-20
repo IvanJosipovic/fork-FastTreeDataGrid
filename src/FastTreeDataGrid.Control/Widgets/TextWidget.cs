@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Avalonia.Media;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
@@ -9,6 +10,10 @@ public abstract class TextWidget : Widget
     public string? Text { get; protected set; }
 
     public double EmSize { get; set; }
+
+    public TextTrimming Trimming { get; set; } = TextTrimming.None;
+
+    public TextAlignment TextAlignment { get; set; } = TextAlignment.Left;
 
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {

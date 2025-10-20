@@ -7,8 +7,6 @@ namespace FastTreeDataGrid.Control.Widgets;
 public class GlyphRunWidget : TextWidget
 {
     private GlyphRun? _glyphRun;
-    private Matrix _rotateMatrix;
-    private Matrix _translateMatrix;
     private string? _cachedText;
     private double _cachedEmSize;
 
@@ -37,6 +35,8 @@ public class GlyphRunWidget : TextWidget
             return;
         }
 
+        using var clip = PushClip(context);
+
         if (_glyphRun is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - EmSize) > double.Epsilon)
         {
             _glyphRun = CreateGlyphRun(Text, Typeface.Default, EmSize);
@@ -44,26 +44,25 @@ public class GlyphRunWidget : TextWidget
             {
                 return;
             }
-            _translateMatrix = Matrix.CreateTranslation(X, Y);
-            _rotateMatrix = Matrix.CreateTranslation(-X, -Y)
-                                  * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-                                  * Matrix.CreateTranslation(X, Y);
             _cachedText = Text;
             _cachedEmSize = EmSize;
         }
 
-        using var translate = context.PushTransform(_translateMatrix);
-        using var rotate = context.PushTransform(_rotateMatrix);
+        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - EmSize) / 2);
+        var translate = Matrix.CreateTranslation(Bounds.X, originY);
+        var centerX = Bounds.X + Bounds.Width / 2;
+        var centerY = Bounds.Y + Bounds.Height / 2;
+        var rotate = Matrix.CreateTranslation(-centerX, -centerY)
+                     * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
+                     * Matrix.CreateTranslation(centerX, centerY);
+
+        using var rotation = context.PushTransform(rotate);
+        using var translation = context.PushTransform(translate);
         context.DrawGlyphRun(Foreground, _glyphRun);
     }
 
     public override void Invalidate()
     {
-        _translateMatrix = Matrix.CreateTranslation(X, Y);
-        _rotateMatrix = Matrix.CreateTranslation(-X, -Y)
-                              * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-                              * Matrix.CreateTranslation(X, Y);
-
         _glyphRun = null;
         _cachedText = null;
     }

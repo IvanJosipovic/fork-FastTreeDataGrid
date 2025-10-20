@@ -4,9 +4,6 @@
 - **Row & cell presenters still rely on Avalonia layout**  
   `FastTreeDataGridRowPresenter` and `FastTreeDataGridCellPresenter` inherit `Canvas`, set `Width`/`Height`, and override `MeasureOverride`/`ArrangeOverride`. Despite living on a parent `Canvas`, Avalonia still drives layout. The design intent was to bypass layout completely, but these controls continue to participate in the layout pipeline, forcing `InvalidateMeasure()`/`InvalidateArrange()` cycles and leaving sizing unspecified when layout never re-runs.
 
-- **WidgetHost never establishes visual bounds**  
-  `WidgetHost` simply stores a `_widget` and renders it, but it never communicates size to Avalonia. Because `Bounds` remain `(0,0)`, even a valid `Draw` call is clipped. Without explicit `Width`/`Height` or manual arrange logic, the host’s canvas slot has zero area.
-
 - **Cells fail to propagate geometry changes**  
   `FastTreeDataGridCellPresenter.UpdateGeometry` sets `_width`/`_height` and calls `InvalidateMeasure()`, yet `MeasureOverride` just returns those cached fields. If Avalonia never re-invokes layout (likely), the control remains zero-sized so the widget never draws.
 
@@ -23,9 +20,6 @@
 
 - **Column sizing requires multiple passes**  
   `ColumnLayoutCalculator` seeds auto columns from `CachedAutoWidth = 120`. Because the first pass often happens before a viewport width is known, and auto width updates depend on rendered cell metrics, columns never expand—keeping cells visually collapsed.
-
-- **WidgetHost supports only the first widget**  
-  `SetWidgets` stores `widgets[0]` and discards the rest. Any column expecting multiple widgets (e.g., stacked icons) will fail silently.
 
 - **Zero instrumentation**  
   There is no logging or diagnostic rendering (e.g., rect outlines), making it difficult to distinguish between layout, data, or rendering failures during development.

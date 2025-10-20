@@ -34,7 +34,9 @@ This repository hosts an experimental `FastTreeDataGrid` control for Avalonia UI
 - **Columns** – Column widths are recalculated whenever the viewport or content dictates; auto columns grow as wider content is encountered. Star columns apportion remaining width after fixed/auto columns are settled.
 - **Tree Source** – `FastTreeDataGridFlatSource<T>` keeps a flat list of nodes for instantaneous sorting/filtering while rebuilding the visible slice after expand/collapse.
 - **Selection & Interaction** – Selected rows apply a pseudo-class for styling. Expansion is triggered via double-click or clicking inside the indent gutter to avoid accidentally collapsing while scrolling.
-- **Widgets** – Cells render through lightweight `WidgetHost` containers hosting glyph/formatter-based `TextWidget` instances, avoiding Avalonia layout and data template costs.
+- **Widgets** – Cells render lightweight `TextWidget` instances (or factory-provided widgets) directly, avoiding Avalonia layout and data template costs. Built-in helpers now include `IconWidget`, `GeometryWidget`, `ButtonWidget`, `CheckBoxWidget`, `ProgressWidget`, and `CustomDrawWidget`.
+- **Layouts** – `SurfaceWidget` now drives `StackLayoutWidget`, `WrapLayoutWidget`, `GridLayoutWidget`, and `DockLayoutWidget`, providing padding/spacing-aware arrangements without invoking Avalonia layout.
+- **Widget Gallery** – The sample app ships with a dedicated tab showcasing the built-in widget types and how to feed them via value providers.
 - **Value Providers** – Rows expose the `IFastTreeDataGridValueProvider` interface so widgets fetch values by key and respond to fine-grained invalidation events without relying on Avalonia bindings.
 - **Styling** – Default look is defined in `Themes/Generic.xaml` and merged automatically when the control assembly is referenced.
 

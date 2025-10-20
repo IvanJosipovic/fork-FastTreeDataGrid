@@ -2,6 +2,7 @@ using System;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
+using FastTreeDataGrid.Demo.ViewModels.Widgets;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
@@ -22,6 +23,11 @@ public sealed class MainWindowViewModel : IDisposable
         CountriesSource = countriesSource;
 
         Crypto = new CryptoTickersViewModel();
+
+        var widgetNodes = WidgetSamplesFactory.Create();
+        var widgetsSource = new FastTreeDataGridFlatSource<WidgetGalleryNode>(widgetNodes, node => node.Children);
+        ExpandAllNodes(widgetsSource);
+        WidgetsSource = widgetsSource;
     }
 
     public FileSystemTreeSource FileSystem { get; }
@@ -31,6 +37,8 @@ public sealed class MainWindowViewModel : IDisposable
     public IFastTreeDataGridSource CountriesSource { get; }
 
     public CryptoTickersViewModel Crypto { get; }
+
+    public IFastTreeDataGridSource WidgetsSource { get; }
 
     public void Dispose()
     {
