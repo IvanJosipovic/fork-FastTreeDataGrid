@@ -8,13 +8,14 @@ namespace FastTreeDataGrid.Control.Infrastructure;
 public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayout
 {
     private readonly IFastTreeDataGridVariableRowHeightProvider _heightProvider;
-    private readonly Dictionary<int, Chunk> _chunks = new();
+    private readonly Dictionary<int, Block> _blocks = new();
     private ControlsFastTreeDataGrid? _owner;
     private IFastTreeDataGridSource? _source;
     private double _lastDefaultRowHeight = 28d;
     private int _latestTotalRows;
     private double _lastEstimatedTotalHeight;
-    private int _chunkSize = 256;
+    private int _chunkSize = 512;
+    private int _samplesPerBlock = 3;
 
     public FastTreeDataGridAdaptiveRowLayout()
         : this(new FastTreeDataGridDefaultVariableRowHeightProvider())
@@ -36,12 +37,28 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
                 throw new ArgumentOutOfRangeException(nameof(value));
             }
 
-            if (_chunkSize == value)
+            if (value == _chunkSize)
             {
                 return;
             }
 
             _chunkSize = value;
+            Reset();
+        }
+    }
+
+    public int SamplesPerBlock
+    {
+        get => _samplesPerBlock;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 16);
+            if (clamped == _samplesPerBlock)
+            {
+                return;
+            }
+
+            _samplesPerBlock = clamped;
             Reset();
         }
     }
@@ -66,7 +83,7 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
 
     public void Reset()
     {
-        _chunks.Clear();
+        _blocks.Clear();
         _latestTotalRows = 0;
         _lastEstimatedTotalHeight = 0;
     }
@@ -81,80 +98,79 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
         _latestTotalRows = totalRows;
         _lastDefaultRowHeight = Math.Max(1d, defaultRowHeight);
 
-        var estimatedTotal = _lastEstimatedTotalHeight > 0
+        var totalHeight = _lastEstimatedTotalHeight > 0
             ? _lastEstimatedTotalHeight
-            : EstimateTotalHeight(totalRows, _lastDefaultRowHeight);
+            : GetTotalHeightInternal(totalRows, _lastDefaultRowHeight);
 
-        var clampedOffset = Math.Clamp(verticalOffset, 0, Math.Max(0, estimatedTotal - _lastDefaultRowHeight));
+        var clampedOffset = Math.Clamp(verticalOffset, 0, Math.Max(0, totalHeight - _lastDefaultRowHeight));
 
         var chunkCount = GetChunkCount(totalRows);
-        if (chunkCount == 0)
-        {
-            return RowLayoutViewport.Empty;
-        }
-
         var accumulated = 0d;
-        var chunkIndex = 0;
-        var chunkBaseTop = 0d;
+        var firstIndex = 0;
+        var firstRowTop = 0d;
+        var found = false;
 
-        while (chunkIndex < chunkCount)
+        for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
         {
-            var chunkHeight = GetChunkEstimatedHeight(chunkIndex, totalRows, _lastDefaultRowHeight);
-            if (accumulated + chunkHeight > clampedOffset)
+            var block = GetOrCreateBlock(chunkIndex, totalRows, _lastDefaultRowHeight);
+            EnsureBlockSamples(block, totalRows);
+
+            var chunkHeight = block.TotalHeight;
+            if (accumulated + chunkHeight <= clampedOffset)
             {
-                chunkBaseTop = accumulated;
-                break;
+                accumulated += chunkHeight;
+                continue;
             }
 
-            accumulated += chunkHeight;
-            chunkIndex++;
-        }
+            var localOffset = clampedOffset - accumulated;
+            var localIndex = 0;
+            var rowTop = accumulated;
+            var globalIndex = block.StartIndex;
 
-        if (chunkIndex >= chunkCount)
-        {
-            var lastRowIndex = totalRows - 1;
-            var lastTop = Math.Max(0, estimatedTotal - _lastDefaultRowHeight);
-            var lastExclusive = Math.Min(totalRows, lastRowIndex + 1 + buffer);
-            return new RowLayoutViewport(lastRowIndex, lastExclusive, lastTop);
-        }
-
-        var chunkStart = chunkIndex * _chunkSize;
-        var chunkEnd = Math.Min(chunkStart + _chunkSize, totalRows);
-        var firstIndex = chunkStart;
-        var firstRowTop = chunkBaseTop;
-        var currentTop = chunkBaseTop;
-
-        for (var rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex++)
-        {
-            var row = _source.GetRow(rowIndex);
-            var height = MeasureRow(rowIndex, row, _lastDefaultRowHeight);
-            if (currentTop + height > clampedOffset)
+            while (localIndex < block.Count && globalIndex < totalRows)
             {
-                firstIndex = rowIndex;
-                firstRowTop = currentTop;
-                break;
+                var height = GetOrMeasure(block, localIndex, globalIndex, _lastDefaultRowHeight);
+                if (localOffset < height)
+                {
+                    firstIndex = globalIndex;
+                    firstRowTop = rowTop;
+                    found = true;
+                    break;
+                }
+
+                localOffset -= height;
+                rowTop += height;
+                localIndex++;
+                globalIndex++;
             }
 
-            currentTop += height;
-            firstIndex = rowIndex + 1;
-            firstRowTop = currentTop;
+            if (!found)
+            {
+                var fallbackIndex = Math.Min(block.StartIndex + block.Count, Math.Max(0, totalRows - 1));
+                firstIndex = fallbackIndex;
+                firstRowTop = accumulated + chunkHeight;
+                found = true;
+            }
+
+            break;
         }
 
-        if (firstIndex >= totalRows)
+        if (!found)
         {
-            firstIndex = totalRows - 1;
-            firstRowTop = Math.Max(0, estimatedTotal - MeasureRow(firstIndex, _source.GetRow(firstIndex), _lastDefaultRowHeight));
+            firstIndex = Math.Max(0, totalRows - 1);
+            firstRowTop = Math.Max(0, totalHeight - _lastDefaultRowHeight);
         }
 
         var lastIndexExclusive = firstIndex;
+        var cursorTop = firstRowTop;
         var bottomTarget = clampedOffset + viewportHeight;
-        currentTop = firstRowTop;
 
-        while (lastIndexExclusive < totalRows && currentTop < bottomTarget)
+        while (lastIndexExclusive < totalRows && cursorTop < bottomTarget)
         {
-            var row = _source.GetRow(lastIndexExclusive);
-            var height = MeasureRow(lastIndexExclusive, row, _lastDefaultRowHeight);
-            currentTop += height;
+            var block = GetOrCreateBlock(lastIndexExclusive / _chunkSize, totalRows, _lastDefaultRowHeight);
+            var localIndex = lastIndexExclusive - block.StartIndex;
+            var height = GetOrMeasure(block, localIndex, lastIndexExclusive, _lastDefaultRowHeight);
+            cursorTop += height;
             lastIndexExclusive++;
         }
 
@@ -169,11 +185,20 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
             return Math.Max(1d, defaultRowHeight);
         }
 
-        var totalRows = _source.RowCount;
-        _latestTotalRows = Math.Max(totalRows, _latestTotalRows);
+        _latestTotalRows = Math.Max(_source.RowCount, _latestTotalRows);
         _lastDefaultRowHeight = Math.Max(1d, defaultRowHeight);
 
-        return MeasureRow(rowIndex, row, _lastDefaultRowHeight);
+        var block = GetOrCreateBlock(rowIndex / _chunkSize, _source.RowCount, _lastDefaultRowHeight);
+        var localIndex = rowIndex - block.StartIndex;
+        if (block.TryGetMeasured(localIndex, out var measured))
+        {
+            return measured;
+        }
+
+        var height = Math.Max(1d, _heightProvider.GetRowHeight(row, rowIndex, _lastDefaultRowHeight));
+        block.SetMeasuredHeight(localIndex, height);
+        _lastEstimatedTotalHeight = 0;
+        return height;
     }
 
     public double GetRowTop(int rowIndex)
@@ -183,46 +208,25 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
             return 0;
         }
 
-        var totalRows = _latestTotalRows > 0 ? _latestTotalRows : _source?.RowCount ?? 0;
+        var totalRows = _source?.RowCount ?? _latestTotalRows;
         if (totalRows <= 0)
         {
             return rowIndex * _lastDefaultRowHeight;
         }
 
-        var defaultRowHeight = _lastDefaultRowHeight > 0 ? _lastDefaultRowHeight : 28d;
-        var chunkIndex = _chunkSize <= 0 ? 0 : rowIndex / _chunkSize;
+        var defaultHeight = _lastDefaultRowHeight > 0 ? _lastDefaultRowHeight : 28d;
+        var chunkIndex = rowIndex / _chunkSize;
         var top = 0d;
 
         for (var i = 0; i < chunkIndex; i++)
         {
-            top += GetChunkEstimatedHeight(i, totalRows, defaultRowHeight);
+            var block = GetOrCreateBlock(i, totalRows, defaultHeight);
+            top += block.TotalHeight;
         }
 
-        var chunkStart = chunkIndex * _chunkSize;
-        var chunkCount = Math.Max(0, Math.Min(_chunkSize, totalRows - chunkStart));
-        var withinChunk = rowIndex - chunkStart;
-        withinChunk = Math.Min(Math.Max(0, withinChunk), Math.Max(0, chunkCount));
-
-        if (_chunks.TryGetValue(chunkIndex, out var chunk))
-        {
-            chunk.DefaultAverage = defaultRowHeight;
-            chunk.UpdateCount(chunkCount);
-            for (var i = 0; i < withinChunk; i++)
-            {
-                if (chunk.TryGetMeasured(i, out var height))
-                {
-                    top += height;
-                }
-                else
-                {
-                    top += chunk.EstimatedAverage;
-                }
-            }
-
-            return top;
-        }
-
-        top += withinChunk * defaultRowHeight;
+        var targetBlock = GetOrCreateBlock(chunkIndex, totalRows, defaultHeight);
+        var withinBlock = Math.Clamp(rowIndex - targetBlock.StartIndex, 0, targetBlock.Count);
+        top += targetBlock.SumBefore(withinBlock);
         return top;
     }
 
@@ -237,14 +241,7 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
         _latestTotalRows = totalRows;
         _lastDefaultRowHeight = Math.Max(1d, defaultRowHeight);
 
-        var chunkCount = GetChunkCount(totalRows);
-        double total = 0;
-
-        for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
-        {
-            total += GetChunkEstimatedHeight(chunkIndex, totalRows, _lastDefaultRowHeight);
-        }
-
+        var total = GetTotalHeightInternal(totalRows, _lastDefaultRowHeight);
         _lastEstimatedTotalHeight = total;
         return Math.Max(total, viewportHeight);
     }
@@ -257,18 +254,15 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
         }
 
         var chunkIndex = rowIndex / _chunkSize;
-        if (!_chunks.TryGetValue(chunkIndex, out var chunk))
+        if (!_blocks.TryGetValue(chunkIndex, out var block))
         {
             return;
         }
 
-        var localIndex = rowIndex - chunk.StartIndex;
-        if (chunk.RemoveMeasurement(localIndex))
+        var localIndex = rowIndex - block.StartIndex;
+        if (block.RemoveMeasurement(localIndex))
         {
-            if (chunk.IsEmpty)
-            {
-                _chunks.Remove(chunkIndex);
-            }
+            _lastEstimatedTotalHeight = 0;
         }
     }
 
@@ -282,198 +276,151 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
         return (totalRows + _chunkSize - 1) / _chunkSize;
     }
 
-    private double EstimateTotalHeight(int totalRows, double defaultRowHeight)
+    private double GetTotalHeightInternal(int totalRows, double defaultRowHeight)
     {
         var chunkCount = GetChunkCount(totalRows);
         double total = 0;
+
         for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
         {
-            total += GetChunkEstimatedHeight(chunkIndex, totalRows, defaultRowHeight);
+            var block = GetOrCreateBlock(chunkIndex, totalRows, defaultRowHeight);
+            EnsureBlockSamples(block, totalRows);
+            total += block.TotalHeight;
         }
 
         return total;
     }
 
-    private double GetChunkEstimatedHeight(int chunkIndex, int totalRows, double defaultRowHeight)
+    private Block GetOrCreateBlock(int chunkIndex, int totalRows, double defaultRowHeight)
     {
+        if (_chunkSize <= 0)
+        {
+            _chunkSize = 512;
+        }
+
         var start = chunkIndex * _chunkSize;
         var count = Math.Max(0, Math.Min(_chunkSize, totalRows - start));
-        if (count <= 0)
+        if (!_blocks.TryGetValue(chunkIndex, out var block))
         {
-            return 0;
+            block = new Block(start, count, defaultRowHeight);
+            _blocks[chunkIndex] = block;
+            return block;
         }
 
-        if (_chunks.TryGetValue(chunkIndex, out var chunk))
-        {
-            chunk.DefaultAverage = defaultRowHeight;
-            chunk.UpdateCount(count);
-            return chunk.EstimatedHeight;
-        }
-
-        return count * defaultRowHeight;
+        block.Update(defaultRowHeight, count);
+        return block;
     }
 
-    private double MeasureRow(int rowIndex, FastTreeDataGridRow row, double defaultRowHeight)
+    private void EnsureBlockSamples(Block block, int totalRows)
     {
-        if (_source is null)
+        if (_samplesPerBlock <= 0 || _source is null || block.Count == 0)
         {
-            return Math.Max(1d, defaultRowHeight);
+            return;
         }
 
-        var totalRows = _latestTotalRows > 0 ? _latestTotalRows : _source.RowCount;
-        var chunkIndex = _chunkSize <= 0 ? 0 : rowIndex / _chunkSize;
-        var chunk = GetChunkForWrite(chunkIndex, defaultRowHeight, totalRows);
-        var localIndex = rowIndex - chunk.StartIndex;
-
-        if (localIndex >= chunk.Count)
+        block.EnsureSamples(_samplesPerBlock, localIndex =>
         {
-            chunk.UpdateCount(localIndex + 1);
+            var globalIndex = block.StartIndex + localIndex;
+            if (globalIndex < 0 || globalIndex >= totalRows)
+            {
+                return block.DefaultHeight;
+            }
+
+            return GetMeasuredHeight(block, localIndex, globalIndex, _lastDefaultRowHeight);
+        });
+    }
+
+    private double GetOrMeasure(Block block, int localIndex, int globalIndex, double defaultRowHeight)
+    {
+        if (block.TryGetMeasured(localIndex, out var measured))
+        {
+            return measured;
         }
 
-        if (chunk.TryGetMeasured(localIndex, out var cached))
+        return GetMeasuredHeight(block, localIndex, globalIndex, defaultRowHeight);
+    }
+
+    private double GetMeasuredHeight(Block block, int localIndex, int globalIndex, double defaultRowHeight)
+    {
+        if (_source is null || globalIndex < 0 || globalIndex >= _source.RowCount)
         {
-            return cached;
+            return defaultRowHeight;
         }
 
-        var height = Math.Max(1d, _heightProvider.GetRowHeight(row, rowIndex, defaultRowHeight));
-        chunk.RecordMeasurement(localIndex, height);
+        var row = _source.GetRow(globalIndex);
+        var height = Math.Max(1d, _heightProvider.GetRowHeight(row, globalIndex, defaultRowHeight));
+        block.SetMeasuredHeight(localIndex, height);
+        _lastEstimatedTotalHeight = 0;
         return height;
     }
 
-    private Chunk GetChunkForWrite(int chunkIndex, double defaultRowHeight, int totalRows)
+    private sealed class Block
     {
-        var start = chunkIndex * _chunkSize;
-        var count = Math.Max(0, Math.Min(_chunkSize, totalRows - start));
+        private readonly SortedDictionary<int, double> _measured = new();
+        private bool _samplesTaken;
 
-        if (!_chunks.TryGetValue(chunkIndex, out var chunk))
-        {
-            chunk = new Chunk(start, count, defaultRowHeight);
-            _chunks[chunkIndex] = chunk;
-        }
-        else
-        {
-            chunk.DefaultAverage = defaultRowHeight;
-            chunk.UpdateCount(count);
-        }
-
-        return chunk;
-    }
-
-    private sealed class Chunk
-    {
-        private readonly Dictionary<int, double> _measured = new();
-
-        public Chunk(int startIndex, int count, double defaultAverage)
+        public Block(int startIndex, int count, double defaultHeight)
         {
             StartIndex = startIndex;
-            Count = count;
-            _defaultAverage = Math.Max(1d, defaultAverage);
-            EstimatedAverage = _defaultAverage;
+            Count = Math.Max(0, count);
+            DefaultHeight = Math.Max(1d, defaultHeight);
+            TotalHeight = DefaultHeight * Count;
         }
 
         public int StartIndex { get; }
 
         public int Count { get; private set; }
 
-        public double DefaultAverage
+        public double DefaultHeight { get; private set; }
+
+        public double TotalHeight { get; private set; }
+
+        public void Update(double defaultHeight, int count)
         {
-            get => _defaultAverage;
-            set
+            var previousCount = Count;
+            var sanitizedDefault = Math.Max(1d, defaultHeight);
+            if (count < previousCount)
             {
-                var sanitized = Math.Max(1d, value);
-                if (Math.Abs(_defaultAverage - sanitized) < 0.001)
+                List<int>? toRemove = null;
+                foreach (var kv in _measured)
                 {
-                    return;
+                    if (kv.Key < count)
+                    {
+                        continue;
+                    }
+
+                    toRemove ??= new List<int>();
+                    toRemove.Add(kv.Key);
                 }
 
-                _defaultAverage = sanitized;
-                if (_measured.Count == 0)
+                if (toRemove is not null)
                 {
-                    EstimatedAverage = _defaultAverage;
+                    foreach (var key in toRemove)
+                    {
+                        var value = _measured[key];
+                        TotalHeight += DefaultHeight - value;
+                        _measured.Remove(key);
+                    }
+                }
+
+                var removed = previousCount - count;
+                if (removed > 0)
+                {
+                    TotalHeight -= removed * DefaultHeight;
                 }
             }
-        }
-
-        public double EstimatedAverage { get; private set; }
-
-        public double MeasuredTotal { get; private set; }
-
-        public bool IsEmpty => Count <= 0 || _measured.Count == 0;
-
-        public double EstimatedHeight
-        {
-            get
+            else if (count > previousCount)
             {
-                if (Count <= 0)
-                {
-                    return 0;
-                }
-
-                if (_measured.Count >= Count)
-                {
-                    return MeasuredTotal;
-                }
-
-                var remaining = Count - _measured.Count;
-                return MeasuredTotal + Math.Max(0, remaining) * EstimatedAverage;
-            }
-        }
-
-        public void UpdateCount(int count)
-        {
-            if (count == Count)
-            {
-                return;
+                TotalHeight += (count - previousCount) * DefaultHeight;
             }
 
-            Count = count;
+            Count = Math.Max(0, count);
+            ApplyNewDefault(sanitizedDefault);
 
-            if (_measured.Count == 0)
+            if (Count <= 0 || previousCount != Count)
             {
-                if (Count <= 0)
-                {
-                    MeasuredTotal = 0;
-                }
-
-                UpdateAverage();
-                return;
+                _samplesTaken = false;
             }
-
-            if (Count <= 0)
-            {
-                _measured.Clear();
-                MeasuredTotal = 0;
-                UpdateAverage();
-                return;
-            }
-
-            List<int>? removedKeys = null;
-            foreach (var kvp in _measured)
-            {
-                if (kvp.Key >= Count)
-                {
-                    removedKeys ??= new List<int>();
-                    removedKeys.Add(kvp.Key);
-                }
-            }
-
-            if (removedKeys is not null)
-            {
-                var removedTotal = 0d;
-                foreach (var key in removedKeys)
-                {
-                    removedTotal += _measured[key];
-                    _measured.Remove(key);
-                }
-
-                MeasuredTotal -= removedTotal;
-                if (MeasuredTotal < 0)
-                {
-                    MeasuredTotal = 0;
-                }
-            }
-
-            UpdateAverage();
         }
 
         public bool TryGetMeasured(int localIndex, out double height)
@@ -481,25 +428,71 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
             return _measured.TryGetValue(localIndex, out height);
         }
 
-        public void RecordMeasurement(int localIndex, double height)
+        public void SetMeasuredHeight(int localIndex, double height)
         {
-            if (_measured.TryGetValue(localIndex, out var existing))
+            if (localIndex < 0 || localIndex >= Count)
             {
-                if (Math.Abs(existing - height) < 0.001)
+                return;
+            }
+
+            var previous = _measured.TryGetValue(localIndex, out var existing)
+                ? existing
+                : DefaultHeight;
+
+            _measured[localIndex] = height;
+
+            if (Math.Abs(height - previous) > 0.001)
+            {
+                TotalHeight += height - previous;
+            }
+        }
+
+        public double SumBefore(int localIndex)
+        {
+            if (localIndex <= 0)
+            {
+                return 0;
+            }
+
+            var limited = Math.Min(localIndex, Count);
+            var sum = DefaultHeight * limited;
+            foreach (var kv in _measured)
+            {
+                if (kv.Key >= limited)
                 {
-                    return;
+                    break;
                 }
 
-                MeasuredTotal += height - existing;
-                _measured[localIndex] = height;
-            }
-            else
-            {
-                _measured[localIndex] = height;
-                MeasuredTotal += height;
+                sum += kv.Value - DefaultHeight;
             }
 
-            UpdateAverage();
+            return sum;
+        }
+
+        public void EnsureSamples(int sampleCount, Func<int, double> sampler)
+        {
+            if (_samplesTaken || Count <= 0 || sampleCount <= 0)
+            {
+                return;
+            }
+
+            foreach (var localIndex in BuildSampleIndices(sampleCount))
+            {
+                if (localIndex < 0 || localIndex >= Count)
+                {
+                    continue;
+                }
+
+                if (_measured.ContainsKey(localIndex))
+                {
+                    continue;
+                }
+
+                var height = sampler(localIndex);
+                SetMeasuredHeight(localIndex, height);
+            }
+
+            _samplesTaken = true;
         }
 
         public bool RemoveMeasurement(int localIndex)
@@ -510,28 +503,66 @@ public sealed class FastTreeDataGridAdaptiveRowLayout : IFastTreeDataGridRowLayo
             }
 
             _measured.Remove(localIndex);
-            MeasuredTotal -= existing;
-            if (MeasuredTotal < 0)
-            {
-                MeasuredTotal = 0;
-            }
-
-            UpdateAverage();
+            TotalHeight += DefaultHeight - existing;
+            _samplesTaken = false;
             return true;
         }
 
-        private void UpdateAverage()
+        private IEnumerable<int> BuildSampleIndices(int sampleCount)
         {
-            if (_measured.Count > 0)
+            if (Count <= sampleCount)
             {
-                EstimatedAverage = Math.Max(1d, MeasuredTotal / _measured.Count);
+                for (var i = 0; i < Count; i++)
+                {
+                    yield return i;
+                }
+
+                yield break;
             }
-            else
+
+            yield return 0;
+            if (sampleCount == 1)
             {
-                EstimatedAverage = Math.Max(1d, _defaultAverage);
+                yield break;
             }
+
+            if (sampleCount == 2)
+            {
+                yield return Count - 1;
+                yield break;
+            }
+
+            var step = (Count - 1) / (double)(sampleCount - 1);
+            for (var i = 1; i < sampleCount - 1; i++)
+            {
+                var index = (int)Math.Round(i * step);
+                if (index <= 0 || index >= Count - 1)
+                {
+                    continue;
+                }
+
+                yield return index;
+            }
+
+            yield return Count - 1;
         }
 
-        private double _defaultAverage;
+        private void ApplyNewDefault(double newDefault)
+        {
+            if (Math.Abs(newDefault - DefaultHeight) < 0.001)
+            {
+                return;
+            }
+
+            var unmeasured = Count - _measured.Count;
+            if (unmeasured < 0)
+            {
+                unmeasured = 0;
+            }
+
+            TotalHeight += (newDefault - DefaultHeight) * unmeasured;
+            DefaultHeight = newDefault;
+            _samplesTaken = false;
+        }
     }
 }
