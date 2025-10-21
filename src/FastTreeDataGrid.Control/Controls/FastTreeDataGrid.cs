@@ -749,7 +749,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         SelectedIndex = rowInfo.RowIndex;
 
-        var shouldToggle = rowInfo.HasChildren && (toggleHit || rowInfo.IsGroup || clickCount > 1);
+        var shouldToggle = rowInfo.HasChildren && (toggleHit || clickCount > 1);
         if (shouldToggle)
         {
             _itemsSource.ToggleExpansion(rowInfo.RowIndex);

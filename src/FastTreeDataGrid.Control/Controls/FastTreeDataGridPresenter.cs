@@ -376,12 +376,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             return false;
         }
 
-        if (row.ToggleRect.Contains(point))
-        {
-            return true;
-        }
-
-        return row.ToggleBounds is { } bounds && bounds.Contains(point);
+        return row.ToggleRect.Contains(point);
     }
 
     private void DrawToggle(DrawingContext context, Rect rect, bool isExpanded)
