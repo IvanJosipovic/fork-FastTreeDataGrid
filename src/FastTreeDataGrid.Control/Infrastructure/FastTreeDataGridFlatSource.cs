@@ -11,18 +11,32 @@ namespace FastTreeDataGrid.Control.Infrastructure;
 public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
 {
     private readonly Func<T, IEnumerable<T>> _childrenSelector;
+    private readonly Func<T, string>? _keySelector;
+    private readonly IEqualityComparer<string>? _keyComparer;
     private readonly List<TreeNode> _rootNodes = new();
     private readonly List<TreeNode> _flatNodes = new();
     private readonly List<TreeNode> _visibleNodes = new();
+    private readonly Dictionary<string, TreeNode>? _nodeLookup;
     private Predicate<FastTreeDataGridRow>? _rowFilter;
     private bool _autoExpandFilteredMatches = true;
     private int _nextOriginalIndex;
     private readonly object _dataLock = new();
     private readonly SemaphoreSlim _operationSemaphore = new(1, 1);
 
-    public FastTreeDataGridFlatSource(IEnumerable<T> rootItems, Func<T, IEnumerable<T>> childrenSelector)
+    public FastTreeDataGridFlatSource(
+        IEnumerable<T> rootItems,
+        Func<T, IEnumerable<T>> childrenSelector,
+        Func<T, string>? keySelector = null,
+        IEqualityComparer<string>? keyComparer = null)
     {
         _childrenSelector = childrenSelector ?? throw new ArgumentNullException(nameof(childrenSelector));
+        _keySelector = keySelector;
+        _keyComparer = keySelector is null ? null : keyComparer ?? StringComparer.Ordinal;
+        if (_keySelector is not null)
+        {
+            _nodeLookup = new Dictionary<string, TreeNode>(_keyComparer);
+        }
+
         lock (_dataLock)
         {
             BuildNodes(null, rootItems ?? Enumerable.Empty<T>(), level: 0);
@@ -94,6 +108,17 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
     public void SetFilter(Predicate<FastTreeDataGridRow>? filter, bool expandMatches = true) =>
         ScheduleWork(() => SetFilterCore(filter, expandMatches));
 
+    public void Reset(IEnumerable<T> rootItems, bool preserveExpansion = true)
+    {
+        if (rootItems is null)
+        {
+            throw new ArgumentNullException(nameof(rootItems));
+        }
+
+        var snapshot = rootItems as IList<T> ?? rootItems.ToList();
+        ScheduleWork(() => ResetCore(snapshot, preserveExpansion));
+    }
+
     private void SortCore(Comparison<FastTreeDataGridRow>? comparison)
     {
         if (comparison is null)
@@ -128,6 +153,60 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         UpdateFilterStates();
         RebuildVisible();
     }
+
+    private void ResetCore(IEnumerable<T> rootItems, bool preserveExpansion)
+    {
+        Dictionary<string, NodeExpansionState>? expansionSnapshot = null;
+        if (preserveExpansion && _keySelector is not null && _nodeLookup is not null)
+        {
+            expansionSnapshot = new Dictionary<string, NodeExpansionState>(_keyComparer);
+            foreach (var (key, node) in _nodeLookup)
+            {
+                expansionSnapshot[key] = new NodeExpansionState(node.IsExpanded, node.StoredExpansionState);
+            }
+        }
+
+        _rootNodes.Clear();
+        _flatNodes.Clear();
+        _visibleNodes.Clear();
+        _nodeLookup?.Clear();
+        _nextOriginalIndex = 0;
+
+        BuildNodes(null, rootItems, level: 0);
+        FlattenNodes();
+
+        if (expansionSnapshot is not null)
+        {
+            RestoreExpansionSnapshot(expansionSnapshot);
+        }
+
+        UpdateFilterStates();
+        RebuildVisible();
+    }
+
+    private void RestoreExpansionSnapshot(IReadOnlyDictionary<string, NodeExpansionState> snapshot)
+    {
+        if (_keySelector is null)
+        {
+            return;
+        }
+
+        foreach (var node in _flatNodes)
+        {
+            if (node.Key is null)
+            {
+                continue;
+            }
+
+            if (snapshot.TryGetValue(node.Key, out var state))
+            {
+                node.IsExpanded = state.IsExpanded;
+                node.StoredExpansionState = state.StoredExpansionState;
+                node.Row.IsExpanded = state.IsExpanded;
+            }
+        }
+    }
+
 
     private void ScheduleWork(Action work)
     {
@@ -191,7 +270,13 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
     {
         foreach (var item in items)
         {
-            var node = new TreeNode(item, parent, level, _nextOriginalIndex++, OnNodeRequestMeasure);
+            var key = _keySelector?.Invoke(item);
+            var node = new TreeNode(item, parent, level, _nextOriginalIndex++, key, OnNodeRequestMeasure);
+            if (key is not null && _nodeLookup is not null)
+            {
+                _nodeLookup[key] = node;
+            }
+
             if (parent is null)
             {
                 _rootNodes.Add(node);
@@ -390,14 +475,28 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         }
     }
 
+    private readonly struct NodeExpansionState
+    {
+        public NodeExpansionState(bool isExpanded, bool? storedExpansionState)
+        {
+            IsExpanded = isExpanded;
+            StoredExpansionState = storedExpansionState;
+        }
+
+        public bool IsExpanded { get; }
+
+        public bool? StoredExpansionState { get; }
+    }
+
     private sealed class TreeNode
     {
-        public TreeNode(T item, TreeNode? parent, int level, int originalIndex, Action requestMeasure)
+        public TreeNode(T item, TreeNode? parent, int level, int originalIndex, string? key, Action requestMeasure)
         {
             Item = item;
             Parent = parent;
             Level = level;
             OriginalIndex = originalIndex;
+            Key = key;
             Row = new FastTreeDataGridRow(item, level, hasChildren: false, isExpanded: false, requestMeasure);
         }
 
@@ -418,6 +517,8 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         public bool MatchesFilter { get; set; }
 
         public int OriginalIndex { get; }
+
+        public string? Key { get; }
 
         public List<TreeNode> Children { get; } = new();
 
