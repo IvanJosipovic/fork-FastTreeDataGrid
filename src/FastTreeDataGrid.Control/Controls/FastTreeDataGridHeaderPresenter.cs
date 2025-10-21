@@ -18,6 +18,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     private readonly List<Thumb> _grips = new();
     private readonly List<Border> _separators = new();
     private readonly List<double> _columnOffsets = new();
+    private IReadOnlyList<FastTreeDataGridColumn> _columns = Array.Empty<FastTreeDataGridColumn>();
+    private readonly Dictionary<int, ColumnResizeState> _activeColumnResizes = new();
     private readonly IBrush _separatorBrush = new SolidColorBrush(Color.FromRgb(210, 210, 210));
     private readonly IBrush _sortGlyphBrush = new SolidColorBrush(Color.FromRgb(96, 96, 96));
     private readonly Geometry _ascendingGeometry = StreamGeometry.Parse("M0,4 L3.5,0 7,4 Z");
@@ -31,6 +33,13 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 
     public void BindColumns(IReadOnlyList<FastTreeDataGridColumn> columns, IReadOnlyList<double> widths)
     {
+        if (!ReferenceEquals(_columns, columns))
+        {
+            _columns = columns;
+            _activeColumnResizes.Clear();
+        }
+
+        RemoveInvalidResizeStates(columns.Count);
         EnsureCellCount(columns.Count);
         EnsureGripCount(columns.Count);
         var offset = 0d;
@@ -76,6 +85,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 
     public void UpdateWidths(IReadOnlyList<double> widths)
     {
+        RemoveInvalidResizeStates(widths.Count);
+
         var offset = 0d;
         for (var i = 0; i < _cells.Count && i < widths.Count; i++)
         {
@@ -148,6 +159,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             };
 
             grip.DragDelta += GripOnDragDelta;
+            grip.DragStarted += GripOnDragStarted;
+            grip.DragCompleted += GripOnDragCompleted;
             Children.Add(grip);
             _grips.Add(grip);
             grip.SetValue(Canvas.ZIndexProperty, 10);
@@ -157,6 +170,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         {
             var last = _grips[^1];
             last.DragDelta -= GripOnDragDelta;
+            last.DragStarted -= GripOnDragStarted;
+            last.DragCompleted -= GripOnDragCompleted;
             Children.Remove(last);
             _grips.RemoveAt(_grips.Count - 1);
         }
@@ -233,12 +248,218 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         }
     }
 
-    private void GripOnDragDelta(object? sender, VectorEventArgs e)
+    private void GripOnDragStarted(object? sender, VectorEventArgs e)
     {
         if (sender is Thumb thumb && thumb.Tag is int index)
         {
-            ColumnResizeRequested?.Invoke(index, e.Vector.X);
+            var width = index >= 0 && index < _cells.Count ? _cells[index].Width : GetBoundColumnWidth(index);
+            if (!double.IsFinite(width) || width <= 0)
+            {
+                width = GetBoundColumnWidth(index);
+            }
+
+            _activeColumnResizes[index] = new ColumnResizeState(width);
         }
+    }
+
+    private void GripOnDragDelta(object? sender, VectorEventArgs e)
+    {
+        if (sender is not Thumb thumb || thumb.Tag is not int index)
+        {
+            return;
+        }
+
+        if (_columns is null || index < 0 || index >= _columns.Count)
+        {
+            return;
+        }
+
+        if (!_activeColumnResizes.TryGetValue(index, out var state))
+        {
+            var width = index >= 0 && index < _cells.Count ? _cells[index].Width : GetBoundColumnWidth(index);
+            if (!double.IsFinite(width) || width <= 0)
+            {
+                width = GetBoundColumnWidth(index);
+            }
+
+            state = new ColumnResizeState(width);
+        }
+
+        var column = _columns[index];
+        var desiredWidth = state.OriginWidth + e.Vector.X;
+        if (double.IsNaN(desiredWidth) || double.IsInfinity(desiredWidth))
+        {
+            return;
+        }
+
+        var minWidth = Math.Max(column.MinWidth, 16);
+        var maxCandidate = column.MaxWidth;
+        if (!double.IsFinite(maxCandidate) || maxCandidate <= 0)
+        {
+            maxCandidate = double.PositiveInfinity;
+        }
+
+        var maxWidth = double.IsPositiveInfinity(maxCandidate) ? double.PositiveInfinity : Math.Max(maxCandidate, minWidth);
+        var clampedWidth = Math.Clamp(desiredWidth, minWidth, maxWidth);
+
+        if (Math.Abs(clampedWidth - state.LastVisualWidth) < 0.01)
+        {
+            return;
+        }
+
+        ApplyColumnWidthVisual(index, clampedWidth);
+        state.LastVisualWidth = clampedWidth;
+
+        if (ColumnResizeRequested is { } resizeHandler)
+        {
+            var deltaForOwner = clampedWidth - state.LastAppliedWidth;
+            if (Math.Abs(deltaForOwner) >= 0.05)
+            {
+                resizeHandler(index, deltaForOwner);
+
+                var appliedWidth = GetBoundColumnWidth(index);
+                if (!double.IsFinite(appliedWidth) || appliedWidth <= 0)
+                {
+                    appliedWidth = clampedWidth;
+                }
+
+                state.LastAppliedWidth = appliedWidth;
+            }
+        }
+
+        _activeColumnResizes[index] = state;
+    }
+
+    private void GripOnDragCompleted(object? sender, VectorEventArgs e)
+    {
+        if (sender is not Thumb thumb || thumb.Tag is not int index)
+        {
+            return;
+        }
+
+        if (_activeColumnResizes.TryGetValue(index, out var state))
+        {
+            var visualWidth = index >= 0 && index < _cells.Count ? _cells[index].Width : state.LastVisualWidth;
+            if (!double.IsFinite(visualWidth) || visualWidth <= 0)
+            {
+                visualWidth = GetBoundColumnWidth(index);
+            }
+
+            if (ColumnResizeRequested is { } resizeHandler)
+            {
+                var remainingDelta = visualWidth - state.LastAppliedWidth;
+                if (Math.Abs(remainingDelta) >= 0.01)
+                {
+                    resizeHandler(index, remainingDelta);
+                    var appliedWidth = GetBoundColumnWidth(index);
+                    if (!double.IsFinite(appliedWidth) || appliedWidth <= 0)
+                    {
+                        appliedWidth = visualWidth;
+                    }
+
+                    state.LastAppliedWidth = appliedWidth;
+                }
+            }
+
+            state.LastVisualWidth = visualWidth;
+        }
+
+        _activeColumnResizes.Remove(index);
+    }
+
+    private double GetBoundColumnWidth(int index)
+    {
+        if (_columns is not null && index >= 0 && index < _columns.Count)
+        {
+            var column = _columns[index];
+            if (double.IsFinite(column.ActualWidth) && column.ActualWidth > 0)
+            {
+                return column.ActualWidth;
+            }
+
+            if (double.IsFinite(column.PixelWidth) && column.PixelWidth > 0)
+            {
+                return column.PixelWidth;
+            }
+        }
+
+        if (index >= 0 && index < _cells.Count)
+        {
+            var width = _cells[index].Width;
+            if (double.IsFinite(width) && width > 0)
+            {
+                return width;
+            }
+        }
+
+        return 0;
+    }
+
+    private void RemoveInvalidResizeStates(int columnCount)
+    {
+        if (_activeColumnResizes.Count == 0)
+        {
+            return;
+        }
+
+        var keysToRemove = new List<int>();
+        foreach (var key in _activeColumnResizes.Keys)
+        {
+            if (key >= columnCount)
+            {
+                keysToRemove.Add(key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            _activeColumnResizes.Remove(key);
+        }
+    }
+
+    private void ApplyColumnWidthVisual(int index, double width)
+    {
+        if (_cells.Count == 0 || index < 0 || index >= _cells.Count)
+        {
+            return;
+        }
+
+        var clampedWidth = double.IsFinite(width) && width > 0 ? width : 0;
+        _cells[index].Width = clampedWidth;
+
+        var offset = 0d;
+        for (var i = 0; i < _cells.Count; i++)
+        {
+            var cell = _cells[i];
+            var cellWidth = double.IsFinite(cell.Width) && cell.Width > 0 ? cell.Width : 0;
+            cell.Height = HeaderHeight;
+            Canvas.SetLeft(cell, offset);
+            Canvas.SetTop(cell, 0);
+
+            if (i < _grips.Count)
+            {
+                var grip = _grips[i];
+                Canvas.SetLeft(grip, offset + cellWidth - (GripWidth / 2));
+                Canvas.SetTop(grip, 0);
+                grip.Height = HeaderHeight;
+            }
+
+            offset += cellWidth;
+        }
+
+        Width = offset;
+        Height = HeaderHeight;
+
+        _columnOffsets.Clear();
+        var cumulative = 0d;
+        for (var i = 0; i < _cells.Count; i++)
+        {
+            cumulative += double.IsFinite(_cells[i].Width) ? Math.Max(0, _cells[i].Width) : 0;
+            _columnOffsets.Add(cumulative);
+        }
+
+        UpdateSeparators();
+        InvalidateVisual();
     }
 
     private object? CreateHeaderContent(FastTreeDataGridColumn column, int columnIndex)
@@ -295,5 +516,19 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             ColumnSortRequested?.Invoke(index);
             e.Handled = true;
         }
+    }
+
+    private struct ColumnResizeState
+    {
+        public ColumnResizeState(double originWidth)
+        {
+            OriginWidth = originWidth;
+            LastAppliedWidth = originWidth;
+            LastVisualWidth = originWidth;
+        }
+
+        public double OriginWidth { get; }
+        public double LastAppliedWidth { get; set; }
+        public double LastVisualWidth { get; set; }
     }
 }
