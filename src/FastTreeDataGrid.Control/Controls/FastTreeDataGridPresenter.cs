@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
 
@@ -20,9 +21,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     private Widget? _focusedWidget;
 
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
-    private readonly SolidColorBrush _toggleBackground = new(Color.FromRgb(236, 236, 236));
-    private readonly Pen _togglePen = new(new SolidColorBrush(Color.FromRgb(96, 96, 96)), 1);
+    private readonly ImmutableSolidColorBrush _toggleGlyphBrush = new(Color.FromRgb(96, 96, 96));
     private readonly Pen _gridPen = new(new SolidColorBrush(Color.FromRgb(210, 210, 210)), 1);
+    private static readonly StreamGeometry s_collapsedGlyph = StreamGeometry.Parse("M 1,0 10,10 l -9,10 -1,-1 L 8,10 -0,1 Z");
+    private static readonly StreamGeometry s_expandedGlyph = StreamGeometry.Parse("M0,1 L10,10 20,1 19,0 10,8 1,0 Z");
 
     public FastTreeDataGridPresenter()
     {
@@ -386,16 +388,32 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             return;
         }
 
-        context.FillRectangle(_toggleBackground, rect);
-        context.DrawRectangle(_togglePen, rect);
-
-        var center = rect.Center;
-        context.DrawLine(_togglePen, new Point(rect.Left + 2, center.Y), new Point(rect.Right - 2, center.Y));
-
-        if (!isExpanded)
+        var glyph = isExpanded ? s_expandedGlyph : s_collapsedGlyph;
+        var bounds = glyph.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
         {
-            context.DrawLine(_togglePen, new Point(center.X, rect.Top + 2), new Point(center.X, rect.Bottom - 2));
+            return;
         }
+
+        var scale = Math.Min(rect.Width / bounds.Width, rect.Height / bounds.Height);
+        if (scale <= 0)
+        {
+            return;
+        }
+
+        scale *= 0.85;
+        var targetWidth = bounds.Width * scale;
+        var targetHeight = bounds.Height * scale;
+
+        var offsetX = rect.X + (rect.Width - targetWidth) / 2;
+        var offsetY = rect.Y + (rect.Height - targetHeight) / 2;
+
+        var transform = Matrix.CreateTranslation(-bounds.X, -bounds.Y)
+                       * Matrix.CreateScale(scale, scale)
+                       * Matrix.CreateTranslation(offsetX, offsetY);
+
+        using var glyphTransform = context.PushTransform(transform);
+        context.DrawGeometry(_toggleGlyphBrush, null, glyph);
     }
 
     internal sealed class RowRenderInfo
