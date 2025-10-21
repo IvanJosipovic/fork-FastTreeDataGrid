@@ -45,7 +45,10 @@ public class FastTreeDataGrid : TemplatedControl
     private readonly List<double> _columnWidths = new();
     private readonly List<double> _columnOffsets = new();
 
+    private ScrollViewer? _headerScrollViewer;
+    private Border? _headerHost;
     private FastTreeDataGridHeaderPresenter? _headerPresenter;
+    private bool _updatingHeaderFromBody;
     private FastTreeDataGridPresenter? _presenter;
     private ScrollViewer? _scrollViewer;
     private IFastTreeDataGridSource? _itemsSource;
@@ -127,10 +130,23 @@ public class FastTreeDataGrid : TemplatedControl
 
         DetachTemplateParts();
 
+        _headerScrollViewer = e.NameScope.Find<ScrollViewer>("PART_HeaderScrollViewer");
+        _headerHost = e.NameScope.Find<Border>("PART_HeaderHost");
         _headerPresenter = e.NameScope.Find<FastTreeDataGridHeaderPresenter>("PART_HeaderPresenter");
         _scrollViewer = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
         _presenter = e.NameScope.Find<FastTreeDataGridPresenter>("PART_Presenter");
 
+        if (_headerScrollViewer is not null)
+        {
+            _headerScrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden;
+            _headerScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            _headerScrollViewer.PropertyChanged += OnHeaderScrollViewerPropertyChanged;
+        }
+
+        if (_headerHost is not null)
+        {
+            _headerHost.ClipToBounds = true;
+        }
         if (_presenter is not null)
         {
             _presenter.SetOwner(this);
@@ -150,6 +166,8 @@ public class FastTreeDataGrid : TemplatedControl
             _scrollViewer.PropertyChanged += OnScrollViewerPropertyChanged;
         }
 
+        SynchronizeHeaderScroll();
+
         _columnsDirty = true;
         RequestViewportUpdate();
     }
@@ -163,11 +181,17 @@ public class FastTreeDataGrid : TemplatedControl
             ApplyTemplate();
         }
 
+        if (_headerHost is not null)
+        {
+            _headerHost.ClipToBounds = true;
+        }
         _presenter?.SetOwner(this);
         if (_headerPresenter is not null)
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
         }
+
+        SynchronizeHeaderScroll();
 
         _columnsDirty = true;
         RequestViewportUpdate();
@@ -253,6 +277,16 @@ public class FastTreeDataGrid : TemplatedControl
             _scrollViewer = null;
         }
 
+        if (_headerScrollViewer is not null)
+        {
+            _headerScrollViewer.PropertyChanged -= OnHeaderScrollViewerPropertyChanged;
+            _headerScrollViewer = null;
+        }
+
+        if (_headerHost is not null)
+        {
+            _headerHost = null;
+        }
         if (_headerPresenter is not null)
         {
             _headerPresenter.ColumnResizeRequested -= OnColumnResizeRequested;
@@ -264,6 +298,11 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void OnScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        if (_scrollViewer is null)
+        {
+            return;
+        }
+
         if (e.Property == ScrollViewer.ViewportProperty)
         {
             _columnsDirty = true;
@@ -271,6 +310,7 @@ public class FastTreeDataGrid : TemplatedControl
         }
         else if (e.Property == ScrollViewer.OffsetProperty)
         {
+            UpdateHeaderScroll(_scrollViewer.Offset.X);
             RequestViewportUpdate();
         }
     }
@@ -484,8 +524,9 @@ public class FastTreeDataGrid : TemplatedControl
         if (_headerPresenter is not null)
         {
             _headerPresenter.BindColumns(_columns, _columnWidths);
-            _headerPresenter.RenderTransform = new TranslateTransform(-offset.X, 0);
         }
+
+        UpdateHeaderScroll(offset.X);
 
         var buffer = 2;
         var firstIndex = totalRows == 0 ? 0 : Math.Clamp((int)Math.Floor(offset.Y / rowHeight), 0, Math.Max(0, totalRows - 1));
@@ -704,5 +745,84 @@ public class FastTreeDataGrid : TemplatedControl
             offset += _columnWidths[i];
             _columnOffsets.Add(offset);
         }
+    }
+
+    private void SynchronizeHeaderScroll()
+    {
+        if (_scrollViewer is null)
+        {
+            UpdateHeaderScroll(0);
+            return;
+        }
+
+        UpdateHeaderScroll(_scrollViewer.Offset.X);
+    }
+
+    private void UpdateHeaderScroll(double horizontalOffset)
+    {
+        if (_headerScrollViewer is null)
+        {
+            return;
+        }
+
+        if (double.IsNaN(horizontalOffset) || double.IsInfinity(horizontalOffset))
+        {
+            horizontalOffset = 0;
+        }
+
+        var current = _headerScrollViewer.Offset;
+        if (!AreClose(current.X, horizontalOffset) || !AreClose(current.Y, 0))
+        {
+            _updatingHeaderFromBody = true;
+            try
+            {
+                _headerScrollViewer.Offset = new Vector(horizontalOffset, 0);
+            }
+            finally
+            {
+                _updatingHeaderFromBody = false;
+            }
+        }
+    }
+
+    private void UpdateBodyScroll(double horizontalOffset)
+    {
+        if (_scrollViewer is null)
+        {
+            return;
+        }
+
+        var current = _scrollViewer.Offset;
+        if (!AreClose(current.X, horizontalOffset))
+        {
+            _scrollViewer.Offset = new Vector(horizontalOffset, current.Y);
+        }
+    }
+
+    private void OnHeaderScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ScrollViewer.OffsetProperty && !_updatingHeaderFromBody)
+        {
+            var offset = e.GetNewValue<Vector>();
+            UpdateBodyScroll(offset.X);
+
+            if (_headerScrollViewer is not null && !AreClose(offset.Y, 0))
+            {
+                _updatingHeaderFromBody = true;
+                try
+                {
+                    _headerScrollViewer.Offset = new Vector(offset.X, 0);
+                }
+                finally
+                {
+                    _updatingHeaderFromBody = false;
+                }
+            }
+        }
+    }
+
+    private static bool AreClose(double left, double right)
+    {
+        return Math.Abs(left - right) < 0.25;
     }
 }

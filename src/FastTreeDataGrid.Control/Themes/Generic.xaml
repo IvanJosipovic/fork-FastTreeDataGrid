@@ -11,9 +11,18 @@
       <Setter.Value>
         <ControlTemplate TargetType="controls:FastTreeDataGrid">
           <Grid RowDefinitions="Auto,*">
-            <Border Grid.Row="0" x:Name="PART_HeaderHost" Classes="HeaderHost">
-              <controls:FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
-            </Border>
+            <ScrollViewer Grid.Row="0"
+                          x:Name="PART_HeaderScrollViewer"
+                          HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Disabled"
+                          ScrollViewer.AllowAutoHide="False"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Top"
+                          Focusable="False">
+              <Border x:Name="PART_HeaderHost" Classes="HeaderHost">
+                <controls:FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
+              </Border>
+            </ScrollViewer>
             <ScrollViewer Grid.Row="1"
                           x:Name="PART_ScrollViewer"
                           HorizontalScrollBarVisibility="Auto"
