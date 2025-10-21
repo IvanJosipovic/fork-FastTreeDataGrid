@@ -462,6 +462,29 @@ public sealed class DynamicDataNode : IFastTreeDataGridValueProvider, IFastTreeD
         remove => _valueInvalidated -= value;
     }
 
+    public DynamicDataNode CloneDeep()
+    {
+        var clone = new DynamicDataNode(Id, Name, Kind);
+        lock (_metricsLock)
+        {
+            clone._units = _units;
+            clone._volume = _volume;
+            clone._load = _load;
+            clone._change = _change;
+            clone._badgeBrush = _badgeBrush;
+            clone._badgeText = _badgeText;
+        }
+
+        foreach (var child in _children)
+        {
+            var childClone = child.CloneDeep();
+            childClone.Parent = clone;
+            clone._children.Add(childClone);
+        }
+
+        return clone;
+    }
+
     public void AddChild(DynamicDataNode child)
     {
         if (child is null)
@@ -483,6 +506,39 @@ public sealed class DynamicDataNode : IFastTreeDataGridValueProvider, IFastTreeD
 
         _children.RemoveAt(index);
         NotifyChanged();
+    }
+
+    public bool RemoveChild(DynamicDataNode child)
+    {
+        if (child is null)
+        {
+            return false;
+        }
+
+        var index = _children.IndexOf(child);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        _children.RemoveAt(index);
+        NotifyChanged();
+        return true;
+    }
+
+    public bool RemoveChild(string id)
+    {
+        for (var i = 0; i < _children.Count; i++)
+        {
+            if (string.Equals(_children[i].Id, id, StringComparison.Ordinal))
+            {
+                _children.RemoveAt(i);
+                NotifyChanged();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void SeedLeafMetrics(Random random)
@@ -516,6 +572,20 @@ public sealed class DynamicDataNode : IFastTreeDataGridValueProvider, IFastTreeD
 
         NotifyChanged();
         Parent?.RefreshAggregates();
+    }
+
+    public void SetMetrics(double units, double volume, double load, double change)
+    {
+        lock (_metricsLock)
+        {
+            _units = units;
+            _volume = volume;
+            _load = Math.Clamp(load, 0, 1);
+            _change = change;
+            UpdateBadge();
+        }
+
+        NotifyChanged();
     }
 
     public void RefreshAggregates()
@@ -613,5 +683,24 @@ public sealed class DynamicDataNode : IFastTreeDataGridValueProvider, IFastTreeD
         {
             Append(child, output);
         }
+    }
+
+    public static DynamicDataNode? FindById(IEnumerable<DynamicDataNode> nodes, string id)
+    {
+        foreach (var node in nodes)
+        {
+            if (string.Equals(node.Id, id, StringComparison.Ordinal))
+            {
+                return node;
+            }
+
+            var match = FindById(node._children, id);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 }
