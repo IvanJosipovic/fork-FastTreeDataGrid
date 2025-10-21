@@ -7,13 +7,35 @@ using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class ToggleSwitchWidget : Widget
+public sealed class ToggleSwitchWidget : TemplatedWidget
 {
     private bool _isOn;
     private bool _isPointerPressed;
     private ImmutableSolidColorBrush? _onBrush;
     private ImmutableSolidColorBrush? _offBrush;
     private ImmutableSolidColorBrush? _thumbBrush;
+    private BorderWidget? _containerPart;
+    private TrackWidget? _trackPart;
+    private ThumbWidget? _thumbPart;
+
+    static ToggleSwitchWidget()
+    {
+        foreach (WidgetVisualState state in Enum.GetValues(typeof(WidgetVisualState)))
+        {
+            WidgetStyleManager.Register(
+                themeName: string.Empty,
+                new WidgetStyleRule(
+                    typeof(ToggleSwitchWidget),
+                    state,
+                    widget =>
+                    {
+                        if (widget is ToggleSwitchWidget toggle)
+                        {
+                            toggle.RefreshTemplateAppearance();
+                        }
+                    }));
+        }
+    }
 
     public ToggleSwitchWidget()
     {
@@ -30,8 +52,37 @@ public sealed class ToggleSwitchWidget : Widget
 
     public bool IsOn => _isOn;
 
+    protected override Widget? CreateDefaultTemplate()
+    {
+        var container = new BorderWidget
+        {
+            ClipToBounds = true
+        };
+
+        var track = new TrackWidget();
+        var thumb = new ThumbWidget();
+
+        var root = new SurfaceWidget();
+        root.Children.Add(container);
+        root.Children.Add(track);
+        root.Children.Add(thumb);
+
+        _containerPart = container;
+        _trackPart = track;
+        _thumbPart = thumb;
+
+        return root;
+    }
+
+    protected override void OnTemplateApplied(Widget? templateRoot)
+    {
+        RefreshTemplateAppearance();
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
+        base.UpdateValue(provider, item);
+
         var on = _isOn;
         var enabled = IsEnabled;
         _onBrush = null;
@@ -61,60 +112,36 @@ public sealed class ToggleSwitchWidget : Widget
         IsEnabled = enabled;
     }
 
-    public override void Draw(DrawingContext context)
+    public override void Arrange(Rect bounds)
     {
-        var trackRect = Bounds;
-        if (trackRect.Width <= 0 || trackRect.Height <= 0)
+        base.Arrange(bounds);
+
+        if (!IsTemplateApplied)
         {
             return;
         }
 
-        using var clip = PushClip(context);
-        var palette = WidgetFluentPalette.Current.ToggleSwitch;
-        var statePalette = _isOn ? palette.On : palette.Off;
+        _containerPart?.Arrange(bounds);
 
-        var containerBrush = palette.ContainerBackground.Get(VisualState);
-        if (containerBrush is not null)
+        var track = _trackPart;
+        var thumb = _thumbPart;
+        if (track is null || thumb is null)
         {
-            context.DrawRectangle(containerBrush, null, trackRect);
+            return;
         }
 
-        var trackHeight = Math.Max(18, Math.Min(trackRect.Height, 28));
-        var trackWidth = Math.Max(trackHeight * 1.6, trackRect.Width);
-        var offsetY = trackRect.Y + (trackRect.Height - trackHeight) / 2;
-        var offsetX = trackRect.X + (trackRect.Width - trackWidth) / 2;
-        var drawRect = new Rect(offsetX, offsetY, trackWidth, trackHeight);
-        var radius = trackHeight / 2;
-
-        var trackFill = (_isOn ? _onBrush : _offBrush) ?? statePalette.TrackFill.Get(VisualState) ?? statePalette.TrackFill.Normal;
-        var trackStroke = statePalette.TrackStroke.Get(VisualState) ?? statePalette.TrackStroke.Normal;
-        var trackThickness = _isOn ? palette.OnStrokeThickness : palette.OuterStrokeThickness;
-        var trackPen = trackStroke is null || trackThickness <= 0 ? null : new Pen(trackStroke, trackThickness);
-
-        context.DrawRectangle(trackFill ?? Brushes.Transparent, trackPen, drawRect, radius, radius);
-
-        var thumbDiameter = trackHeight - 4;
-        var thumbRadius = thumbDiameter / 2;
-        var thumbY = drawRect.Y + 2;
-        var thumbX = _isOn
-            ? drawRect.Right - thumbDiameter - 2
-            : drawRect.X + 2;
-        var thumbRect = new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter);
-
-        var thumbBrush = _thumbBrush ?? statePalette.KnobFill.Get(VisualState) ?? statePalette.KnobFill.Normal ?? new ImmutableSolidColorBrush(Colors.White);
-        context.DrawEllipse(thumbBrush, null, thumbRect.Center, thumbRadius, thumbRadius);
+        var layout = CalculateLayout(bounds);
+        track.Arrange(layout.trackRect);
+        track.CornerRadius = new CornerRadius(layout.trackRect.Height / 2);
+        track.IndicatorValue = 1;
+        thumb.Arrange(layout.thumbRect);
     }
 
     public override bool HandlePointerEvent(in WidgetPointerEvent e)
     {
         var handled = base.HandlePointerEvent(e);
 
-        if (!IsInteractive)
-        {
-            return handled;
-        }
-
-        if (!IsEnabled)
+        if (!IsInteractive || !IsEnabled)
         {
             return handled;
         }
@@ -195,9 +222,66 @@ public sealed class ToggleSwitchWidget : Widget
         }
     }
 
+    private (Rect trackRect, Rect thumbRect) CalculateLayout(Rect bounds)
+    {
+        var trackHeight = Math.Max(18, Math.Min(bounds.Height, 28));
+        var trackWidth = Math.Max(trackHeight * 1.6, bounds.Width);
+        var offsetY = bounds.Y + (bounds.Height - trackHeight) / 2;
+        var offsetX = bounds.X + (bounds.Width - trackWidth) / 2;
+        var trackRect = new Rect(offsetX, offsetY, trackWidth, trackHeight);
+
+        var thumbDiameter = Math.Max(0, trackHeight - 4);
+        var thumbX = _isOn ? trackRect.Right - thumbDiameter - 2 : trackRect.X + 2;
+        var thumbY = trackRect.Y + 2;
+        var thumbRect = new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter);
+        return (trackRect, thumbRect);
+    }
+
+    private void RefreshTemplateAppearance()
+    {
+        if (!IsTemplateApplied && !ApplyTemplate())
+        {
+            return;
+        }
+
+        var palette = WidgetFluentPalette.Current.ToggleSwitch;
+        var statePalette = _isOn ? palette.On : palette.Off;
+
+        if (_containerPart is not null)
+        {
+            _containerPart.Background = palette.ContainerBackground.Get(VisualState);
+            _containerPart.BorderBrush = null;
+            _containerPart.BorderThickness = default;
+        }
+
+        if (_trackPart is not null)
+        {
+            var fill = (_isOn ? _onBrush : _offBrush) ?? statePalette.TrackFill.Get(VisualState) ?? statePalette.TrackFill.Normal
+                       ?? new ImmutableSolidColorBrush(Color.FromRgb(189, 189, 189));
+            var stroke = statePalette.TrackStroke.Get(VisualState) ?? statePalette.TrackStroke.Normal;
+            var thickness = _isOn ? palette.OnStrokeThickness : palette.OuterStrokeThickness;
+
+            _trackPart.BackgroundBrush = fill;
+            _trackPart.IndicatorBrush = null;
+            _trackPart.BorderBrush = stroke;
+            _trackPart.BorderThickness = thickness;
+            _trackPart.IndicatorValue = 1;
+        }
+
+        if (_thumbPart is not null)
+        {
+            var thumbFill = _thumbBrush ?? statePalette.KnobFill.Get(VisualState) ?? statePalette.KnobFill.Normal
+                            ?? new ImmutableSolidColorBrush(Colors.White);
+            _thumbPart.FillBrush = thumbFill;
+            _thumbPart.BorderBrush = null;
+            _thumbPart.BorderThickness = 0;
+        }
+    }
+
     private bool IsWithinBounds(Point point)
     {
         var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
         return rect.Contains(point);
     }
+
 }

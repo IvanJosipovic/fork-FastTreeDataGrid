@@ -9,10 +9,32 @@ using CheckBoxValuePalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalett
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class CheckBoxWidget : Widget
+public sealed class CheckBoxWidget : TemplatedWidget
 {
     private bool? _value;
     private bool? _sourceValue;
+    private BorderWidget? _outerBorderPart;
+    private BorderWidget? _boxPart;
+    private GeometryWidget? _glyphPart;
+
+    static CheckBoxWidget()
+    {
+        foreach (WidgetVisualState state in Enum.GetValues(typeof(WidgetVisualState)))
+        {
+            WidgetStyleManager.Register(
+                themeName: string.Empty,
+                new WidgetStyleRule(
+                    typeof(CheckBoxWidget),
+                    state,
+                    widget =>
+                    {
+                        if (widget is CheckBoxWidget checkBox)
+                        {
+                            checkBox.RefreshTemplateAppearance();
+                        }
+                    }));
+        }
+    }
 
     public CheckBoxWidget()
     {
@@ -42,153 +64,105 @@ public sealed class CheckBoxWidget : Widget
         RefreshStyle();
     }
 
+    protected override Widget? CreateDefaultTemplate()
+    {
+        var glyph = new GeometryWidget
+        {
+            Stretch = Stretch.Uniform,
+            Padding = 0,
+            ClipToBounds = false
+        };
+        var box = new BorderWidget
+        {
+            Child = glyph,
+            ClipToBounds = true
+        };
+
+        var outer = new BorderWidget
+        {
+            ClipToBounds = true
+        };
+
+        var root = new SurfaceWidget();
+        root.Children.Add(outer);
+        root.Children.Add(box);
+
+        _outerBorderPart = outer;
+        _boxPart = box;
+        _glyphPart = glyph;
+
+        return root;
+    }
+
+    protected override void OnTemplateApplied(Widget? templateRoot)
+    {
+        RefreshTemplateAppearance();
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
+        base.UpdateValue(provider, item);
+
         _value = null;
         _sourceValue = null;
         var enabled = true;
 
-        if (provider is null || Key is null)
+        if (provider is not null && Key is not null)
         {
-            return;
-        }
-
-        var value = provider.GetValue(item, Key);
-        switch (value)
-        {
-            case CheckBoxWidgetValue checkBoxValue:
-                _value = checkBoxValue.IsChecked;
-                _sourceValue = _value;
-                enabled = checkBoxValue.IsEnabled;
-                break;
-            case bool boolean:
-                _value = boolean;
-                _sourceValue = _value;
-                break;
-            case null:
-                _value = null;
-                _sourceValue = null;
-                break;
+            var data = provider.GetValue(item, Key);
+            switch (data)
+            {
+                case CheckBoxWidgetValue checkBoxValue:
+                    _value = checkBoxValue.IsChecked;
+                    _sourceValue = _value;
+                    enabled = checkBoxValue.IsEnabled;
+                    break;
+                case bool boolean:
+                    _value = boolean;
+                    _sourceValue = _value;
+                    break;
+                case null:
+                    _value = null;
+                    _sourceValue = null;
+                    break;
+            }
         }
 
         IsEnabled = enabled;
+        RefreshStyle();
     }
 
-    public override void Draw(DrawingContext context)
+    public override void Arrange(Rect bounds)
     {
-        using var clip = PushClip(context);
+        base.Arrange(bounds);
 
-        using var rotation = PushRenderTransform(context);
-        var palette = WidgetFluentPalette.Current.CheckBox;
-        var valuePalette = GetValuePalette(palette);
-
-        var outerRect = Bounds;
-        var outerBackground = GetBrushForState(valuePalette.Background, VisualState)
-                              ?? new ImmutableSolidColorBrush(Colors.Transparent);
-        var outerBorderBrush = GetBrushForState(valuePalette.Border, VisualState);
-        var outerPen = outerBorderBrush is null ? null : new Pen(outerBorderBrush, palette.StrokeThickness);
-        var outerCorner = palette.CornerRadius.TopLeft;
-        context.DrawRectangle(outerBackground, outerPen, outerRect, outerCorner, outerCorner);
-
-        var effectivePadding = palette.Padding;
-        if (!double.IsNaN(Padding) && Padding > 0)
+        if (!IsTemplateApplied)
         {
-            effectivePadding = new Thickness(
-                effectivePadding.Left + Padding,
-                effectivePadding.Top + Padding,
-                effectivePadding.Right + Padding,
-                effectivePadding.Bottom + Padding);
+            return;
         }
 
-        var contentRect = Deflate(outerRect, effectivePadding);
+        _outerBorderPart?.Arrange(bounds);
+
+        var palette = WidgetFluentPalette.Current.CheckBox;
+        var padding = GetEffectivePadding(palette);
+        var contentRect = Deflate(bounds, padding);
+
+        if (_boxPart is null)
+        {
+            return;
+        }
+
         var boxSize = Math.Min(Math.Min(contentRect.Width, contentRect.Height), palette.BoxSize);
         if (boxSize <= 0)
         {
+            _boxPart.Arrange(new Rect(contentRect.X, contentRect.Y, 0, 0));
             return;
         }
 
-        var boxRect = new Rect(
-            contentRect.X + (contentRect.Width - boxSize) / 2,
-            contentRect.Y + (contentRect.Height - boxSize) / 2,
-            boxSize,
-            boxSize);
-
-        var strokeThickness = double.IsNaN(StrokeThickness) ? palette.StrokeThickness : StrokeThickness;
-        var boxFill = GetBrushForState(valuePalette.BoxFill, VisualState) ?? new ImmutableSolidColorBrush(Colors.Transparent);
-        var boxStroke = GetBrushForState(valuePalette.BoxStroke, VisualState);
-        var boxPen = boxStroke is null ? null : new Pen(boxStroke, strokeThickness);
-
-        context.DrawRectangle(boxFill, boxPen, boxRect, outerCorner, outerCorner);
-
-        DrawGlyph(context, valuePalette, boxRect, palette.BoxSize);
-    }
-
-    private CheckBoxValuePalette GetValuePalette(CheckBoxPalette palette)
-    {
-        return _value switch
-        {
-            true => palette.Checked,
-            null => palette.Indeterminate,
-            _ => palette.Unchecked,
-        };
-    }
-
-    private static ImmutableSolidColorBrush? GetBrushForState(WidgetFluentPalette.BrushState state, WidgetVisualState visualState)
-    {
-        return state.Get(visualState) ?? state.Normal;
-    }
-
-    private void DrawGlyph(DrawingContext context, CheckBoxValuePalette palette, Rect boxRect, double baseBoxSize)
-    {
-        if (palette.GlyphGeometry is null)
-        {
-            return;
-        }
-
-        var glyphBrush = Foreground ?? GetBrushForState(palette.Glyph, VisualState);
-        if (glyphBrush is null)
-        {
-            glyphBrush = new ImmutableSolidColorBrush(Color.FromRgb(40, 40, 40));
-        }
-
-        var geometry = palette.GlyphGeometry;
-        var bounds = geometry.Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            return;
-        }
-
-        var scale = baseBoxSize <= 0 ? 1 : boxRect.Width / baseBoxSize;
-        var desiredWidth = palette.GlyphWidth > 0 ? palette.GlyphWidth * scale : boxRect.Width * 0.6;
-        var glyphScale = desiredWidth / bounds.Width;
-        var desiredHeight = bounds.Height * glyphScale;
-
-        var offsetX = boxRect.X + (boxRect.Width - desiredWidth) / 2;
-        var offsetY = boxRect.Y + (boxRect.Height - desiredHeight) / 2;
-
-        var transform = Matrix.CreateTranslation(-bounds.X, -bounds.Y)
-                       * Matrix.CreateScale(glyphScale, glyphScale)
-                       * Matrix.CreateTranslation(offsetX, offsetY);
-
-        using var glyphTransform = context.PushTransform(transform);
-        context.DrawGeometry(glyphBrush, null, geometry);
-    }
-
-    private static Rect Deflate(Rect rect, Thickness padding)
-    {
-        if (padding == default)
-        {
-            return rect;
-        }
-
-        var left = Math.Max(0, padding.Left);
-        var top = Math.Max(0, padding.Top);
-        var right = Math.Max(0, padding.Right);
-        var bottom = Math.Max(0, padding.Bottom);
-
-        var width = Math.Max(0, rect.Width - left - right);
-        var height = Math.Max(0, rect.Height - top - bottom);
-        return new Rect(rect.X + left, rect.Y + top, width, height);
+        var x = contentRect.X + (contentRect.Width - boxSize) / 2;
+        var y = contentRect.Y + (contentRect.Height - boxSize) / 2;
+        var boxRect = new Rect(x, y, boxSize, boxSize);
+        _boxPart.Arrange(boxRect);
     }
 
     public override bool HandlePointerEvent(in WidgetPointerEvent e)
@@ -265,6 +239,104 @@ public sealed class CheckBoxWidget : Widget
                 Indeterminate?.Invoke(this, new WidgetEventArgs(this));
                 break;
         }
+    }
+
+    private void RefreshTemplateAppearance()
+    {
+        if (!IsTemplateApplied && !ApplyTemplate())
+        {
+            return;
+        }
+
+        var palette = WidgetFluentPalette.Current.CheckBox;
+        var valuePalette = GetValuePalette(palette);
+
+        if (_outerBorderPart is not null)
+        {
+            _outerBorderPart.Background = GetBrushForState(valuePalette.Background, VisualState) ?? new ImmutableSolidColorBrush(Colors.Transparent);
+            _outerBorderPart.BorderBrush = GetBrushForState(valuePalette.Border, VisualState);
+            var thickness = palette.StrokeThickness;
+            _outerBorderPart.BorderThickness = thickness > 0 ? new Thickness(thickness) : default;
+            _outerBorderPart.CornerRadius = palette.CornerRadius;
+        }
+
+        if (_boxPart is not null)
+        {
+            var strokeThickness = double.IsNaN(StrokeThickness) ? palette.StrokeThickness : StrokeThickness;
+            _boxPart.Background = GetBrushForState(valuePalette.BoxFill, VisualState) ?? new ImmutableSolidColorBrush(Colors.Transparent);
+            _boxPart.BorderBrush = GetBrushForState(valuePalette.BoxStroke, VisualState);
+            _boxPart.BorderThickness = strokeThickness > 0 ? new Thickness(strokeThickness) : default;
+            _boxPart.CornerRadius = palette.CornerRadius;
+        }
+
+        if (_glyphPart is not null)
+        {
+            _glyphPart.Stretch = Stretch.Uniform;
+            _glyphPart.Padding = 0;
+
+            var glyphBrush = Foreground ?? GetBrushForState(valuePalette.Glyph, VisualState);
+            if (glyphBrush is null)
+            {
+                glyphBrush = new ImmutableSolidColorBrush(Color.FromRgb(40, 40, 40));
+            }
+
+            if (valuePalette.GlyphGeometry is not null)
+            {
+                _glyphPart.SetGeometry(valuePalette.GlyphGeometry, Stretch.Uniform, glyphBrush, null, 0);
+            }
+            else
+            {
+                _glyphPart.SetGeometry(null);
+            }
+        }
+    }
+
+    private CheckBoxValuePalette GetValuePalette(CheckBoxPalette palette)
+    {
+        return _value switch
+        {
+            true => palette.Checked,
+            null => palette.Indeterminate,
+            _ => palette.Unchecked,
+        };
+    }
+
+    private static ImmutableSolidColorBrush? GetBrushForState(WidgetFluentPalette.BrushState state, WidgetVisualState visualState)
+    {
+        return state.Get(visualState) ?? state.Normal;
+    }
+
+    private Thickness GetEffectivePadding(CheckBoxPalette palette)
+    {
+        var padding = palette.Padding;
+        if (!double.IsNaN(Padding) && Padding > 0)
+        {
+            var extra = Padding;
+            padding = new Thickness(
+                padding.Left + extra,
+                padding.Top + extra,
+                padding.Right + extra,
+                padding.Bottom + extra);
+        }
+
+        return padding;
+    }
+
+    private static Rect Deflate(Rect rect, Thickness padding)
+    {
+        if (padding == default)
+        {
+            return rect;
+        }
+
+        var left = Math.Max(0, padding.Left);
+        var top = Math.Max(0, padding.Top);
+        var right = Math.Max(0, padding.Right);
+        var bottom = Math.Max(0, padding.Bottom);
+
+        var width = Math.Max(0, rect.Width - left - right);
+        var height = Math.Max(0, rect.Height - top - bottom);
+        return new Rect(rect.X + left, rect.Y + top, width, height);
     }
 
     private bool IsWithinBounds(Point position)

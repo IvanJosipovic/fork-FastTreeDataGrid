@@ -7,12 +7,35 @@ using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class RadioButtonWidget : Widget
+public sealed class RadioButtonWidget : TemplatedWidget
 {
+    private const double InnerInset = 4;
+    private static readonly EllipseGeometry CircleGeometry = new(new Rect(0, 0, 1, 1));
+
     private bool _isChecked;
     private bool _isPointerPressed;
-    private ImmutableSolidColorBrush? _fillBrush;
-    private ImmutableSolidColorBrush? _borderBrush;
+    private BorderWidget? _containerPart;
+    private GeometryWidget? _outerCirclePart;
+    private GeometryWidget? _innerCirclePart;
+
+    static RadioButtonWidget()
+    {
+        foreach (WidgetVisualState state in Enum.GetValues(typeof(WidgetVisualState)))
+        {
+            WidgetStyleManager.Register(
+                themeName: string.Empty,
+                new WidgetStyleRule(
+                    typeof(RadioButtonWidget),
+                    state,
+                    widget =>
+                    {
+                        if (widget is RadioButtonWidget radio)
+                        {
+                            radio.RefreshTemplateAppearance();
+                        }
+                    }));
+        }
+    }
 
     public RadioButtonWidget()
     {
@@ -31,12 +54,50 @@ public sealed class RadioButtonWidget : Widget
 
     public string? Group { get; set; }
 
+    protected override Widget? CreateDefaultTemplate()
+    {
+        var container = new BorderWidget
+        {
+            ClipToBounds = true
+        };
+
+        var outer = new GeometryWidget
+        {
+            ClipToBounds = false,
+            Stretch = Stretch.Uniform,
+            Padding = 0
+        };
+
+        var inner = new GeometryWidget
+        {
+            ClipToBounds = false,
+            Stretch = Stretch.Uniform,
+            Padding = 0
+        };
+
+        var root = new SurfaceWidget();
+        root.Children.Add(container);
+        root.Children.Add(outer);
+        root.Children.Add(inner);
+
+        _containerPart = container;
+        _outerCirclePart = outer;
+        _innerCirclePart = inner;
+
+        return root;
+    }
+
+    protected override void OnTemplateApplied(Widget? templateRoot)
+    {
+        RefreshTemplateAppearance();
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
+        base.UpdateValue(provider, item);
+
         var isChecked = _isChecked;
         var enabled = IsEnabled;
-        _fillBrush = null;
-        _borderBrush = null;
 
         if (provider is not null && Key is not null)
         {
@@ -58,47 +119,47 @@ public sealed class RadioButtonWidget : Widget
         IsEnabled = enabled;
     }
 
-    public override void Draw(DrawingContext context)
+    public override void Arrange(Rect bounds)
     {
-        var bounds = Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
+        base.Arrange(bounds);
+
+        if (!IsTemplateApplied)
         {
             return;
         }
 
-        using var clip = PushClip(context);
-        using var rotation = PushRenderTransform(context);
+        _containerPart?.Arrange(bounds);
 
         var palette = WidgetFluentPalette.Current.RadioButton;
-        var controlCorner = WidgetFluentPalette.Current.ControlCornerRadius.TopLeft;
-
-        var background = palette.Background.Get(VisualState);
-        var border = palette.Border.Get(VisualState);
-        if (background is not null || border is not null)
+        var padded = Deflate(bounds, palette.Padding);
+        var diameter = Math.Min(padded.Width, padded.Height);
+        if (diameter <= 0)
         {
-            var pen = border is null ? null : new Pen(border, palette.BorderThickness);
-            context.DrawRectangle(background, pen, bounds, controlCorner, controlCorner);
+            _outerCirclePart?.Arrange(new Rect(padded.X, padded.Y, 0, 0));
+            _innerCirclePart?.Arrange(new Rect(padded.X, padded.Y, 0, 0));
+            return;
         }
 
-        var diameter = Math.Min(bounds.Width, bounds.Height);
-        var radius = diameter / 2;
-        var center = bounds.Center;
+        var circleRect = new Rect(
+            padded.X + (padded.Width - diameter) / 2,
+            padded.Y + (padded.Height - diameter) / 2,
+            diameter,
+            diameter);
+        _outerCirclePart?.Arrange(circleRect);
 
-        var strokeState = _isChecked ? palette.CheckedEllipseStroke : palette.OuterEllipseStroke;
-        var fillState = _isChecked ? palette.CheckedEllipseFill : palette.OuterEllipseFill;
-
-        var strokeBrush = _borderBrush ?? strokeState.Get(VisualState) ?? strokeState.Normal;
-        var fillBrush = fillState.Get(VisualState) ?? fillState.Normal;
-        var outerPen = strokeBrush is null ? null : new Pen(strokeBrush, Math.Max(1, palette.BorderThickness));
-        context.DrawEllipse(fillBrush ?? Brushes.Transparent, outerPen, center, radius, radius);
-
-        if (_isChecked)
+        var innerDiameter = Math.Max(0, diameter - (InnerInset * 2));
+        if (innerDiameter > 0)
         {
-            var glyphBrush = Foreground
-                              ?? (_fillBrush ?? palette.GlyphFill.Get(VisualState) ?? palette.GlyphFill.Normal)
-                              ?? new ImmutableSolidColorBrush(Colors.White);
-            var innerRadius = Math.Max(2, radius - 4);
-            context.DrawEllipse(glyphBrush, null, center, innerRadius, innerRadius);
+            var innerRect = new Rect(
+                circleRect.X + (circleRect.Width - innerDiameter) / 2,
+                circleRect.Y + (circleRect.Height - innerDiameter) / 2,
+                innerDiameter,
+                innerDiameter);
+            _innerCirclePart?.Arrange(innerRect);
+        }
+        else
+        {
+            _innerCirclePart?.Arrange(new Rect(circleRect.X, circleRect.Y, 0, 0));
         }
     }
 
@@ -106,12 +167,7 @@ public sealed class RadioButtonWidget : Widget
     {
         var handled = base.HandlePointerEvent(e);
 
-        if (!IsInteractive)
-        {
-            return handled;
-        }
-
-        if (!IsEnabled)
+        if (!IsInteractive || !IsEnabled)
         {
             return handled;
         }
@@ -190,10 +246,75 @@ public sealed class RadioButtonWidget : Widget
         }
     }
 
+    private void RefreshTemplateAppearance()
+    {
+        if (!IsTemplateApplied && !ApplyTemplate())
+        {
+            return;
+        }
+
+        var paletteData = WidgetFluentPalette.Current;
+        var palette = paletteData.RadioButton;
+
+        if (_containerPart is not null)
+        {
+            var background = palette.Background.Get(VisualState);
+            var border = palette.Border.Get(VisualState);
+            _containerPart.Background = background;
+            _containerPart.BorderBrush = border;
+            var thickness = palette.BorderThickness;
+            _containerPart.BorderThickness = thickness > 0 ? new Thickness(thickness) : default;
+            _containerPart.CornerRadius = paletteData.ControlCornerRadius;
+        }
+
+        if (_outerCirclePart is not null)
+        {
+            var outerFillState = _isChecked ? palette.CheckedEllipseFill : palette.OuterEllipseFill;
+            var outerStrokeState = _isChecked ? palette.CheckedEllipseStroke : palette.OuterEllipseStroke;
+
+            var fill = outerFillState.Get(VisualState) ?? outerFillState.Normal;
+            var strokeBrush = outerStrokeState.Get(VisualState) ?? outerStrokeState.Normal;
+            Pen? strokePen = strokeBrush is null ? null : new Pen(strokeBrush, Math.Max(1, palette.BorderThickness));
+
+            _outerCirclePart.SetGeometry(CircleGeometry, Stretch.Uniform, fill, strokePen, 0);
+        }
+
+        if (_innerCirclePart is not null)
+        {
+            if (_isChecked)
+            {
+                var glyphFill = Foreground
+                                ?? (palette.GlyphFill.Get(VisualState) ?? palette.GlyphFill.Normal)
+                                ?? new ImmutableSolidColorBrush(Colors.White);
+                _innerCirclePart.SetGeometry(CircleGeometry, Stretch.Uniform, glyphFill, null, 0);
+            }
+            else
+            {
+                _innerCirclePart.SetGeometry(null);
+            }
+        }
+    }
+
     private bool IsWithinBounds(Point point)
     {
         var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
         return rect.Contains(point);
     }
 
+    private static Rect Deflate(Rect rect, Thickness padding)
+    {
+        if (padding == default)
+        {
+            return rect;
+        }
+
+        var left = Math.Max(0, padding.Left);
+        var top = Math.Max(0, padding.Top);
+        var right = Math.Max(0, padding.Right);
+        var bottom = Math.Max(0, padding.Bottom);
+
+        var width = Math.Max(0, rect.Width - left - right);
+        var height = Math.Max(0, rect.Height - top - bottom);
+        return new Rect(rect.X + left, rect.Y + top, width, height);
+    }
 }

@@ -7,7 +7,7 @@ using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class SliderWidget : Widget
+public sealed class SliderWidget : TemplatedWidget
 {
     private double _minimum = 0;
     private double _maximum = 1;
@@ -16,6 +16,27 @@ public sealed class SliderWidget : Widget
     private ImmutableSolidColorBrush? _trackBrush;
     private ImmutableSolidColorBrush? _fillBrush;
     private ImmutableSolidColorBrush? _thumbBrush;
+    private TrackWidget? _trackPart;
+    private ThumbWidget? _thumbPart;
+
+    static SliderWidget()
+    {
+        foreach (WidgetVisualState state in Enum.GetValues(typeof(WidgetVisualState)))
+        {
+            WidgetStyleManager.Register(
+                themeName: string.Empty,
+                new WidgetStyleRule(
+                    typeof(SliderWidget),
+                    state,
+                    widget =>
+                    {
+                        if (widget is SliderWidget slider)
+                        {
+                            slider.RefreshTemplateAppearance();
+                        }
+                    }));
+        }
+    }
 
     public SliderWidget()
     {
@@ -88,8 +109,30 @@ public sealed class SliderWidget : Widget
         set => _thumbBrush = value;
     }
 
+    protected override Widget? CreateDefaultTemplate()
+    {
+        var track = new TrackWidget();
+        var thumb = new ThumbWidget();
+
+        var root = new SurfaceWidget();
+        root.Children.Add(track);
+        root.Children.Add(thumb);
+
+        _trackPart = track;
+        _thumbPart = thumb;
+
+        return root;
+    }
+
+    protected override void OnTemplateApplied(Widget? templateRoot)
+    {
+        RefreshTemplateAppearance();
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
+        base.UpdateValue(provider, item);
+
         var min = _minimum;
         var max = _maximum;
         var value = _value;
@@ -124,60 +167,44 @@ public sealed class SliderWidget : Widget
         Value = value;
     }
 
-    public override void Draw(DrawingContext context)
+    public override void Arrange(Rect bounds)
     {
-        var rect = Bounds;
-        if (rect.Width <= 0 || rect.Height <= 0)
+        base.Arrange(bounds);
+
+        if (!IsTemplateApplied)
         {
             return;
         }
 
-        using var clip = PushClip(context);
-
-        var trackHeight = Math.Min(6, rect.Height / 3);
-        var trackY = rect.Y + (rect.Height - trackHeight) / 2;
-        var trackRect = new Rect(rect.X, trackY, rect.Width, trackHeight);
-        var radius = trackHeight / 2;
-
-        var palette = WidgetFluentPalette.Current.Slider;
-
-        var trackBrush = _trackBrush ?? palette.TrackFill.Get(VisualState) ?? palette.TrackFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(220, 220, 220));
-        var fillBrush = _fillBrush ?? palette.ValueFill.Get(VisualState) ?? palette.ValueFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
-        var thumbBrush = _thumbBrush ?? palette.ThumbFill.Get(VisualState) ?? palette.ThumbFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
-        var thumbBorder = palette.ThumbBorder.Get(VisualState) ?? palette.ThumbBorder.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
-
-        using var rotation = PushRenderTransform(context);
-        context.DrawRectangle(trackBrush, null, trackRect, radius, radius);
-
-        var percent = _maximum <= _minimum ? 0 : (_value - _minimum) / (_maximum - _minimum);
-        percent = Math.Clamp(percent, 0, 1);
-
-        if (percent > 0)
+        var track = _trackPart;
+        var thumb = _thumbPart;
+        if (track is null || thumb is null)
         {
-            var fillWidth = Math.Max(2, trackRect.Width * percent);
-            var fillRect = new Rect(trackRect.X, trackRect.Y, fillWidth, trackRect.Height);
-            context.DrawRectangle(fillBrush, null, fillRect, radius, radius);
+            return;
         }
 
-        var thumbDiameter = Math.Max(trackHeight * 2.5, 14);
-        var thumbX = trackRect.X + (trackRect.Width * percent) - thumbDiameter / 2;
-        var thumbY = rect.Y + (rect.Height - thumbDiameter) / 2;
-        thumbX = Math.Clamp(thumbX, rect.X, rect.Right - thumbDiameter);
+        var trackHeight = CalculateTrackHeight(bounds);
+        var trackY = bounds.Y + (bounds.Height - trackHeight) / 2;
+        var trackRect = new Rect(bounds.X, trackY, bounds.Width, Math.Max(0, trackHeight));
+        var percent = GetValuePercent();
+        track.Arrange(trackRect);
+        track.CornerRadius = new CornerRadius(Math.Max(0, trackRect.Height / 2));
+        track.IndicatorValue = percent;
 
-        var thumbRect = new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter);
-        context.DrawEllipse(thumbBrush, new Pen(thumbBorder, 1), thumbRect.Center, thumbDiameter / 2, thumbDiameter / 2);
+        var thumbDiameter = Math.Max(0, CalculateThumbDiameter(trackRect.Height));
+        thumbDiameter = Math.Min(thumbDiameter, bounds.Width);
+
+        var thumbRange = Math.Max(0, bounds.Width - thumbDiameter);
+        var thumbX = bounds.X + (thumbRange * percent);
+        var thumbY = bounds.Y + (bounds.Height - thumbDiameter) / 2;
+        thumb.Arrange(new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter));
     }
 
     public override bool HandlePointerEvent(in WidgetPointerEvent e)
     {
         var handled = base.HandlePointerEvent(e);
 
-        if (!IsInteractive)
-        {
-            return handled;
-        }
-
-        if (!IsEnabled)
+        if (!IsInteractive || !IsEnabled)
         {
             return handled;
         }
@@ -210,6 +237,73 @@ public sealed class SliderWidget : Widget
         return true;
     }
 
+    private void RefreshTemplateAppearance()
+    {
+        if (!IsTemplateApplied && !ApplyTemplate())
+        {
+            return;
+        }
+
+        var palette = WidgetFluentPalette.Current.Slider;
+        var percent = GetValuePercent();
+
+        if (_trackPart is not null)
+        {
+            var trackBrush = _trackBrush ?? palette.TrackFill.Get(VisualState) ?? palette.TrackFill.Normal
+                             ?? new ImmutableSolidColorBrush(Color.FromRgb(220, 220, 220));
+            var fillBrush = _fillBrush ?? palette.ValueFill.Get(VisualState) ?? palette.ValueFill.Normal
+                            ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
+            _trackPart.BackgroundBrush = trackBrush;
+            _trackPart.IndicatorBrush = fillBrush;
+            _trackPart.BorderBrush = null;
+            _trackPart.BorderThickness = 0;
+            _trackPart.IndicatorValue = percent;
+        }
+
+        if (_thumbPart is not null)
+        {
+            var thumbFill = _thumbBrush ?? palette.ThumbFill.Get(VisualState) ?? palette.ThumbFill.Normal
+                            ?? new ImmutableSolidColorBrush(Colors.White);
+            var thumbBorder = palette.ThumbBorder.Get(VisualState) ?? palette.ThumbBorder.Normal
+                              ?? new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
+            _thumbPart.FillBrush = thumbFill;
+            _thumbPart.BorderBrush = thumbBorder;
+            _thumbPart.BorderThickness = 1;
+        }
+    }
+
+    private double CalculateTrackHeight(Rect bounds)
+    {
+        if (bounds.Height <= 0)
+        {
+            return 0;
+        }
+
+        var height = Math.Min(6, bounds.Height / 3);
+        return Math.Max(1, height);
+    }
+
+    private static double CalculateThumbDiameter(double trackHeight)
+    {
+        if (trackHeight <= 0)
+        {
+            return 14;
+        }
+
+        return Math.Max(trackHeight * 2.5, 14);
+    }
+
+    private double GetValuePercent()
+    {
+        if (_maximum <= _minimum)
+        {
+            return 0;
+        }
+
+        var percent = (_value - _minimum) / (_maximum - _minimum);
+        return Math.Clamp(percent, 0, 1);
+    }
+
     private void UpdateValueFromPoint(Point localPoint)
     {
         var width = Math.Max(1, Bounds.Width);
@@ -218,5 +312,4 @@ public sealed class SliderWidget : Widget
         var newValue = _minimum + ((_maximum - _minimum) * percent);
         Value = newValue;
     }
-
 }

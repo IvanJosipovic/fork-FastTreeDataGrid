@@ -17,6 +17,21 @@ public sealed class GeometryWidget : Widget
 
     public Stretch Stretch { get; set; } = Stretch.Uniform;
 
+    public Geometry? Geometry
+    {
+        get => _geometry;
+        set
+        {
+            if (ReferenceEquals(_geometry, value))
+            {
+                return;
+            }
+
+            _geometry = value;
+            RefreshStyle();
+        }
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
         _geometry = null;
@@ -95,7 +110,7 @@ public sealed class GeometryWidget : Widget
         context.DrawGeometry(_fill ?? Foreground ?? Brushes.Gray, _stroke, _geometry);
     }
 
-    public void SetGeometry(Geometry geometry, Stretch? stretch = null, IBrush? fill = null, Pen? stroke = null, double? padding = null)
+    public void SetGeometry(Geometry? geometry, Stretch? stretch = null, IBrush? fill = null, Pen? stroke = null, double? padding = null)
     {
         _geometry = geometry;
         if (stretch is not null)
