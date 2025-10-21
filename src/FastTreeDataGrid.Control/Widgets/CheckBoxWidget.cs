@@ -8,17 +8,27 @@ namespace FastTreeDataGrid.Control.Widgets;
 
 public sealed class CheckBoxWidget : Widget
 {
-    private bool? _isChecked;
-    private bool _isEnabled = true;
+    private bool? _value;
+    private bool? _sourceValue;
+
+    public CheckBoxWidget()
+    {
+        IsInteractive = true;
+    }
+
+    public event Action<bool?>? Toggled;
 
     public double StrokeThickness { get; set; } = 1.5;
 
     public double Padding { get; set; } = 4;
 
+    public bool? Value => _value;
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
-        _isChecked = null;
-        _isEnabled = true;
+        _value = null;
+        _sourceValue = null;
+        var enabled = true;
 
         if (provider is null || Key is null)
         {
@@ -29,16 +39,21 @@ public sealed class CheckBoxWidget : Widget
         switch (value)
         {
             case CheckBoxWidgetValue checkBoxValue:
-                _isChecked = checkBoxValue.IsChecked;
-                _isEnabled = checkBoxValue.IsEnabled;
+                _value = checkBoxValue.IsChecked;
+                _sourceValue = _value;
+                enabled = checkBoxValue.IsEnabled;
                 break;
             case bool boolean:
-                _isChecked = boolean;
+                _value = boolean;
+                _sourceValue = _value;
                 break;
             case null:
-                _isChecked = null;
+                _value = null;
+                _sourceValue = null;
                 break;
         }
+
+        IsEnabled = enabled;
     }
 
     public override void Draw(DrawingContext context)
@@ -61,11 +76,11 @@ public sealed class CheckBoxWidget : Widget
         var background = ResolveBackground();
         context.DrawRectangle(background, new Pen(borderBrush, StrokeThickness), rect, 2, 2);
 
-        if (_isChecked is true)
+        if (_value is true)
         {
             DrawCheckMark(context, rect);
         }
-        else if (_isChecked is null)
+        else if (_value is null)
         {
             DrawIndeterminate(context, rect);
         }
@@ -73,7 +88,7 @@ public sealed class CheckBoxWidget : Widget
 
     private ImmutableSolidColorBrush ResolveBorder()
     {
-        if (!_isEnabled)
+        if (!IsEnabled)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(190, 190, 190));
         }
@@ -83,22 +98,48 @@ public sealed class CheckBoxWidget : Widget
 
     private IBrush ResolveBackground()
     {
-        if (!_isEnabled)
+        if (!IsEnabled)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(235, 235, 235));
         }
 
-        if (_isChecked is true)
+        if (_value is true)
         {
             return Foreground ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
         }
 
-        if (_isChecked is null)
+        if (_value is null)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(216, 216, 216));
         }
 
         return Brushes.Transparent;
+    }
+
+    public override bool HandlePointerEvent(in WidgetPointerEvent e)
+    {
+        var handled = base.HandlePointerEvent(e);
+
+        if (!IsEnabled)
+        {
+            return handled;
+        }
+
+        switch (e.Kind)
+        {
+            case WidgetPointerEventKind.Released:
+                if (IsWithinBounds(e.Position))
+                {
+                    ToggleValue();
+                }
+                break;
+            case WidgetPointerEventKind.Cancelled:
+                _value = _sourceValue;
+                RefreshStyle();
+                break;
+        }
+
+        return true;
     }
 
     private void DrawCheckMark(DrawingContext context, Rect rect)
@@ -119,6 +160,25 @@ public sealed class CheckBoxWidget : Widget
         var start = new Point(rect.X + rect.Width * 0.2, rect.Y + rect.Height / 2);
         var end = new Point(rect.Right - rect.Width * 0.2, rect.Y + rect.Height / 2);
         context.DrawLine(pen, start, end);
+    }
+
+    private void ToggleValue()
+    {
+        _value = _value switch
+        {
+            true => false,
+            false => null,
+            null => true,
+        };
+
+        Toggled?.Invoke(_value);
+        RefreshStyle();
+    }
+
+    private bool IsWithinBounds(Point position)
+    {
+        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
+        return rect.Contains(position);
     }
 
     private Matrix CreateRotationMatrix()

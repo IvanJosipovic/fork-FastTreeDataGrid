@@ -10,8 +10,8 @@ public sealed class ButtonWidget : Widget
 {
     private string _text = string.Empty;
     private bool _isPrimary;
-    private bool _isPressed;
-    private bool _isEnabled = true;
+    private bool _isPressedSource;
+    private bool _isPointerPressed;
     private ImmutableSolidColorBrush? _background;
     private ImmutableSolidColorBrush? _borderBrush;
     private double _cornerRadius = 4;
@@ -20,6 +20,13 @@ public sealed class ButtonWidget : Widget
     private FormattedText? _formattedText;
     private string? _cachedText;
     private double _cachedFontSize;
+
+    public ButtonWidget()
+    {
+        IsInteractive = true;
+    }
+
+    public event Action<ButtonWidget>? Clicked;
 
     public double CornerRadius { get; set; } = 4;
 
@@ -33,8 +40,9 @@ public sealed class ButtonWidget : Widget
     {
         _text = string.Empty;
         _isPrimary = false;
-        _isPressed = false;
-        _isEnabled = true;
+        _isPressedSource = false;
+        _isPointerPressed = false;
+        var enabled = true;
         _background = Background;
         _borderBrush = BorderBrush;
         _cornerRadius = CornerRadius;
@@ -48,8 +56,8 @@ public sealed class ButtonWidget : Widget
                 case ButtonWidgetValue buttonValue:
                     _text = buttonValue.Text;
                     _isPrimary = buttonValue.IsPrimary;
-                    _isPressed = buttonValue.IsPressed;
-                    _isEnabled = buttonValue.IsEnabled;
+                    _isPressedSource = buttonValue.IsPressed;
+                    enabled = buttonValue.IsEnabled;
                     _background = buttonValue.Background ?? Background;
                     _borderBrush = buttonValue.BorderBrush ?? BorderBrush;
                     _cornerRadius = buttonValue.CornerRadius;
@@ -62,6 +70,7 @@ public sealed class ButtonWidget : Widget
         }
 
         InvalidateFormattedText();
+        IsEnabled = enabled;
     }
 
     public override void Arrange(Rect bounds)
@@ -137,7 +146,7 @@ public sealed class ButtonWidget : Widget
 
     private ImmutableSolidColorBrush ResolveForeground()
     {
-        if (!_isEnabled)
+        if (!IsEnabled)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(180, 180, 180));
         }
@@ -147,7 +156,7 @@ public sealed class ButtonWidget : Widget
 
     private ImmutableSolidColorBrush? ResolveBackground()
     {
-        if (!_isEnabled)
+        if (!IsEnabled)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
         }
@@ -163,7 +172,7 @@ public sealed class ButtonWidget : Widget
 
     private ImmutableSolidColorBrush? ResolveBorder()
     {
-        if (!_isEnabled)
+        if (!IsEnabled)
         {
             return new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
         }
@@ -179,14 +188,46 @@ public sealed class ButtonWidget : Widget
 
     private ImmutableSolidColorBrush AdjustForPressed(ImmutableSolidColorBrush brush)
     {
-        if (!_isPressed)
+        if (IsPressedVisual)
         {
-            return brush;
+            var color = brush.Color;
+            byte Reduce(byte channel) => (byte)Math.Max(0, channel - 20);
+            return new ImmutableSolidColorBrush(Color.FromRgb(Reduce(color.R), Reduce(color.G), Reduce(color.B)));
         }
 
-        var color = brush.Color;
-        byte Reduce(byte channel) => (byte)Math.Max(0, channel - 20);
-        return new ImmutableSolidColorBrush(Color.FromRgb(Reduce(color.R), Reduce(color.G), Reduce(color.B)));
+        return brush;
+    }
+
+    public override bool HandlePointerEvent(in WidgetPointerEvent e)
+    {
+        var handled = base.HandlePointerEvent(e);
+
+        switch (e.Kind)
+        {
+            case WidgetPointerEventKind.Pressed:
+                _isPointerPressed = true;
+                break;
+            case WidgetPointerEventKind.Released:
+                if (_isPointerPressed && IsWithinBounds(e.Position))
+                {
+                    Clicked?.Invoke(this);
+                }
+                _isPointerPressed = false;
+                break;
+            case WidgetPointerEventKind.Cancelled:
+                _isPointerPressed = false;
+                break;
+        }
+
+        return handled || IsInteractive;
+    }
+
+    private bool IsPressedVisual => _isPointerPressed || _isPressedSource;
+
+    private bool IsWithinBounds(Point position)
+    {
+        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
+        return rect.Contains(position);
     }
 
     private Matrix CreateRotationMatrix()

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
@@ -14,6 +15,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     private FastTreeDataGrid? _owner;
     private readonly List<double> _columnOffsets = new();
 
+    private Widget? _pointerCapturedWidget;
+    private Widget? _pointerOverWidget;
+    private Widget? _focusedWidget;
+
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
     private readonly SolidColorBrush _toggleBackground = new(Color.FromRgb(236, 236, 236));
     private readonly Pen _togglePen = new(new SolidColorBrush(Color.FromRgb(96, 96, 96)), 1);
@@ -23,6 +28,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     {
         ClipToBounds = true;
         IsHitTestVisible = true;
+        Focusable = true;
+        AddHandler(InputElement.PointerExitedEvent, PresenterOnPointerLeave, RoutingStrategies.Tunnel | RoutingStrategies.Bubble | RoutingStrategies.Direct);
     }
 
     public void SetOwner(FastTreeDataGrid owner)
@@ -41,6 +48,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         InvalidateMeasure();
         InvalidateArrange();
         InvalidateVisual();
+
+        _pointerCapturedWidget = null;
+        _pointerOverWidget = null;
+        _focusedWidget = null;
     }
 
     public void UpdateSelection(int selectedIndex)
@@ -121,9 +132,132 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         }
 
         var point = e.GetCurrentPoint(this).Position;
+
+        if (RoutePointerEvent(point, e, WidgetPointerEventKind.Pressed))
+        {
+            if (!IsFocused)
+            {
+                Focus();
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (HandlePointer(point, e))
         {
             e.Handled = true;
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        var point = e.GetCurrentPoint(this).Position;
+
+        if (_pointerCapturedWidget is not null)
+        {
+            RoutePointerToWidget(_pointerCapturedWidget, point, e, WidgetPointerEventKind.Moved);
+            e.Handled = true;
+            return;
+        }
+
+        var widget = HitTestWidget(point, out _);
+        if (!ReferenceEquals(widget, _pointerOverWidget))
+        {
+            if (_pointerOverWidget is not null)
+            {
+                RoutePointerToWidget(_pointerOverWidget, point, e, WidgetPointerEventKind.Exited);
+            }
+
+            _pointerOverWidget = widget;
+            if (widget is not null)
+            {
+                RoutePointerToWidget(widget, point, e, WidgetPointerEventKind.Entered);
+            }
+        }
+
+        if (widget is not null)
+        {
+            RoutePointerToWidget(widget, point, e, WidgetPointerEventKind.Moved);
+            e.Handled = true;
+        }
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+
+        var point = e.GetCurrentPoint(this).Position;
+
+        if (_pointerCapturedWidget is not null)
+        {
+            RoutePointerToWidget(_pointerCapturedWidget, point, e, WidgetPointerEventKind.Released);
+            e.Pointer.Capture(null);
+            _pointerCapturedWidget = null;
+            e.Handled = true;
+            return;
+        }
+
+        if (RoutePointerEvent(point, e, WidgetPointerEventKind.Released))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void PresenterOnPointerLeave(object? sender, PointerEventArgs e)
+    {
+        if (_pointerCapturedWidget is not null)
+        {
+            RoutePointerToWidget(_pointerCapturedWidget, e.GetCurrentPoint(this).Position, e, WidgetPointerEventKind.Cancelled);
+            _pointerCapturedWidget = null;
+        }
+
+        if (_pointerOverWidget is not null)
+        {
+            RoutePointerToWidget(_pointerOverWidget, e.GetCurrentPoint(this).Position, e, WidgetPointerEventKind.Exited);
+            _pointerOverWidget = null;
+        }
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        if (_pointerCapturedWidget is not null)
+        {
+            var origin = new Point(_pointerCapturedWidget.Bounds.X, _pointerCapturedWidget.Bounds.Y);
+            RoutePointerToWidget(_pointerCapturedWidget, origin, null, WidgetPointerEventKind.Cancelled);
+            _pointerCapturedWidget = null;
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (_focusedWidget is not null)
+        {
+            var handled = _focusedWidget.HandleKeyboardEvent(new WidgetKeyboardEvent(WidgetKeyboardEventKind.KeyDown, e));
+            if (handled)
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+
+        if (_focusedWidget is not null)
+        {
+            var handled = _focusedWidget.HandleKeyboardEvent(new WidgetKeyboardEvent(WidgetKeyboardEventKind.KeyUp, e));
+            if (handled)
+            {
+                e.Handled = true;
+            }
         }
     }
 
@@ -151,6 +285,87 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         }
 
         return null;
+    }
+
+    private Widget? HitTestWidget(Point point, out RowRenderInfo? rowInfo)
+    {
+        foreach (var row in _rows)
+        {
+            if (point.Y < row.Top || point.Y >= row.Top + row.Height)
+            {
+                continue;
+            }
+
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Widget is { } widget && widget.SupportsPointerInput && widget.IsEnabled && widget.Bounds.Contains(point))
+                {
+                    rowInfo = row;
+                    return widget;
+                }
+            }
+
+            rowInfo = row;
+            return null;
+        }
+
+        rowInfo = null;
+        return null;
+    }
+
+    private bool RoutePointerEvent(Point point, PointerEventArgs args, WidgetPointerEventKind kind)
+    {
+        if (_pointerCapturedWidget is not null)
+        {
+            if (kind == WidgetPointerEventKind.Pressed)
+            {
+                return true;
+            }
+
+            RoutePointerToWidget(_pointerCapturedWidget, point, args, kind);
+            return true;
+        }
+
+        var widget = HitTestWidget(point, out _);
+        if (widget is null)
+        {
+            return false;
+        }
+
+        if (kind == WidgetPointerEventKind.Pressed && !ReferenceEquals(_pointerOverWidget, widget))
+        {
+            RoutePointerToWidget(widget, point, args, WidgetPointerEventKind.Entered);
+            _pointerOverWidget = widget;
+        }
+
+        var handled = RoutePointerToWidget(widget, point, args, kind);
+
+        if (kind == WidgetPointerEventKind.Pressed && handled)
+        {
+            _pointerCapturedWidget = widget;
+            _focusedWidget = widget.SupportsKeyboardInput || widget.IsInteractive ? widget : null;
+            args.Pointer.Capture(this);
+        }
+
+        if (kind == WidgetPointerEventKind.Pressed)
+        {
+            _pointerOverWidget = widget;
+        }
+
+        return handled;
+    }
+
+    private bool RoutePointerToWidget(Widget widget, Point point, PointerEventArgs? args, WidgetPointerEventKind kind)
+    {
+        var local = new Point(point.X - widget.Bounds.X, point.Y - widget.Bounds.Y);
+        var evt = new WidgetPointerEvent(kind, local, args);
+        var handled = widget.HandlePointerEvent(evt);
+        if (handled && kind != WidgetPointerEventKind.Moved)
+        {
+            InvalidateVisual();
+        }
+
+        return handled;
     }
 
     private static bool HitTestToggle(RowRenderInfo row, Point point)
