@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -60,20 +61,38 @@ public sealed class RadioButtonWidget : Widget
         }
 
         using var clip = PushClip(context);
+        using var rotation = context.PushTransform(CreateRotationMatrix());
+
+        var palette = WidgetFluentPalette.Current.RadioButton;
+        var controlCorner = WidgetFluentPalette.Current.ControlCornerRadius.TopLeft;
+
+        var background = palette.Background.Get(VisualState);
+        var border = palette.Border.Get(VisualState);
+        if (background is not null || border is not null)
+        {
+            var pen = border is null ? null : new Pen(border, palette.BorderThickness);
+            context.DrawRectangle(background, pen, bounds, controlCorner, controlCorner);
+        }
+
         var diameter = Math.Min(bounds.Width, bounds.Height);
         var radius = diameter / 2;
         var center = bounds.Center;
 
-        var borderBrush = _borderBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(96, 96, 96));
-        var fillBrush = _fillBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
-        var background = IsEnabled ? Brushes.Transparent : new ImmutableSolidColorBrush(Color.FromRgb(235, 235, 235));
+        var strokeState = _isChecked ? palette.CheckedEllipseStroke : palette.OuterEllipseStroke;
+        var fillState = _isChecked ? palette.CheckedEllipseFill : palette.OuterEllipseFill;
 
-        context.DrawEllipse(background, new Pen(borderBrush, 1.5), center, radius, radius);
+        var strokeBrush = _borderBrush ?? strokeState.Get(VisualState) ?? strokeState.Normal;
+        var fillBrush = fillState.Get(VisualState) ?? fillState.Normal;
+        var outerPen = strokeBrush is null ? null : new Pen(strokeBrush, Math.Max(1, palette.BorderThickness));
+        context.DrawEllipse(fillBrush ?? Brushes.Transparent, outerPen, center, radius, radius);
 
         if (_isChecked)
         {
+            var glyphBrush = Foreground
+                              ?? (_fillBrush ?? palette.GlyphFill.Get(VisualState) ?? palette.GlyphFill.Normal)
+                              ?? new ImmutableSolidColorBrush(Colors.White);
             var innerRadius = Math.Max(2, radius - 4);
-            context.DrawEllipse(fillBrush, null, center, innerRadius, innerRadius);
+            context.DrawEllipse(glyphBrush, null, center, innerRadius, innerRadius);
         }
     }
 
@@ -133,5 +152,19 @@ public sealed class RadioButtonWidget : Widget
     {
         var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
         return rect.Contains(point);
+    }
+
+    private Matrix CreateRotationMatrix()
+    {
+        if (Math.Abs(Rotation) <= double.Epsilon)
+        {
+            return Matrix.Identity;
+        }
+
+        var centerX = Bounds.X + Bounds.Width / 2;
+        var centerY = Bounds.Y + Bounds.Height / 2;
+        return Matrix.CreateTranslation(-centerX, -centerY)
+               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
+               * Matrix.CreateTranslation(centerX, centerY);
     }
 }

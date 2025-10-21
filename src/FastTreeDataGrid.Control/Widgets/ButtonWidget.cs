@@ -1,8 +1,11 @@
 using System;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
+using ButtonVariantPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.ButtonVariantPalette;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -14,12 +17,12 @@ public sealed class ButtonWidget : Widget
     private bool _isPointerPressed;
     private ImmutableSolidColorBrush? _background;
     private ImmutableSolidColorBrush? _borderBrush;
-    private double _cornerRadius = 4;
     private double? _fontSize;
 
     private FormattedText? _formattedText;
     private string? _cachedText;
     private double _cachedFontSize;
+    private ImmutableSolidColorBrush? _cachedForeground;
 
     public ButtonWidget()
     {
@@ -27,8 +30,6 @@ public sealed class ButtonWidget : Widget
     }
 
     public event Action<ButtonWidget>? Clicked;
-
-    public double CornerRadius { get; set; } = 4;
 
     public ImmutableSolidColorBrush? Background { get; set; }
 
@@ -38,6 +39,8 @@ public sealed class ButtonWidget : Widget
 
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
+        var palette = WidgetFluentPalette.Current.Button;
+
         _text = string.Empty;
         _isPrimary = false;
         _isPressedSource = false;
@@ -45,8 +48,8 @@ public sealed class ButtonWidget : Widget
         var enabled = true;
         _background = Background;
         _borderBrush = BorderBrush;
-        _cornerRadius = CornerRadius;
         _fontSize = FontSize;
+        CornerRadius = default;
 
         if (provider is not null && Key is not null)
         {
@@ -60,8 +63,11 @@ public sealed class ButtonWidget : Widget
                     enabled = buttonValue.IsEnabled;
                     _background = buttonValue.Background ?? Background;
                     _borderBrush = buttonValue.BorderBrush ?? BorderBrush;
-                    _cornerRadius = buttonValue.CornerRadius;
                     _fontSize = buttonValue.FontSize ?? FontSize;
+                    if (buttonValue.CornerRadius.HasValue)
+                    {
+                        CornerRadius = new CornerRadius(buttonValue.CornerRadius.Value);
+                    }
                     break;
                 case string text:
                     _text = text;
@@ -83,35 +89,48 @@ public sealed class ButtonWidget : Widget
     {
         using var clip = PushClip(context);
 
-        var background = ResolveBackground();
-        var borderBrush = _borderBrush ?? ResolveBorder();
-        var corner = _cornerRadius;
+        var palette = WidgetFluentPalette.Current.Button;
+        var variant = _isPrimary ? palette.Accent : palette.Standard;
+        var background = ResolveBackground(variant);
+        var borderBrush = ResolveBorder(variant);
+        var borderThickness = palette.BorderThickness;
+        var cornerRadius = GetUniformCornerRadius(CornerRadius == default ? palette.CornerRadius : CornerRadius);
 
         using var rotation = context.PushTransform(CreateRotationMatrix());
-        context.DrawRectangle(background, borderBrush is null ? null : new Pen(borderBrush, 1), Bounds, corner, corner);
+        var pen = borderBrush is null || borderThickness <= 0
+            ? null
+            : new Pen(borderBrush, borderThickness);
+
+        context.DrawRectangle(background, pen, Bounds, cornerRadius, cornerRadius);
 
         if (string.IsNullOrEmpty(_text))
         {
             return;
         }
 
-        var formatted = GetOrCreateText();
+        var formatted = GetOrCreateText(variant);
         if (formatted is null)
         {
             return;
         }
 
-        var originX = Bounds.X + Math.Max(0, (Bounds.Width - formatted.Width) / 2);
-        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - formatted.Height) / 2);
+        var contentRect = Deflate(Bounds, palette.Padding);
+        var originX = contentRect.X + Math.Max(0, (contentRect.Width - formatted.Width) / 2);
+        var originY = contentRect.Y + Math.Max(0, (contentRect.Height - formatted.Height) / 2);
 
         context.DrawText(formatted, new Point(originX, originY));
     }
 
-    private FormattedText? GetOrCreateText()
+    private FormattedText? GetOrCreateText(ButtonVariantPalette variant)
     {
-        var fontSize = _fontSize ?? Math.Max(12, Bounds.Height * 0.5);
+        var foreground = ResolveForeground(variant);
 
-        if (_formattedText is not null && string.Equals(_cachedText, _text, StringComparison.Ordinal) && Math.Abs(_cachedFontSize - fontSize) <= double.Epsilon)
+        var fontSize = _fontSize ?? Math.Max(12, Bounds.Height * 0.45);
+
+        if (_formattedText is not null
+            && string.Equals(_cachedText, _text, StringComparison.Ordinal)
+            && Math.Abs(_cachedFontSize - fontSize) <= double.Epsilon
+            && BrushEquals(_cachedForeground, foreground))
         {
             return _formattedText;
         }
@@ -126,14 +145,15 @@ public sealed class ButtonWidget : Widget
 
         _formattedText = new FormattedText(
             _text,
-            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             Typeface.Default,
             fontSize,
-            ResolveForeground());
+            foreground);
 
         _cachedText = _text;
         _cachedFontSize = fontSize;
+        _cachedForeground = foreground;
         return _formattedText;
     }
 
@@ -142,23 +162,36 @@ public sealed class ButtonWidget : Widget
         _formattedText = null;
         _cachedText = null;
         _cachedFontSize = 0;
+        _cachedForeground = null;
     }
 
-    private ImmutableSolidColorBrush ResolveForeground()
+    private ImmutableSolidColorBrush ResolveForeground(ButtonVariantPalette variant)
     {
-        if (!IsEnabled)
+        if (Foreground is not null)
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(180, 180, 180));
+            return Foreground;
         }
 
-        return Foreground ?? new ImmutableSolidColorBrush(_isPrimary ? Color.FromRgb(255, 255, 255) : Color.FromRgb(40, 40, 40));
+        var brush = variant.Foreground.Get(VisualState)
+                    ?? variant.Foreground.Normal
+                    ?? variant.Foreground.Disabled;
+
+        if (brush is not null)
+        {
+            return brush;
+        }
+
+        return _isPrimary
+            ? new ImmutableSolidColorBrush(Colors.White)
+            : new ImmutableSolidColorBrush(Color.FromRgb(40, 40, 40));
     }
 
-    private ImmutableSolidColorBrush? ResolveBackground()
+    private ImmutableSolidColorBrush ResolveBackground(ButtonVariantPalette variant)
     {
         if (!IsEnabled)
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
+            var disabled = variant.Background.Get(WidgetVisualState.Disabled) ?? variant.Background.Normal;
+            return disabled ?? new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
         }
 
         if (_background is not null)
@@ -166,15 +199,21 @@ public sealed class ButtonWidget : Widget
             return AdjustForPressed(_background);
         }
 
+        var brush = variant.Background.Get(VisualState) ?? variant.Background.Normal;
+        if (brush is not null)
+        {
+            return brush;
+        }
+
         var baseColor = _isPrimary ? Color.FromRgb(49, 130, 206) : Color.FromRgb(242, 242, 242);
-        return AdjustForPressed(new ImmutableSolidColorBrush(baseColor));
+        return new ImmutableSolidColorBrush(baseColor);
     }
 
-    private ImmutableSolidColorBrush? ResolveBorder()
+    private ImmutableSolidColorBrush? ResolveBorder(ButtonVariantPalette variant)
     {
         if (!IsEnabled)
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
+            return variant.Border.Get(WidgetVisualState.Disabled) ?? variant.Border.Normal;
         }
 
         if (_borderBrush is not null)
@@ -182,8 +221,50 @@ public sealed class ButtonWidget : Widget
             return AdjustForPressed(_borderBrush);
         }
 
-        var baseColor = _isPrimary ? Color.FromRgb(36, 98, 156) : Color.FromRgb(205, 205, 205);
-        return AdjustForPressed(new ImmutableSolidColorBrush(baseColor));
+        var brush = variant.Border.Get(VisualState) ?? variant.Border.Normal;
+        if (brush is not null)
+        {
+            return brush;
+        }
+
+        return _isPrimary
+            ? new ImmutableSolidColorBrush(Color.FromRgb(36, 98, 156))
+            : new ImmutableSolidColorBrush(Color.FromRgb(205, 205, 205));
+    }
+
+    private static Rect Deflate(Rect rect, Thickness thickness)
+    {
+        if (thickness == default)
+        {
+            return rect;
+        }
+
+        var left = Math.Max(0, thickness.Left);
+        var top = Math.Max(0, thickness.Top);
+        var right = Math.Max(0, thickness.Right);
+        var bottom = Math.Max(0, thickness.Bottom);
+
+        var width = Math.Max(0, rect.Width - left - right);
+        var height = Math.Max(0, rect.Height - top - bottom);
+
+        return new Rect(rect.X + left, rect.Y + top, width, height);
+    }
+
+    private static double GetUniformCornerRadius(CornerRadius cornerRadius)
+    {
+        if (cornerRadius == default)
+        {
+            return 0;
+        }
+
+        if (Math.Abs(cornerRadius.TopLeft - cornerRadius.TopRight) < double.Epsilon
+            && Math.Abs(cornerRadius.TopLeft - cornerRadius.BottomLeft) < double.Epsilon
+            && Math.Abs(cornerRadius.TopLeft - cornerRadius.BottomRight) < double.Epsilon)
+        {
+            return cornerRadius.TopLeft;
+        }
+
+        return (cornerRadius.TopLeft + cornerRadius.TopRight + cornerRadius.BottomLeft + cornerRadius.BottomRight) / 4;
     }
 
     private ImmutableSolidColorBrush AdjustForPressed(ImmutableSolidColorBrush brush)
@@ -196,6 +277,11 @@ public sealed class ButtonWidget : Widget
         }
 
         return brush;
+    }
+
+    private static bool BrushEquals(ImmutableSolidColorBrush? cached, ImmutableSolidColorBrush current)
+    {
+        return cached is not null && cached.Color.Equals(current.Color);
     }
 
     public void SetText(string text)

@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -82,8 +83,9 @@ public sealed class ProgressWidget : Widget
 
         using var clip = PushClip(context);
 
-        var background = TrackBackground ?? new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
-        var foreground = TrackForeground ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
+        var palette = WidgetFluentPalette.Current.Progress;
+        var background = TrackBackground ?? palette.Track;
+        var foreground = TrackForeground ?? palette.Value;
 
         var radius = Math.Min(rect.Height / 2, 6);
 
@@ -92,7 +94,8 @@ public sealed class ProgressWidget : Widget
 
         if (IsIndeterminate)
         {
-            DrawIndeterminate(context, rect, foreground, radius);
+            var indeterminateBrush = TrackForeground ?? palette.IndeterminateSegment ?? foreground;
+            DrawIndeterminate(context, rect, indeterminateBrush, radius);
             return;
         }
 

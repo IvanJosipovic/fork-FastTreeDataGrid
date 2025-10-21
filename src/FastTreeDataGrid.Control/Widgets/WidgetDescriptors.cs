@@ -25,7 +25,7 @@ public sealed record ButtonWidgetValue(
     bool IsEnabled = true,
     ImmutableSolidColorBrush? Background = null,
     ImmutableSolidColorBrush? BorderBrush = null,
-    double CornerRadius = 4,
+    double? CornerRadius = null,
     double? FontSize = null);
 
 public sealed record CheckBoxWidgetValue(
@@ -63,7 +63,7 @@ public sealed record BadgeWidgetValue(
     string Text,
     ImmutableSolidColorBrush? Background = null,
     ImmutableSolidColorBrush? Foreground = null,
-    double CornerRadius = 8,
-    double Padding = 6);
+    double? CornerRadius = null,
+    double? Padding = null);
 
 public sealed record CustomDrawWidgetValue(Action<DrawingContext, Rect> Draw);

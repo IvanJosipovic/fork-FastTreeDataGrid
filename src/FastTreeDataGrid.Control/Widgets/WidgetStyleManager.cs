@@ -147,6 +147,23 @@ public static class WidgetStyleManager
         applicator?.Invoke(widget);
     }
 
+    public static void RefreshCurrentTheme()
+    {
+        string themeName;
+
+        ThemeLock.EnterReadLock();
+        try
+        {
+            themeName = _currentTheme;
+        }
+        finally
+        {
+            ThemeLock.ExitReadLock();
+        }
+
+        ThemeChanged?.Invoke(themeName);
+    }
+
     private static WidgetStyleApplicator? ResolveApplicator(Dictionary<WidgetStyleKey, WidgetStyleApplicator> theme, Widget widget, WidgetVisualState state)
     {
         var type = widget.GetType();

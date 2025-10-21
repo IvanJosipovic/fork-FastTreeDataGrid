@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -137,9 +138,12 @@ public sealed class SliderWidget : Widget
         var trackRect = new Rect(rect.X, trackY, rect.Width, trackHeight);
         var radius = trackHeight / 2;
 
-        var trackBrush = _trackBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(220, 220, 220));
-        var fillBrush = _fillBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
-        var thumbBrush = _thumbBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
+        var palette = WidgetFluentPalette.Current.Slider;
+
+        var trackBrush = _trackBrush ?? palette.TrackFill.Get(VisualState) ?? palette.TrackFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(220, 220, 220));
+        var fillBrush = _fillBrush ?? palette.ValueFill.Get(VisualState) ?? palette.ValueFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
+        var thumbBrush = _thumbBrush ?? palette.ThumbFill.Get(VisualState) ?? palette.ThumbFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
+        var thumbBorder = palette.ThumbBorder.Get(VisualState) ?? palette.ThumbBorder.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
 
         using var rotation = context.PushTransform(CreateRotationMatrix());
         context.DrawRectangle(trackBrush, null, trackRect, radius, radius);
@@ -160,7 +164,7 @@ public sealed class SliderWidget : Widget
         thumbX = Math.Clamp(thumbX, rect.X, rect.Right - thumbDiameter);
 
         var thumbRect = new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter);
-        context.DrawEllipse(thumbBrush, new Pen(new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200)), 1), thumbRect.Center, thumbDiameter / 2, thumbDiameter / 2);
+        context.DrawEllipse(thumbBrush, new Pen(thumbBorder, 1), thumbRect.Center, thumbDiameter / 2, thumbDiameter / 2);
     }
 
     public override bool HandlePointerEvent(in WidgetPointerEvent e)

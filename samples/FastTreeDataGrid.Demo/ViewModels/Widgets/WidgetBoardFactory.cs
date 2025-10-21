@@ -152,10 +152,10 @@ internal static class WidgetBoardFactory
             DefaultItemHeight = 40,
         };
 
-        wrap.Children.Add(CreateLabeledBadge("Info", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "INFO", new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206)), new ImmutableSolidColorBrush(Colors.White)));
-        wrap.Children.Add(CreateLabeledBadge("Success", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "SUCCESS", new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), new ImmutableSolidColorBrush(Colors.White)));
-        wrap.Children.Add(CreateLabeledBadge("Warning", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "WARN", new ImmutableSolidColorBrush(Color.FromRgb(255, 191, 0)), new ImmutableSolidColorBrush(Color.FromRgb(90, 60, 0))));
-        wrap.Children.Add(CreateLabeledBadge("Neutral", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "NEW", new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230)), new ImmutableSolidColorBrush(Color.FromRgb(70, 70, 70))));
+        wrap.Children.Add(CreateLabeledBadge("Info", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "INFO", new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206)), new ImmutableSolidColorBrush(Colors.White)));
+        wrap.Children.Add(CreateLabeledBadge("Success", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "SUCCESS", new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), new ImmutableSolidColorBrush(Colors.White)));
+        wrap.Children.Add(CreateLabeledBadge("Warning", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "WARN", new ImmutableSolidColorBrush(Color.FromRgb(255, 191, 0)), new ImmutableSolidColorBrush(Color.FromRgb(90, 60, 0))));
+        wrap.Children.Add(CreateLabeledBadge("Neutral", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "NEW", new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230)), new ImmutableSolidColorBrush(Color.FromRgb(70, 70, 70))));
 
         return WidgetBoard.Create("Badges", "BadgeWidget pill samples.", wrap);
     }
@@ -171,7 +171,7 @@ internal static class WidgetBoardFactory
 
         layout.Children.Add(CreateToggleRow("Toggle", true, true));
         layout.Children.Add(CreateSliderRow("Volume", 0, 100, 40, true, new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206))));
-        layout.Children.Add(CreateLabeledBadge("Status", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "SYNC", new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), new ImmutableSolidColorBrush(Colors.White)));
+        layout.Children.Add(CreateLabeledBadge("Status", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "SYNC", new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), new ImmutableSolidColorBrush(Colors.White)));
 
         return WidgetBoard.Create("Stack Layout (Horizontal)", "StackLayoutWidget arranged horizontally with interactive widgets.", layout);
     }
@@ -210,7 +210,7 @@ internal static class WidgetBoardFactory
 
         wrap.Children.Add(new SliderWidget { Minimum = 0, Maximum = 10, Value = 5, DesiredWidth = 200, TrackBrush = new ImmutableSolidColorBrush(Color.FromRgb(220, 220, 220)), FillBrush = new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206)) });
 
-        var readyBadge = new BadgeWidget { CornerRadius = 12, Padding = 10, BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), ForegroundBrush = new ImmutableSolidColorBrush(Colors.White) };
+        var readyBadge = new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10, BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)), ForegroundBrush = new ImmutableSolidColorBrush(Colors.White) };
         readyBadge.SetText("READY");
         readyBadge.RefreshStyle();
         wrap.Children.Add(readyBadge);
@@ -230,7 +230,7 @@ internal static class WidgetBoardFactory
         grid.Children.Add(ConfigureButton("Primary", "Save"));
         grid.Children.Add(CreateToggleRow("Auto-sync", true, true));
         grid.Children.Add(CreateSliderRow("Opacity", 0, 1, 0.6, true, new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206))));
-        grid.Children.Add(CreateLabeledBadge("Role", new BadgeWidget { CornerRadius = 12, Padding = 10 }, "ADMIN", new ImmutableSolidColorBrush(Color.FromRgb(79, 154, 255)), new ImmutableSolidColorBrush(Colors.White)));
+        grid.Children.Add(CreateLabeledBadge("Role", new BadgeWidget { CornerRadius = new CornerRadius(12), Padding = 10 }, "ADMIN", new ImmutableSolidColorBrush(Color.FromRgb(79, 154, 255)), new ImmutableSolidColorBrush(Colors.White)));
 
         return WidgetBoard.Create("Grid Layout", "GridLayoutWidget in a 2-column configuration.", grid);
     }

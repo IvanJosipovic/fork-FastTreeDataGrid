@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -13,8 +14,7 @@ public sealed class BadgeWidget : Widget
     private ImmutableSolidColorBrush? _foreground;
     private ImmutableSolidColorBrush? _backgroundOverride;
     private ImmutableSolidColorBrush? _foregroundOverride;
-    private double _cornerRadius = 8;
-    private double _padding = 6;
+    private double _padding = double.NaN;
     private FormattedText? _formattedText;
     private string? _cachedText;
 
@@ -38,12 +38,6 @@ public sealed class BadgeWidget : Widget
         }
     }
 
-    public double CornerRadius
-    {
-        get => _cornerRadius;
-        set => _cornerRadius = value;
-    }
-
     public double Padding
     {
         get => _padding;
@@ -55,7 +49,7 @@ public sealed class BadgeWidget : Widget
         _text = string.Empty;
         _background = _backgroundOverride;
         _foreground = _foregroundOverride;
-        _cornerRadius = CornerRadius;
+        CornerRadius = default;
         _padding = Padding;
 
         if (provider is not null && Key is not null)
@@ -67,8 +61,11 @@ public sealed class BadgeWidget : Widget
                     _text = badge.Text ?? string.Empty;
                     _background = badge.Background ?? BackgroundBrush;
                     _foreground = badge.Foreground ?? ForegroundBrush;
-                    _cornerRadius = badge.CornerRadius;
-                    _padding = badge.Padding;
+                    if (badge.CornerRadius.HasValue)
+                    {
+                        CornerRadius = new CornerRadius(badge.CornerRadius.Value);
+                    }
+                    _padding = badge.Padding ?? _padding;
                     break;
                 case string text:
                     _text = text;
@@ -90,16 +87,19 @@ public sealed class BadgeWidget : Widget
 
         using var clip = PushClip(context);
 
-        var background = _background ?? BackgroundBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
-        var foreground = _foreground ?? ForegroundBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
+        var palette = WidgetFluentPalette.Current.Badge;
+        var background = _background ?? BackgroundBrush ?? palette.Background;
+        var foreground = _foreground ?? ForegroundBrush ?? palette.Foreground;
 
-        var drawRect = rect.Deflate(_padding);
+        var padding = double.IsNaN(_padding) ? palette.Padding : _padding;
+        var drawRect = rect.Deflate(padding);
         if (drawRect.Width <= 0 || drawRect.Height <= 0)
         {
             drawRect = rect;
         }
 
-        context.DrawRectangle(background, null, drawRect, _cornerRadius, _cornerRadius);
+        var corner = CornerRadius == default ? palette.CornerRadius : CornerRadius.TopLeft;
+        context.DrawRectangle(background, null, drawRect, corner, corner);
 
         if (string.IsNullOrEmpty(_text))
         {

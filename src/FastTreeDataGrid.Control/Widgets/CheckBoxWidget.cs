@@ -3,6 +3,9 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
+using CheckBoxPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.CheckBoxPalette;
+using CheckBoxValuePalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.CheckBoxValuePalette;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -18,9 +21,9 @@ public sealed class CheckBoxWidget : Widget
 
     public event Action<bool?>? Toggled;
 
-    public double StrokeThickness { get; set; } = 1.5;
+    public double StrokeThickness { get; set; } = double.NaN;
 
-    public double Padding { get; set; } = 4;
+    public double Padding { get; set; } = double.NaN;
 
     public bool? Value => _value;
 
@@ -68,59 +71,116 @@ public sealed class CheckBoxWidget : Widget
         using var clip = PushClip(context);
 
         using var rotation = context.PushTransform(CreateRotationMatrix());
+        var palette = WidgetFluentPalette.Current.CheckBox;
+        var valuePalette = GetValuePalette(palette);
 
-        var size = Math.Min(Bounds.Width, Bounds.Height) - (Padding * 2);
-        if (size <= 0)
+        var outerRect = Bounds;
+        var outerBackground = GetBrushForState(valuePalette.Background, VisualState)
+                              ?? new ImmutableSolidColorBrush(Colors.Transparent);
+        var outerBorderBrush = GetBrushForState(valuePalette.Border, VisualState);
+        var outerPen = outerBorderBrush is null ? null : new Pen(outerBorderBrush, palette.StrokeThickness);
+        var outerCorner = palette.CornerRadius.TopLeft;
+        context.DrawRectangle(outerBackground, outerPen, outerRect, outerCorner, outerCorner);
+
+        var effectivePadding = palette.Padding;
+        if (!double.IsNaN(Padding) && Padding > 0)
+        {
+            effectivePadding = new Thickness(
+                effectivePadding.Left + Padding,
+                effectivePadding.Top + Padding,
+                effectivePadding.Right + Padding,
+                effectivePadding.Bottom + Padding);
+        }
+
+        var contentRect = Deflate(outerRect, effectivePadding);
+        var boxSize = Math.Min(Math.Min(contentRect.Width, contentRect.Height), palette.BoxSize);
+        if (boxSize <= 0)
         {
             return;
         }
 
-        var originX = Bounds.X + (Bounds.Width - size) / 2;
-        var originY = Bounds.Y + (Bounds.Height - size) / 2;
-        var rect = new Rect(originX, originY, size, size);
+        var boxRect = new Rect(
+            contentRect.X + (contentRect.Width - boxSize) / 2,
+            contentRect.Y + (contentRect.Height - boxSize) / 2,
+            boxSize,
+            boxSize);
 
-        var borderBrush = ResolveBorder();
-        var background = ResolveBackground();
-        context.DrawRectangle(background, new Pen(borderBrush, StrokeThickness), rect, 2, 2);
+        var strokeThickness = double.IsNaN(StrokeThickness) ? palette.StrokeThickness : StrokeThickness;
+        var boxFill = GetBrushForState(valuePalette.BoxFill, VisualState) ?? new ImmutableSolidColorBrush(Colors.Transparent);
+        var boxStroke = GetBrushForState(valuePalette.BoxStroke, VisualState);
+        var boxPen = boxStroke is null ? null : new Pen(boxStroke, strokeThickness);
 
-        if (_value is true)
-        {
-            DrawCheckMark(context, rect);
-        }
-        else if (_value is null)
-        {
-            DrawIndeterminate(context, rect);
-        }
+        context.DrawRectangle(boxFill, boxPen, boxRect, outerCorner, outerCorner);
+
+        DrawGlyph(context, valuePalette, boxRect, palette.BoxSize);
     }
 
-    private ImmutableSolidColorBrush ResolveBorder()
+    private CheckBoxValuePalette GetValuePalette(CheckBoxPalette palette)
     {
-        if (!IsEnabled)
+        return _value switch
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(190, 190, 190));
-        }
-
-        return Foreground ?? new ImmutableSolidColorBrush(Color.FromRgb(60, 60, 60));
+            true => palette.Checked,
+            null => palette.Indeterminate,
+            _ => palette.Unchecked,
+        };
     }
 
-    private IBrush ResolveBackground()
+    private static ImmutableSolidColorBrush? GetBrushForState(WidgetFluentPalette.BrushState state, WidgetVisualState visualState)
     {
-        if (!IsEnabled)
+        return state.Get(visualState) ?? state.Normal;
+    }
+
+    private void DrawGlyph(DrawingContext context, CheckBoxValuePalette palette, Rect boxRect, double baseBoxSize)
+    {
+        if (palette.GlyphGeometry is null)
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(235, 235, 235));
+            return;
         }
 
-        if (_value is true)
+        var glyphBrush = Foreground ?? GetBrushForState(palette.Glyph, VisualState);
+        if (glyphBrush is null)
         {
-            return Foreground ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
+            glyphBrush = new ImmutableSolidColorBrush(Color.FromRgb(40, 40, 40));
         }
 
-        if (_value is null)
+        var geometry = palette.GlyphGeometry;
+        var bounds = geometry.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
         {
-            return new ImmutableSolidColorBrush(Color.FromRgb(216, 216, 216));
+            return;
         }
 
-        return Brushes.Transparent;
+        var scale = baseBoxSize <= 0 ? 1 : boxRect.Width / baseBoxSize;
+        var desiredWidth = palette.GlyphWidth > 0 ? palette.GlyphWidth * scale : boxRect.Width * 0.6;
+        var glyphScale = desiredWidth / bounds.Width;
+        var desiredHeight = bounds.Height * glyphScale;
+
+        var offsetX = boxRect.X + (boxRect.Width - desiredWidth) / 2;
+        var offsetY = boxRect.Y + (boxRect.Height - desiredHeight) / 2;
+
+        var transform = Matrix.CreateTranslation(-bounds.X, -bounds.Y)
+                       * Matrix.CreateScale(glyphScale, glyphScale)
+                       * Matrix.CreateTranslation(offsetX, offsetY);
+
+        using var glyphTransform = context.PushTransform(transform);
+        context.DrawGeometry(glyphBrush, null, geometry);
+    }
+
+    private static Rect Deflate(Rect rect, Thickness padding)
+    {
+        if (padding == default)
+        {
+            return rect;
+        }
+
+        var left = Math.Max(0, padding.Left);
+        var top = Math.Max(0, padding.Top);
+        var right = Math.Max(0, padding.Right);
+        var bottom = Math.Max(0, padding.Bottom);
+
+        var width = Math.Max(0, rect.Width - left - right);
+        var height = Math.Max(0, rect.Height - top - bottom);
+        return new Rect(rect.X + left, rect.Y + top, width, height);
     }
 
     public override bool HandlePointerEvent(in WidgetPointerEvent e)
@@ -149,25 +209,6 @@ public sealed class CheckBoxWidget : Widget
         return true;
     }
 
-    private void DrawCheckMark(DrawingContext context, Rect rect)
-    {
-        var brush = new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
-        var pen = new Pen(brush, StrokeThickness, lineJoin: PenLineJoin.Round);
-        var start = new Point(rect.X + rect.Width * 0.2, rect.Y + rect.Height * 0.55);
-        var middle = new Point(rect.X + rect.Width * 0.45, rect.Y + rect.Height * 0.75);
-        var end = new Point(rect.X + rect.Width * 0.8, rect.Y + rect.Height * 0.3);
-        context.DrawLine(pen, start, middle);
-        context.DrawLine(pen, middle, end);
-    }
-
-    private void DrawIndeterminate(DrawingContext context, Rect rect)
-    {
-        var brush = Foreground ?? new ImmutableSolidColorBrush(Color.FromRgb(60, 60, 60));
-        var pen = new Pen(brush, StrokeThickness, lineCap: PenLineCap.Round);
-        var start = new Point(rect.X + rect.Width * 0.2, rect.Y + rect.Height / 2);
-        var end = new Point(rect.Right - rect.Width * 0.2, rect.Y + rect.Height / 2);
-        context.DrawLine(pen, start, end);
-    }
 
     private void ToggleValue()
     {

@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -19,6 +20,7 @@ public abstract class Widget
     static Widget()
     {
         WidgetStyleManager.ThemeChanged += _ => RefreshAllStyles();
+        WidgetFluentPalette.EnsureInitialized();
     }
 
     protected Widget()
@@ -48,6 +50,10 @@ public abstract class Widget
     public bool ClipToBounds { get; set; } = true;
 
     public Rect Bounds { get; private set; }
+
+    public Thickness Margin { get; set; }
+
+    public CornerRadius CornerRadius { get; set; }
 
     private string? _styleKey;
 
@@ -100,9 +106,10 @@ public abstract class Widget
 
     public virtual void Arrange(Rect bounds)
     {
-        Bounds = bounds;
-        X = bounds.X;
-        Y = bounds.Y;
+        var adjusted = ApplyMargin(bounds);
+        Bounds = adjusted;
+        X = adjusted.X;
+        Y = adjusted.Y;
     }
 
     protected IDisposable? PushClip(DrawingContext context)
@@ -258,5 +265,25 @@ public abstract class Widget
                 }
             }
         }
+    }
+
+    private Rect ApplyMargin(Rect bounds)
+    {
+        if (Margin == default)
+        {
+            return bounds;
+        }
+
+        var left = Math.Max(0, Margin.Left);
+        var top = Math.Max(0, Margin.Top);
+        var right = Math.Max(0, Margin.Right);
+        var bottom = Math.Max(0, Margin.Bottom);
+
+        var width = Math.Max(0, bounds.Width - left - right);
+        var height = Math.Max(0, bounds.Height - top - bottom);
+        var x = bounds.X + left;
+        var y = bounds.Y + top;
+
+        return new Rect(x, y, width, height);
     }
 }

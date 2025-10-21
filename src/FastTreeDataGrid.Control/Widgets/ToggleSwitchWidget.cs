@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -63,6 +64,14 @@ public sealed class ToggleSwitchWidget : Widget
         }
 
         using var clip = PushClip(context);
+        var palette = WidgetFluentPalette.Current.ToggleSwitch;
+        var statePalette = _isOn ? palette.On : palette.Off;
+
+        var containerBrush = palette.ContainerBackground.Get(VisualState);
+        if (containerBrush is not null)
+        {
+            context.DrawRectangle(containerBrush, null, trackRect);
+        }
 
         var trackHeight = Math.Max(18, Math.Min(trackRect.Height, 28));
         var trackWidth = Math.Max(trackHeight * 1.6, trackRect.Width);
@@ -71,12 +80,12 @@ public sealed class ToggleSwitchWidget : Widget
         var drawRect = new Rect(offsetX, offsetY, trackWidth, trackHeight);
         var radius = trackHeight / 2;
 
-        var onBrush = _onBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
-        var offBrush = _offBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(189, 189, 189));
-        var thumbBrush = _thumbBrush ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
+        var trackFill = (_isOn ? _onBrush : _offBrush) ?? statePalette.TrackFill.Get(VisualState) ?? statePalette.TrackFill.Normal;
+        var trackStroke = statePalette.TrackStroke.Get(VisualState) ?? statePalette.TrackStroke.Normal;
+        var trackThickness = _isOn ? palette.OnStrokeThickness : palette.OuterStrokeThickness;
+        var trackPen = trackStroke is null || trackThickness <= 0 ? null : new Pen(trackStroke, trackThickness);
 
-        var trackBrush = _isOn ? onBrush : offBrush;
-        context.DrawRectangle(trackBrush, null, drawRect, radius, radius);
+        context.DrawRectangle(trackFill ?? Brushes.Transparent, trackPen, drawRect, radius, radius);
 
         var thumbDiameter = trackHeight - 4;
         var thumbRadius = thumbDiameter / 2;
@@ -86,6 +95,7 @@ public sealed class ToggleSwitchWidget : Widget
             : drawRect.X + 2;
         var thumbRect = new Rect(thumbX, thumbY, thumbDiameter, thumbDiameter);
 
+        var thumbBrush = _thumbBrush ?? statePalette.KnobFill.Get(VisualState) ?? statePalette.KnobFill.Normal ?? new ImmutableSolidColorBrush(Colors.White);
         context.DrawEllipse(thumbBrush, null, thumbRect.Center, thumbRadius, thumbRadius);
     }
 
