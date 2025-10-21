@@ -141,6 +141,7 @@ public class FastTreeDataGrid : TemplatedControl
             _headerScrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden;
             _headerScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             _headerScrollViewer.PropertyChanged += OnHeaderScrollViewerPropertyChanged;
+            _headerScrollViewer.ScrollChanged += OnHeaderScrollViewerScrollChanged;
         }
 
         if (_headerHost is not null)
@@ -164,6 +165,7 @@ public class FastTreeDataGrid : TemplatedControl
             _scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scrollViewer.PropertyChanged += OnScrollViewerPropertyChanged;
+            _scrollViewer.ScrollChanged += OnScrollViewerScrollChanged;
         }
 
         SynchronizeHeaderScroll();
@@ -274,12 +276,14 @@ public class FastTreeDataGrid : TemplatedControl
         if (_scrollViewer is not null)
         {
             _scrollViewer.PropertyChanged -= OnScrollViewerPropertyChanged;
+            _scrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
             _scrollViewer = null;
         }
 
         if (_headerScrollViewer is not null)
         {
             _headerScrollViewer.PropertyChanged -= OnHeaderScrollViewerPropertyChanged;
+            _headerScrollViewer.ScrollChanged -= OnHeaderScrollViewerScrollChanged;
             _headerScrollViewer = null;
         }
 
@@ -817,6 +821,46 @@ public class FastTreeDataGrid : TemplatedControl
                 {
                     _updatingHeaderFromBody = false;
                 }
+            }
+        }
+    }
+
+    private void OnScrollViewerScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (_scrollViewer is null)
+        {
+            return;
+        }
+
+        if (Math.Abs(e.OffsetDelta.X) > 0.001)
+        {
+            UpdateHeaderScroll(_scrollViewer.Offset.X);
+        }
+    }
+
+    private void OnHeaderScrollViewerScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (_headerScrollViewer is null || _updatingHeaderFromBody)
+        {
+            return;
+        }
+
+        if (Math.Abs(e.OffsetDelta.X) > 0.001)
+        {
+            UpdateBodyScroll(_headerScrollViewer.Offset.X);
+        }
+
+        if (!AreClose(_headerScrollViewer.Offset.Y, 0))
+        {
+            _updatingHeaderFromBody = true;
+            try
+            {
+                var x = _headerScrollViewer.Offset.X;
+                _headerScrollViewer.Offset = new Vector(x, 0);
+            }
+            finally
+            {
+                _updatingHeaderFromBody = false;
             }
         }
     }
