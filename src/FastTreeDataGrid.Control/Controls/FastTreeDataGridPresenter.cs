@@ -32,7 +32,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         AddHandler(InputElement.PointerExitedEvent, PresenterOnPointerLeave, RoutingStrategies.Tunnel | RoutingStrategies.Bubble | RoutingStrategies.Direct);
     }
 
-    public void SetOwner(FastTreeDataGrid owner)
+    public void SetOwner(FastTreeDataGrid? owner)
     {
         _owner = owner;
     }

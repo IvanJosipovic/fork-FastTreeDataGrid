@@ -52,6 +52,8 @@ public class FastTreeDataGrid : TemplatedControl
     private FastTreeDataGridPresenter? _presenter;
     private ScrollViewer? _scrollViewer;
     private IFastTreeDataGridSource? _itemsSource;
+    private bool _templateHandlersAttached;
+    private bool _isAttachedToVisualTree;
     private object? _selectedItem;
     private bool _viewportUpdateQueued;
     private bool _columnsDirty = true;
@@ -128,7 +130,7 @@ public class FastTreeDataGrid : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
-        DetachTemplateParts();
+        DetachTemplateParts(clearReferences: true);
 
         _headerScrollViewer = e.NameScope.Find<ScrollViewer>("PART_HeaderScrollViewer");
         _headerHost = e.NameScope.Find<Border>("PART_HeaderHost");
@@ -140,8 +142,6 @@ public class FastTreeDataGrid : TemplatedControl
         {
             _headerScrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden;
             _headerScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
-            _headerScrollViewer.PropertyChanged += OnHeaderScrollViewerPropertyChanged;
-            _headerScrollViewer.ScrollChanged += OnHeaderScrollViewerScrollChanged;
         }
 
         if (_headerHost is not null)
@@ -156,18 +156,15 @@ public class FastTreeDataGrid : TemplatedControl
         if (_headerPresenter is not null)
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
-            _headerPresenter.ColumnResizeRequested += OnColumnResizeRequested;
-            _headerPresenter.ColumnSortRequested += OnColumnSortRequested;
         }
 
         if (_scrollViewer is not null)
         {
             _scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-            _scrollViewer.PropertyChanged += OnScrollViewerPropertyChanged;
-            _scrollViewer.ScrollChanged += OnScrollViewerScrollChanged;
         }
 
+        AttachTemplatePartHandlers();
         SynchronizeHeaderScroll();
 
         _columnsDirty = true;
@@ -177,11 +174,14 @@ public class FastTreeDataGrid : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _isAttachedToVisualTree = true;
 
         if (_presenter is null || _scrollViewer is null || _headerPresenter is null)
         {
             ApplyTemplate();
         }
+
+        AttachTemplatePartHandlers();
 
         if (_headerHost is not null)
         {
@@ -202,7 +202,8 @@ public class FastTreeDataGrid : TemplatedControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        DetachTemplateParts();
+        _isAttachedToVisualTree = false;
+        DetachTemplateParts(clearReferences: false);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -271,32 +272,80 @@ public class FastTreeDataGrid : TemplatedControl
         RequestViewportUpdate();
     }
 
-    private void DetachTemplateParts()
+    private void AttachTemplatePartHandlers()
     {
+        if (_templateHandlersAttached)
+        {
+            return;
+        }
+
+        if (_headerScrollViewer is not null)
+        {
+            _headerScrollViewer.PropertyChanged += OnHeaderScrollViewerPropertyChanged;
+            _headerScrollViewer.ScrollChanged += OnHeaderScrollViewerScrollChanged;
+        }
+
         if (_scrollViewer is not null)
         {
-            _scrollViewer.PropertyChanged -= OnScrollViewerPropertyChanged;
-            _scrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
-            _scrollViewer = null;
+            _scrollViewer.PropertyChanged += OnScrollViewerPropertyChanged;
+            _scrollViewer.ScrollChanged += OnScrollViewerScrollChanged;
+        }
+
+        if (_headerPresenter is not null)
+        {
+            _headerPresenter.ColumnResizeRequested += OnColumnResizeRequested;
+            _headerPresenter.ColumnSortRequested += OnColumnSortRequested;
+        }
+
+        _templateHandlersAttached = true;
+    }
+
+    private void DetachTemplatePartHandlers()
+    {
+        if (!_templateHandlersAttached)
+        {
+            return;
         }
 
         if (_headerScrollViewer is not null)
         {
             _headerScrollViewer.PropertyChanged -= OnHeaderScrollViewerPropertyChanged;
             _headerScrollViewer.ScrollChanged -= OnHeaderScrollViewerScrollChanged;
-            _headerScrollViewer = null;
         }
 
-        if (_headerHost is not null)
+        if (_scrollViewer is not null)
         {
-            _headerHost = null;
+            _scrollViewer.PropertyChanged -= OnScrollViewerPropertyChanged;
+            _scrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
         }
+
         if (_headerPresenter is not null)
         {
             _headerPresenter.ColumnResizeRequested -= OnColumnResizeRequested;
             _headerPresenter.ColumnSortRequested -= OnColumnSortRequested;
-            _headerPresenter = null;
         }
+
+        _templateHandlersAttached = false;
+    }
+
+    private void DetachTemplateParts(bool clearReferences)
+    {
+        DetachTemplatePartHandlers();
+
+        if (_presenter is not null)
+        {
+            _presenter.SetOwner(null);
+        }
+
+        if (!clearReferences)
+        {
+            return;
+        }
+
+        _scrollViewer = null;
+        _headerScrollViewer = null;
+        _headerHost = null;
+        _headerPresenter = null;
         _presenter = null;
     }
 
@@ -497,7 +546,7 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void UpdateViewport()
     {
-        if (_scrollViewer is null || _presenter is null || _itemsSource is null)
+        if (!_isAttachedToVisualTree || _scrollViewer is null || _presenter is null || _itemsSource is null)
         {
             return;
         }
