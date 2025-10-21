@@ -41,6 +41,9 @@ public class FastTreeDataGrid : TemplatedControl
     public static readonly DirectProperty<FastTreeDataGrid, object?> SelectedItemProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGrid, object?>(nameof(SelectedItem), o => o.SelectedItem, (o, v) => o.SetSelectedItem(v));
 
+    public static readonly DirectProperty<FastTreeDataGrid, IFastTreeDataGridRowLayout?> RowLayoutProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IFastTreeDataGridRowLayout?>(nameof(RowLayout), o => o.RowLayout, (o, v) => o.SetRowLayout(v));
+
     private readonly AvaloniaList<FastTreeDataGridColumn> _columns = new();
     private readonly List<double> _columnWidths = new();
     private readonly List<double> _columnOffsets = new();
@@ -60,6 +63,7 @@ public class FastTreeDataGrid : TemplatedControl
     private bool _autoWidthChanged;
     private int? _sortedColumnIndex;
     private FastTreeDataGridSortDirection _sortedDirection = FastTreeDataGridSortDirection.None;
+    private IFastTreeDataGridRowLayout? _rowLayout;
 
     static FastTreeDataGrid()
     {
@@ -69,6 +73,7 @@ public class FastTreeDataGrid : TemplatedControl
     public FastTreeDataGrid()
     {
         _columns.CollectionChanged += OnColumnsChanged;
+        SetRowLayout(new FastTreeDataGridUniformRowLayout());
     }
 
     public IFastTreeDataGridSource? ItemsSource
@@ -105,12 +110,51 @@ public class FastTreeDataGrid : TemplatedControl
 
     public object? SelectedItem => _selectedItem;
 
+    public IFastTreeDataGridRowLayout? RowLayout
+    {
+        get => _rowLayout;
+        set => SetRowLayout(value);
+    }
+
     public event EventHandler<FastTreeDataGridSortEventArgs>? SortRequested;
 
     private void SetSelectedItem(object? value)
     {
         SetAndRaise(SelectedItemProperty, ref _selectedItem, value);
         UpdateRowSelectionIndicators();
+    }
+
+    private void SetRowLayout(IFastTreeDataGridRowLayout? layout)
+    {
+        if (ReferenceEquals(_rowLayout, layout))
+        {
+            return;
+        }
+
+        _rowLayout?.Detach();
+
+        _rowLayout = layout;
+
+        if (_rowLayout is null)
+        {
+            RequestViewportUpdate();
+            return;
+        }
+
+        _rowLayout.Attach(this);
+        _rowLayout.Bind(_itemsSource);
+        _rowLayout.Reset();
+        RequestViewportUpdate();
+    }
+
+    private IFastTreeDataGridRowLayout GetActiveRowLayout()
+    {
+        if (_rowLayout is null)
+        {
+            SetRowLayout(new FastTreeDataGridUniformRowLayout());
+        }
+
+        return _rowLayout!;
     }
 
     private void UpdateSelectionFromIndex(int index)
@@ -231,6 +275,7 @@ public class FastTreeDataGrid : TemplatedControl
         }
         else if (change.Property == RowHeightProperty)
         {
+            _rowLayout?.Reset();
             RequestViewportUpdate();
         }
         else if (change.Property == SelectedIndexProperty)
@@ -247,6 +292,8 @@ public class FastTreeDataGrid : TemplatedControl
         }
 
         _itemsSource = newSource;
+        _rowLayout?.Bind(_itemsSource);
+        _rowLayout?.Reset();
 
         if (newSource is not null)
         {
@@ -259,6 +306,7 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void OnSourceResetRequested(object? sender, EventArgs e)
     {
+        _rowLayout?.Reset();
         RequestViewportUpdate();
     }
 
@@ -556,14 +604,15 @@ public class FastTreeDataGrid : TemplatedControl
             _autoWidthChanged = false;
         }
 
-        var rowHeight = Math.Max(1d, RowHeight);
+        var layout = GetActiveRowLayout();
+        var defaultRowHeight = Math.Max(1d, RowHeight);
         var totalRows = _itemsSource.RowCount;
         var viewport = _scrollViewer.Viewport;
         var offset = _scrollViewer.Offset;
 
         var viewportHeight = viewport.Height > 0 ? viewport.Height : Bounds.Height;
         var viewportWidth = viewport.Width > 0 ? viewport.Width : Bounds.Width;
-        var totalHeight = Math.Max(totalRows * rowHeight, viewportHeight);
+        var totalHeight = layout.GetTotalHeight(viewportHeight, defaultRowHeight, totalRows);
         var totalWidth = Math.Max(_columnWidths.Sum(), viewportWidth);
 
         if (_headerPresenter is not null)
@@ -574,11 +623,15 @@ public class FastTreeDataGrid : TemplatedControl
         UpdateHeaderScroll(offset.X);
 
         var buffer = 2;
-        var firstIndex = totalRows == 0 ? 0 : Math.Clamp((int)Math.Floor(offset.Y / rowHeight), 0, Math.Max(0, totalRows - 1));
-        var visibleCount = (int)Math.Ceiling(viewportHeight / rowHeight) + buffer;
-        var lastIndexExclusive = Math.Min(totalRows, firstIndex + visibleCount);
+        var range = layout.GetVisibleRange(offset.Y, viewportHeight, defaultRowHeight, totalRows, buffer);
 
-        var rows = new List<FastTreeDataGridPresenter.RowRenderInfo>(Math.Max(0, lastIndexExclusive - firstIndex));
+        if (range.IsEmpty)
+        {
+            _presenter.UpdateContent(Array.Empty<FastTreeDataGridPresenter.RowRenderInfo>(), totalWidth, totalHeight, _columnOffsets);
+            return;
+        }
+
+        var rows = new List<FastTreeDataGridPresenter.RowRenderInfo>(Math.Max(0, range.LastIndexExclusive - range.FirstIndex));
         var culture = CultureInfo.CurrentCulture;
         var typeface = Typeface.Default;
         var textBrush = Foreground ?? new SolidColorBrush(Color.FromRgb(33, 33, 33));
@@ -590,21 +643,22 @@ public class FastTreeDataGrid : TemplatedControl
             ? 0
             : _columnOffsets[hierarchyColumnIndex - 1];
         var autoWidthUpdated = false;
+        var rowTop = range.FirstRowTop;
 
-        for (var rowIndex = firstIndex; rowIndex < lastIndexExclusive; rowIndex++)
+        for (var rowIndex = range.FirstIndex; rowIndex < range.LastIndexExclusive; rowIndex++)
         {
             var row = _itemsSource.GetRow(rowIndex);
-            var top = rowIndex * rowHeight;
+            var rowHeight = layout.GetRowHeight(rowIndex, row, defaultRowHeight);
             var hasChildren = row.HasChildren;
             var toggleRect = hasChildren
-                ? new Rect(Math.Max(0, toggleColumnStart + row.Level * IndentWidth + togglePadding), top + (rowHeight - toggleSize) / 2, toggleSize, toggleSize)
+                ? new Rect(Math.Max(0, toggleColumnStart + row.Level * IndentWidth + togglePadding), rowTop + (rowHeight - toggleSize) / 2, toggleSize, toggleSize)
                 : default;
             var isGroup = row.IsGroup;
 
             var rowInfo = new FastTreeDataGridPresenter.RowRenderInfo(
                 row,
                 rowIndex,
-                top,
+                rowTop,
                 rowHeight,
                 rowIndex == SelectedIndex,
                 hasChildren,
@@ -617,7 +671,7 @@ public class FastTreeDataGrid : TemplatedControl
             {
                 var column = _columns[columnIndex];
                 var width = _columnWidths[columnIndex];
-                var bounds = new Rect(x, top, width, rowHeight);
+                var bounds = new Rect(x, rowTop, width, rowHeight);
                 double indentOffset = 0d;
                 if (columnIndex == hierarchyColumnIndex)
                 {
@@ -629,7 +683,7 @@ public class FastTreeDataGrid : TemplatedControl
                 }
 
                 var contentWidth = Math.Max(0, width - indentOffset - (cellPadding * 2));
-                var contentBounds = new Rect(x + indentOffset + cellPadding, top, contentWidth, rowHeight);
+                var contentBounds = new Rect(x + indentOffset + cellPadding, rowTop, contentWidth, rowHeight);
 
                 Widget? widget = null;
                 if (column.WidgetFactory is { } factory)
@@ -675,7 +729,7 @@ public class FastTreeDataGrid : TemplatedControl
                         textOrigin = new Point(
                             contentBounds.X,
                             contentBounds.Y + Math.Max(0, (rowHeight - formatted.Height) / 2));
-                }
+                    }
                 }
                 else
                 {
@@ -702,6 +756,7 @@ public class FastTreeDataGrid : TemplatedControl
             }
 
             rows.Add(rowInfo);
+            rowTop += rowHeight;
         }
 
         _presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);

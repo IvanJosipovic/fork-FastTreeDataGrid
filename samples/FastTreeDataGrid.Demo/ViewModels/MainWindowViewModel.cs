@@ -2,9 +2,10 @@ using System;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
-using FastTreeDataGrid.Demo.ViewModels.Widgets;
 using Avalonia.Collections;
 using FastTreeDataGrid.Demo.ViewModels.Charts;
+using FastTreeDataGrid.Demo.ViewModels.VariableHeights;
+using FastTreeDataGrid.Demo.ViewModels.Widgets;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
@@ -23,6 +24,8 @@ public sealed class MainWindowViewModel : IDisposable
 
         Crypto = new CryptoTickersViewModel();
         Charts = new ChartSamplesViewModel();
+        VariableHeights = new VariableHeightRowsViewModel();
+        VariableHeightsAdaptive = new VariableHeightRowsViewModel(groupCount: 32, itemsPerGroup: 800);
 
         var widgetNodes = WidgetSamplesFactory.Create();
         var widgetsSource = new FastTreeDataGridFlatSource<WidgetGalleryNode>(widgetNodes, node => node.Children);
@@ -39,6 +42,10 @@ public sealed class MainWindowViewModel : IDisposable
     public CryptoTickersViewModel Crypto { get; }
 
     public ChartSamplesViewModel Charts { get; }
+
+    public VariableHeightRowsViewModel VariableHeights { get; }
+
+    public VariableHeightRowsViewModel VariableHeightsAdaptive { get; }
 
     public IFastTreeDataGridSource WidgetsSource { get; }
 
