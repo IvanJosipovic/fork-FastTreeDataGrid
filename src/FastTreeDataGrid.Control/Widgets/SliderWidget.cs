@@ -146,7 +146,7 @@ public sealed class SliderWidget : Widget
         var thumbBrush = _thumbBrush ?? palette.ThumbFill.Get(VisualState) ?? palette.ThumbFill.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(255, 255, 255));
         var thumbBorder = palette.ThumbBorder.Get(VisualState) ?? palette.ThumbBorder.Normal ?? new ImmutableSolidColorBrush(Color.FromRgb(200, 200, 200));
 
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
         context.DrawRectangle(trackBrush, null, trackRect, radius, radius);
 
         var percent = _maximum <= _minimum ? 0 : (_value - _minimum) / (_maximum - _minimum);
@@ -219,17 +219,4 @@ public sealed class SliderWidget : Widget
         Value = newValue;
     }
 
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
-    }
 }

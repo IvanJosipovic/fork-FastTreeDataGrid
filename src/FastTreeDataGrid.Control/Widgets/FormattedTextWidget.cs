@@ -8,7 +8,6 @@ namespace FastTreeDataGrid.Control.Widgets;
 public class FormattedTextWidget : TextWidget
 {
     private FormattedText? _formattedText;
-    private Matrix _rotateMatrix;
     private string? _cachedText;
     private double _cachedEmSize;
     private double _cachedMaxWidth;
@@ -36,9 +35,7 @@ public class FormattedTextWidget : TextWidget
         _cachedText = Text;
         _cachedEmSize = emSize;
 
-        UpdateTransform();
-
-        using var rotate = context.PushTransform(_rotateMatrix);
+        using var transform = PushRenderTransform(context);
         var textHeight = _formattedText.Height;
         var originY = Bounds.Y + Math.Max(0, (Bounds.Height - textHeight) / 2);
         context.DrawText(_formattedText, new Point(Bounds.X, originY));
@@ -50,22 +47,6 @@ public class FormattedTextWidget : TextWidget
         _cachedText = null;
         _cachedEmSize = 0;
         _cachedMaxWidth = double.NaN;
-        UpdateTransform();
-    }
-
-    public override void Arrange(Rect bounds)
-    {
-        base.Arrange(bounds);
-        UpdateTransform();
-    }
-
-    private void UpdateTransform()
-    {
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        _rotateMatrix = Matrix.CreateTranslation(-centerX, -centerY)
-            * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-            * Matrix.CreateTranslation(centerX, centerY);
     }
 
     private FormattedText CreateFormattedText(double emSize)

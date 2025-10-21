@@ -87,7 +87,7 @@ public sealed class GeometryWidget : Widget
         var offsetX = Bounds.X + _padding + (availableWidth - scaledWidth) / 2;
         var offsetY = Bounds.Y + _padding + (availableHeight - scaledHeight) / 2;
 
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
         using var translation = context.PushTransform(Matrix.CreateTranslation(offsetX, offsetY));
         using var scale = context.PushTransform(Matrix.CreateScale(scaleX, scaleY));
         using var origin = context.PushTransform(Matrix.CreateTranslation(-geometryBounds.X, -geometryBounds.Y));
@@ -139,17 +139,4 @@ public sealed class GeometryWidget : Widget
         }
     }
 
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
-    }
 }

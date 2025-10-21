@@ -14,6 +14,8 @@ public abstract class Widget
     private bool _isEnabled = true;
     private bool _isPointerOver;
     private bool _isPressed;
+    private double _rotation;
+    private Matrix _renderTransform = Matrix.Identity;
     private static readonly object InstanceLock = new();
     private static readonly List<WeakReference<Widget>> Instances = new();
 
@@ -31,13 +33,29 @@ public abstract class Widget
         }
 
         WidgetStyleManager.Apply(this, _visualState);
+        UpdateRenderTransform();
     }
 
     public double X { get; set; }
 
     public double Y { get; set; }
 
-    public double Rotation { get; set; }
+    public double Rotation
+    {
+        get => _rotation;
+        set
+        {
+            if (Math.Abs(_rotation - value) <= double.Epsilon)
+            {
+                return;
+            }
+
+            _rotation = value;
+            UpdateRenderTransform();
+        }
+    }
+
+    public Matrix RenderTransform => _renderTransform;
 
     public ImmutableSolidColorBrush? Foreground { get; set; }
 
@@ -110,6 +128,7 @@ public abstract class Widget
         Bounds = adjusted;
         X = adjusted.X;
         Y = adjusted.Y;
+        UpdateRenderTransform();
     }
 
     protected IDisposable? PushClip(DrawingContext context)
@@ -292,4 +311,27 @@ public abstract class Widget
 
         return new Rect(x, y, width, height);
     }
+
+    protected virtual Matrix CreateRenderTransform()
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return Matrix.Identity;
+        }
+
+        if (Math.Abs(_rotation) <= double.Epsilon)
+        {
+            return Matrix.Identity;
+        }
+
+        var centerX = Bounds.X + Bounds.Width / 2;
+        var centerY = Bounds.Y + Bounds.Height / 2;
+        return Matrix.CreateTranslation(-centerX, -centerY)
+               * Matrix.CreateRotation(Matrix.ToRadians(_rotation))
+               * Matrix.CreateTranslation(centerX, centerY);
+    }
+
+    protected void UpdateRenderTransform() => _renderTransform = CreateRenderTransform();
+
+    protected IDisposable PushRenderTransform(DrawingContext context) => context.PushTransform(_renderTransform);
 }

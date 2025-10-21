@@ -110,7 +110,7 @@ public sealed class BadgeWidget : Widget
         var originX = drawRect.X + Math.Max(0, (drawRect.Width - formatted.Width) / 2);
         var originY = drawRect.Y + Math.Max(0, (drawRect.Height - formatted.Height) / 2);
 
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
         context.DrawText(formatted, new Point(originX, originY));
     }
 
@@ -139,17 +139,4 @@ public sealed class BadgeWidget : Widget
         return _formattedText;
     }
 
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
-    }
 }

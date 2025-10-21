@@ -52,13 +52,8 @@ public class GlyphRunWidget : TextWidget
 
         var originY = Bounds.Y + Math.Max(0, (Bounds.Height - emSize) / 2);
         var translate = Matrix.CreateTranslation(Bounds.X, originY);
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        var rotate = Matrix.CreateTranslation(-centerX, -centerY)
-                     * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-                     * Matrix.CreateTranslation(centerX, centerY);
 
-        using var rotation = context.PushTransform(rotate);
+        using var rotation = PushRenderTransform(context);
         using var translation = context.PushTransform(translate);
         context.DrawGlyphRun(Foreground, _glyphRun);
     }

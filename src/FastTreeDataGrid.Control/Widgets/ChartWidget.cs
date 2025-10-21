@@ -93,7 +93,7 @@ public sealed class ChartWidget : Widget
         }
 
         using var clip = PushClip(context);
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
 
         var palette = WidgetFluentPalette.Current.Chart;
         var (min, max) = ResolveRange();
@@ -310,22 +310,6 @@ public sealed class ChartWidget : Widget
         };
 
         context.DrawGeometry(fill, pen, geometry);
-    }
-
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var rect = Bounds;
-        var centerX = rect.X + rect.Width / 2;
-        var centerY = rect.Y + rect.Height / 2;
-
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
     }
 
     private static double MapValue(double value, double min, double range, Rect rect)

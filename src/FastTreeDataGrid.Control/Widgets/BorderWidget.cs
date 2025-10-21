@@ -63,7 +63,7 @@ public sealed class BorderWidget : SurfaceWidget
     public override void Draw(DrawingContext context)
     {
         using var clip = PushClip(context);
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
 
         DrawBorder(context);
 
@@ -155,17 +155,4 @@ public sealed class BorderWidget : SurfaceWidget
         return (cornerRadius.TopLeft + cornerRadius.TopRight + cornerRadius.BottomLeft + cornerRadius.BottomRight) / 4;
     }
 
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
-    }
 }

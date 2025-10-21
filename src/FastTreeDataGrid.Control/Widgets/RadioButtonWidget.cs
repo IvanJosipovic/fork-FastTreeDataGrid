@@ -67,7 +67,7 @@ public sealed class RadioButtonWidget : Widget
         }
 
         using var clip = PushClip(context);
-        using var rotation = context.PushTransform(CreateRotationMatrix());
+        using var rotation = PushRenderTransform(context);
 
         var palette = WidgetFluentPalette.Current.RadioButton;
         var controlCorner = WidgetFluentPalette.Current.ControlCornerRadius.TopLeft;
@@ -196,17 +196,4 @@ public sealed class RadioButtonWidget : Widget
         return rect.Contains(point);
     }
 
-    private Matrix CreateRotationMatrix()
-    {
-        if (Math.Abs(Rotation) <= double.Epsilon)
-        {
-            return Matrix.Identity;
-        }
-
-        var centerX = Bounds.X + Bounds.Width / 2;
-        var centerY = Bounds.Y + Bounds.Height / 2;
-        return Matrix.CreateTranslation(-centerX, -centerY)
-               * Matrix.CreateRotation(Matrix.ToRadians(Rotation))
-               * Matrix.CreateTranslation(centerX, centerY);
-    }
 }
