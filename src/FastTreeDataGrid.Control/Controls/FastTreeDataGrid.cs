@@ -406,20 +406,12 @@ public class FastTreeDataGrid : TemplatedControl
         column.CachedAutoWidth = newWidth;
         column.ActualWidth = newWidth;
 
-        if (columnIndex < _columnWidths.Count)
-        {
-            _columnWidths[columnIndex] = newWidth;
-        }
-
-        _columnOffsets.Clear();
-        var cumulative = 0d;
-        for (var i = 0; i < _columnWidths.Count; i++)
-        {
-            cumulative += _columnWidths[i];
-            _columnOffsets.Add(cumulative);
-        }
-
+        RecalculateColumns();
         _columnsDirty = false;
+
+        _headerPresenter?.UpdateWidths(_columnWidths);
+
+        SynchronizeHeaderScroll();
         RequestViewportUpdate();
     }
 
