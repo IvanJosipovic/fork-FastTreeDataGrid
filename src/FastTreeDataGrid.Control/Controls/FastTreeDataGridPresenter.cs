@@ -133,13 +133,14 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
         var point = e.GetCurrentPoint(this).Position;
 
+        // Always attempt to regain focus when the presenter receives pointer input so keyboard navigation keeps working.
+        if (!IsFocused && Focusable && IsEffectivelyEnabled)
+        {
+            Focus();
+        }
+
         if (RoutePointerEvent(point, e, WidgetPointerEventKind.Pressed))
         {
-            if (!IsFocused)
-            {
-                Focus();
-            }
-
             e.Handled = true;
             return;
         }
