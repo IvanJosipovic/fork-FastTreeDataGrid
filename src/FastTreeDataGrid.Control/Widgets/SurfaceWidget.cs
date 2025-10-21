@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Metadata;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
@@ -10,6 +11,7 @@ public class SurfaceWidget : Widget
     private Widget? _pointerCapturedChild;
     private Widget? _pointerOverChild;
 
+    [Content]
     public IList<Widget> Children { get; } = new List<Widget>();
 
     public override void Draw(DrawingContext context)
@@ -28,6 +30,10 @@ public class SurfaceWidget : Widget
         foreach (var child in Children)
         {
             child.UpdateValue(provider, item);
+            if (child.Foreground is null && Foreground is not null)
+            {
+                child.Foreground = Foreground;
+            }
         }
     }
 

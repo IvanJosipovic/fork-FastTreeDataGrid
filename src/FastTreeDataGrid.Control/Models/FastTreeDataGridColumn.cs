@@ -43,6 +43,9 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<Func<IFastTreeDataGridValueProvider?, object?, Widget?>?> WidgetFactoryProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, Func<IFastTreeDataGridValueProvider?, object?, Widget?>?>(nameof(WidgetFactory));
 
+    public static readonly StyledProperty<IWidgetTemplate?> CellTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IWidgetTemplate?>(nameof(CellTemplate));
+
     public object? Header
     {
         get => GetValue(HeaderProperty);
@@ -89,6 +92,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(WidgetFactoryProperty);
         set => SetValue(WidgetFactoryProperty, value);
+    }
+
+    public IWidgetTemplate? CellTemplate
+    {
+        get => GetValue(CellTemplateProperty);
+        set => SetValue(CellTemplateProperty, value);
     }
 
     public bool IsHierarchy

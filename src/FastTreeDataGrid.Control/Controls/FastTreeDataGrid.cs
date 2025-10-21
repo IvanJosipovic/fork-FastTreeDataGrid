@@ -644,6 +644,10 @@ public class FastTreeDataGrid : TemplatedControl
                 {
                     widget = factory(row.ValueProvider, row.Item);
                 }
+                else if (column.CellTemplate is { } template)
+                {
+                    widget = template.Build();
+                }
 
                 FormattedText? formatted = null;
                 Point textOrigin = new(contentBounds.X, contentBounds.Y + (rowHeight / 2));

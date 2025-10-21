@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:fast="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+        xmlns:fs="clr-namespace:FastTreeDataGrid.Demo.ViewModels.FileSystem"
         xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
         mc:Ignorable="d"
         x:DataType="vm:MainWindowViewModel"
@@ -29,11 +29,88 @@
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
           </StackPanel>
           <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-            <fast:FastTreeDataGrid x:Name="FilesGrid"
-                                   ItemsSource="{Binding Files.Source}"
-                                   RowHeight="28"
-                                   IndentWidth="18"
-                                   HeaderHeight="34" />
+            <FastTreeDataGrid x:Name="FilesGrid"
+                              ItemsSource="{Binding Files.Source}"
+                              RowHeight="28"
+                              IndentWidth="18"
+                              HeaderHeight="34" />
+          </Border>
+        </Grid>
+      </TabItem>
+      <TabItem Header="Files (XAML)">
+        <Grid RowDefinitions="Auto,*">
+          <StackPanel Grid.Row="0"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      Margin="0,0,0,8"
+                      DataContext="{Binding Files}">
+            <TextBox Width="240"
+                     Watermark="Search files..."
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+          </StackPanel>
+          <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+            <FastTreeDataGrid x:Name="FilesGridXaml"
+                              ItemsSource="{Binding Files.Source}"
+                              RowHeight="28"
+                              IndentWidth="18"
+                              HeaderHeight="34"
+                              SortRequested="OnFilesSortRequested">
+              <FastTreeDataGrid.Columns>
+                <FastTreeDataGridColumn Header="Name"
+                                        SizingMode="Star"
+                                        MinWidth="280"
+                                        IsHierarchy="True"
+                                        CanUserSort="True"
+                                        ValueKey="{x:Static fs:FileSystemNode.KeyName}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <FormattedTextWidget Key="{x:Static fs:FileSystemNode.KeyName}"
+                                           EmSize="13"
+                                           Trimming="CharacterEllipsis" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+                <FastTreeDataGridColumn Header="Type"
+                                        SizingMode="Pixel"
+                                        PixelWidth="140"
+                                        MinWidth="110"
+                                        CanUserSort="True"
+                                        ValueKey="{x:Static fs:FileSystemNode.KeyType}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <BadgeWidget Padding="6" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+                <FastTreeDataGridColumn Header="Size"
+                                        SizingMode="Pixel"
+                                        PixelWidth="120"
+                                        MinWidth="100"
+                                        CanUserSort="True"
+                                        ValueKey="{x:Static fs:FileSystemNode.KeySize}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <FormattedTextWidget TextAlignment="Right"
+                                           EmSize="12"
+                                           Trimming="CharacterEllipsis" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+                <FastTreeDataGridColumn Header="Modified"
+                                        SizingMode="Pixel"
+                                        PixelWidth="160"
+                                        MinWidth="140"
+                                        CanUserSort="True"
+                                        ValueKey="{x:Static fs:FileSystemNode.KeyModified}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <FormattedTextWidget EmSize="12"
+                                           Trimming="CharacterEllipsis" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+              </FastTreeDataGrid.Columns>
+            </FastTreeDataGrid>
           </Border>
         </Grid>
       </TabItem>
@@ -55,11 +132,11 @@
                       VerticalAlignment="Center" />
           </StackPanel>
           <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-            <fast:FastTreeDataGrid x:Name="CountriesGrid"
-                                   ItemsSource="{Binding Countries.Source}"
-                                   RowHeight="28"
-                                   IndentWidth="18"
-                                   HeaderHeight="34" />
+            <FastTreeDataGrid x:Name="CountriesGrid"
+                              ItemsSource="{Binding Countries.Source}"
+                              RowHeight="28"
+                              IndentWidth="18"
+                              HeaderHeight="34" />
           </Border>
         </Grid>
       </TabItem>
@@ -81,30 +158,30 @@
                       VerticalAlignment="Center" />
           </StackPanel>
           <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-            <fast:FastTreeDataGrid x:Name="CryptoGrid"
-                                   ItemsSource="{Binding Crypto.CryptoSource}"
-                                   RowHeight="28"
-                                   IndentWidth="18"
-                                   HeaderHeight="34" />
+            <FastTreeDataGrid x:Name="CryptoGrid"
+                              ItemsSource="{Binding Crypto.CryptoSource}"
+                              RowHeight="28"
+                              IndentWidth="18"
+                              HeaderHeight="34" />
           </Border>
         </Grid>
       </TabItem>
       <TabItem Header="Charts">
         <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-          <fast:FastTreeDataGrid x:Name="ChartsGrid"
-                                 ItemsSource="{Binding Charts.Source}"
-                                 RowHeight="48"
-                                 IndentWidth="18"
-                                 HeaderHeight="36" />
+          <FastTreeDataGrid x:Name="ChartsGrid"
+                            ItemsSource="{Binding Charts.Source}"
+                            RowHeight="48"
+                            IndentWidth="18"
+                            HeaderHeight="36" />
         </Border>
       </TabItem>
       <TabItem Header="Widgets">
         <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-          <fast:FastTreeDataGrid x:Name="WidgetsGrid"
-                                 ItemsSource="{Binding WidgetsSource}"
-                                 RowHeight="36"
-                                 IndentWidth="18"
-                                 HeaderHeight="36" />
+          <FastTreeDataGrid x:Name="WidgetsGrid"
+                            ItemsSource="{Binding WidgetsSource}"
+                            RowHeight="36"
+                            IndentWidth="18"
+                            HeaderHeight="36" />
         </Border>
       </TabItem>
       <TabItem Header="Gallery">

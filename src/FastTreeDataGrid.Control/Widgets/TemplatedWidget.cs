@@ -12,21 +12,21 @@ public abstract class TemplatedWidget : SurfaceWidget
 {
     private Widget? _templateRoot;
     private bool _templateApplied;
-    private Func<TemplatedWidget, Widget?>? _templateBuilder;
+    private IWidgetTemplate? _template;
 
     public Widget? TemplateRoot => _templateRoot;
 
-    public Func<TemplatedWidget, Widget?>? Template
+    public IWidgetTemplate? Template
     {
-        get => _templateBuilder;
+        get => _template;
         set
         {
-            if (ReferenceEquals(_templateBuilder, value))
+            if (ReferenceEquals(_template, value))
             {
                 return;
             }
 
-            _templateBuilder = value;
+            _template = value;
             InvalidateTemplate();
         }
     }
@@ -83,9 +83,9 @@ public abstract class TemplatedWidget : SurfaceWidget
 
     private Widget? BuildTemplate()
     {
-        if (_templateBuilder is not null)
+        if (_template is not null)
         {
-            return _templateBuilder(this);
+            return _template.Build();
         }
 
         return CreateDefaultTemplate();
