@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Control.Controls;
 using FastTreeDataGrid.Control.Widgets;
 using FastTreeDataGrid.Demo.ViewModels;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
@@ -263,11 +264,13 @@ public partial class MainWindow : Window
         });
     }
 
-    private static void ConfigureCountryColumns(GridControl grid)
+    private void ConfigureCountryColumns(GridControl grid)
     {
         grid.Columns.Clear();
         grid.IndentWidth = 16;
         grid.RowHeight = 28;
+        grid.SortRequested -= OnCountriesSortRequested;
+        grid.SortRequested += OnCountriesSortRequested;
 
         grid.Columns.Add(new FastTreeDataGridColumn
         {
@@ -276,6 +279,7 @@ public partial class MainWindow : Window
             ValueKey = CountryNode.KeyName,
             MinWidth = 320,
             IsHierarchy = true,
+            CanUserSort = true,
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -285,6 +289,7 @@ public partial class MainWindow : Window
             PixelWidth = 200,
             MinWidth = 160,
             ValueKey = CountryNode.KeyRegion,
+            CanUserSort = true,
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -294,6 +299,7 @@ public partial class MainWindow : Window
             PixelWidth = 140,
             MinWidth = 120,
             ValueKey = CountryNode.KeyPopulation,
+            CanUserSort = true,
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -303,6 +309,7 @@ public partial class MainWindow : Window
             PixelWidth = 140,
             MinWidth = 120,
             ValueKey = CountryNode.KeyArea,
+            CanUserSort = true,
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -312,7 +319,30 @@ public partial class MainWindow : Window
             PixelWidth = 140,
             MinWidth = 120,
             ValueKey = CountryNode.KeyGdp,
+            CanUserSort = true,
         });
+    }
+
+    private void OnCountriesSortRequested(object? sender, FastTreeDataGridSortEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var handled = viewModel.Countries.ApplySort(e.Column, e.Direction);
+
+        if (sender is GridControl grid)
+        {
+            if (!handled || e.Direction == FastTreeDataGridSortDirection.None)
+            {
+                grid.ClearSortState();
+            }
+            else
+            {
+                grid.SetSortState(e.ColumnIndex, e.Direction);
+            }
+        }
     }
 
     private static void ConfigureCryptoColumns(GridControl grid)

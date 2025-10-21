@@ -26,6 +26,16 @@ internal sealed class CountryNode : IFastTreeDataGridValueProvider, IFastTreeDat
 
     public string Title { get; }
 
+    public string DisplayName => _country?.Name ?? Title;
+
+    public string Region => _country?.Region ?? Title;
+
+    public long? Population => _country?.Population;
+
+    public long? Area => _country?.Area;
+
+    public long? Gdp => _country?.GDP;
+
     public bool IsGroup => _country is null;
 
     public IReadOnlyList<CountryNode> Children => _children;
@@ -57,6 +67,29 @@ internal sealed class CountryNode : IFastTreeDataGridValueProvider, IFastTreeDat
             KeyGdp => country.GDP.ToString("N0", culture),
             _ => string.Empty,
         };
+    }
+
+    public bool ContainsQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        var comparison = StringComparison.CurrentCultureIgnoreCase;
+
+        if (Title.Contains(query, comparison))
+        {
+            return true;
+        }
+
+        if (_country is null)
+        {
+            return false;
+        }
+
+        return (_country.Name?.Contains(query, comparison) ?? false)
+            || (_country.Region?.Contains(query, comparison) ?? false);
     }
 
     public void NotifyValueChanged(string? key = null)

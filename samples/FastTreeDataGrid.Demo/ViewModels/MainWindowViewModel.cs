@@ -18,10 +18,7 @@ public sealed class MainWindowViewModel : IDisposable
             FileSystem.ToggleExpansion(0);
         }
 
-        var countries = DemoDataFactory.CreateCountries();
-        var countriesSource = new FastTreeDataGridFlatSource<CountryNode>(countries, node => node.Children);
-        ExpandAllNodes(countriesSource);
-        CountriesSource = countriesSource;
+        Countries = new CountriesViewModel(DemoDataFactory.CreateCountries());
 
         Crypto = new CryptoTickersViewModel();
 
@@ -37,7 +34,7 @@ public sealed class MainWindowViewModel : IDisposable
 
     public IFastTreeDataGridSource FilesSource { get; }
 
-    public IFastTreeDataGridSource CountriesSource { get; }
+    public CountriesViewModel Countries { get; }
 
     public CryptoTickersViewModel Crypto { get; }
 

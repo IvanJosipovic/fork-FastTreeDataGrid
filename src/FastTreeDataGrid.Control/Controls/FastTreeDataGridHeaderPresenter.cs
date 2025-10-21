@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Models;
@@ -18,11 +19,15 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     private readonly List<Border> _separators = new();
     private readonly List<double> _columnOffsets = new();
     private readonly IBrush _separatorBrush = new SolidColorBrush(Color.FromRgb(210, 210, 210));
+    private readonly IBrush _sortGlyphBrush = new SolidColorBrush(Color.FromRgb(96, 96, 96));
+    private readonly Geometry _ascendingGeometry = StreamGeometry.Parse("M0,4 L3.5,0 7,4 Z");
+    private readonly Geometry _descendingGeometry = StreamGeometry.Parse("M0,0 L7,0 3.5,4 Z");
     private const double GripWidth = 8;
 
     public double HeaderHeight { get; set; } = 32;
 
     public event Action<int, double>? ColumnResizeRequested;
+    public event Action<int>? ColumnSortRequested;
 
     public void BindColumns(IReadOnlyList<FastTreeDataGridColumn> columns, IReadOnlyList<double> widths)
     {
@@ -37,9 +42,10 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             var grip = _grips[i];
             var width = widths[i];
 
+            cell.Tag = i;
             cell.Width = width;
             cell.Height = HeaderHeight;
-            cell.Content = column.Header ?? $"Column {i}";
+            cell.Content = CreateHeaderContent(column, i);
             cell.HorizontalContentAlignment = HorizontalAlignment.Stretch;
             cell.VerticalContentAlignment = VerticalAlignment.Center;
             Canvas.SetLeft(cell, offset);
@@ -76,6 +82,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             var cell = _cells[i];
             var grip = i < _grips.Count ? _grips[i] : null;
             var width = widths[i];
+            cell.Tag = i;
             cell.Width = width;
             Canvas.SetLeft(cell, offset);
             Canvas.SetTop(cell, 0);
@@ -110,8 +117,10 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             {
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center,
+                Background = Brushes.Transparent,
             };
 
+            cell.PointerPressed += HeaderCellOnPointerPressed;
             Children.Add(cell);
             _cells.Add(cell);
         }
@@ -119,6 +128,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         while (_cells.Count > count)
         {
             var last = _cells[^1];
+            last.PointerPressed -= HeaderCellOnPointerPressed;
             Children.Remove(last);
             _cells.RemoveAt(_cells.Count - 1);
         }
@@ -228,6 +238,62 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         if (sender is Thumb thumb && thumb.Tag is int index)
         {
             ColumnResizeRequested?.Invoke(index, e.Vector.X);
+        }
+    }
+
+    private object? CreateHeaderContent(FastTreeDataGridColumn column, int columnIndex)
+    {
+        var header = column.Header ?? $"Column {columnIndex}";
+
+        if (column.SortDirection == FastTreeDataGridSortDirection.None)
+        {
+            return header;
+        }
+
+        var panel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 4,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var presenter = new ContentControl
+        {
+            Content = header,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var glyph = new Avalonia.Controls.Shapes.Path
+        {
+            Width = 8,
+            Height = 6,
+            Stretch = Stretch.Fill,
+            Fill = _sortGlyphBrush,
+            Data = column.SortDirection == FastTreeDataGridSortDirection.Ascending ? _ascendingGeometry : _descendingGeometry,
+            IsHitTestVisible = false,
+        };
+
+        panel.Children.Add(presenter);
+        panel.Children.Add(glyph);
+        return panel;
+    }
+
+    private void HeaderCellOnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (e.Source is Thumb)
+        {
+            return;
+        }
+
+        if (sender is ContentControl cell && cell.Tag is int index)
+        {
+            ColumnSortRequested?.Invoke(index);
+            e.Handled = true;
         }
     }
 }

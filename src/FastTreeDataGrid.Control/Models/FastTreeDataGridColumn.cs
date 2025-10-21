@@ -34,6 +34,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<bool> CanUserResizeProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanUserResize), true);
 
+    public static readonly StyledProperty<bool> CanUserSortProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanUserSort));
+
+    public static readonly StyledProperty<FastTreeDataGridSortDirection> SortDirectionProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, FastTreeDataGridSortDirection>(nameof(SortDirection), FastTreeDataGridSortDirection.None);
+
     public static readonly StyledProperty<Func<IFastTreeDataGridValueProvider?, object?, Widget?>?> WidgetFactoryProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, Func<IFastTreeDataGridValueProvider?, object?, Widget?>?>(nameof(WidgetFactory));
 
@@ -95,6 +101,18 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(CanUserResizeProperty);
         set => SetValue(CanUserResizeProperty, value);
+    }
+
+    public bool CanUserSort
+    {
+        get => GetValue(CanUserSortProperty);
+        set => SetValue(CanUserSortProperty, value);
+    }
+
+    public FastTreeDataGridSortDirection SortDirection
+    {
+        get => GetValue(SortDirectionProperty);
+        set => SetValue(SortDirectionProperty, value);
     }
 
     public double ActualWidth { get; internal set; }

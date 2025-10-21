@@ -53,6 +53,8 @@ public class FastTreeDataGrid : TemplatedControl
     private bool _viewportUpdateQueued;
     private bool _columnsDirty = true;
     private bool _autoWidthChanged;
+    private int? _sortedColumnIndex;
+    private FastTreeDataGridSortDirection _sortedDirection = FastTreeDataGridSortDirection.None;
 
     static FastTreeDataGrid()
     {
@@ -98,6 +100,8 @@ public class FastTreeDataGrid : TemplatedControl
 
     public object? SelectedItem => _selectedItem;
 
+    public event EventHandler<FastTreeDataGridSortEventArgs>? SortRequested;
+
     private void SetSelectedItem(object? value)
     {
         SetAndRaise(SelectedItemProperty, ref _selectedItem, value);
@@ -136,6 +140,7 @@ public class FastTreeDataGrid : TemplatedControl
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
             _headerPresenter.ColumnResizeRequested += OnColumnResizeRequested;
+            _headerPresenter.ColumnSortRequested += OnColumnSortRequested;
         }
 
         if (_scrollViewer is not null)
@@ -233,6 +238,10 @@ public class FastTreeDataGrid : TemplatedControl
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _columnsDirty = true;
+        if (_sortedColumnIndex.HasValue && (_sortedColumnIndex.Value < 0 || _sortedColumnIndex.Value >= _columns.Count))
+        {
+            ClearSortStateInternal(requestUpdate: false);
+        }
         RequestViewportUpdate();
     }
 
@@ -247,6 +256,7 @@ public class FastTreeDataGrid : TemplatedControl
         if (_headerPresenter is not null)
         {
             _headerPresenter.ColumnResizeRequested -= OnColumnResizeRequested;
+            _headerPresenter.ColumnSortRequested -= OnColumnSortRequested;
             _headerPresenter = null;
         }
         _presenter = null;
@@ -318,6 +328,111 @@ public class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = false;
         RequestViewportUpdate();
+    }
+
+    public void SetSortState(int columnIndex, FastTreeDataGridSortDirection direction)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        _sortedColumnIndex = direction == FastTreeDataGridSortDirection.None ? null : columnIndex;
+        _sortedDirection = direction;
+
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            var column = _columns[i];
+            var target = i == columnIndex ? direction : FastTreeDataGridSortDirection.None;
+            if (column.SortDirection != target)
+            {
+                column.SortDirection = target;
+            }
+        }
+
+        _columnsDirty = true;
+        RequestViewportUpdate();
+    }
+
+    public void ClearSortState()
+    {
+        ClearSortStateInternal(requestUpdate: true);
+    }
+
+    private void ClearSortStateInternal(bool requestUpdate)
+    {
+        _sortedColumnIndex = null;
+        _sortedDirection = FastTreeDataGridSortDirection.None;
+
+        foreach (var column in _columns)
+        {
+            if (column.SortDirection != FastTreeDataGridSortDirection.None)
+            {
+                column.SortDirection = FastTreeDataGridSortDirection.None;
+            }
+        }
+
+        if (requestUpdate)
+        {
+            _columnsDirty = true;
+            RequestViewportUpdate();
+        }
+    }
+
+    private void OnColumnSortRequested(int columnIndex)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserSort)
+        {
+            return;
+        }
+
+        var newDirection = FastTreeDataGridSortDirection.Ascending;
+        if (_sortedColumnIndex == columnIndex)
+        {
+            newDirection = _sortedDirection switch
+            {
+                FastTreeDataGridSortDirection.None => FastTreeDataGridSortDirection.Ascending,
+                FastTreeDataGridSortDirection.Ascending => FastTreeDataGridSortDirection.Descending,
+                FastTreeDataGridSortDirection.Descending => FastTreeDataGridSortDirection.None,
+                _ => FastTreeDataGridSortDirection.None,
+            };
+        }
+
+        if (newDirection == FastTreeDataGridSortDirection.None)
+        {
+            ClearSortStateInternal(requestUpdate: false);
+        }
+        else
+        {
+            _sortedColumnIndex = columnIndex;
+            _sortedDirection = newDirection;
+
+            for (var i = 0; i < _columns.Count; i++)
+            {
+                var currentColumn = _columns[i];
+                var targetDirection = i == columnIndex ? newDirection : FastTreeDataGridSortDirection.None;
+                if (currentColumn.SortDirection != targetDirection)
+                {
+                    currentColumn.SortDirection = targetDirection;
+                }
+            }
+        }
+
+        if (newDirection == FastTreeDataGridSortDirection.None)
+        {
+            _sortedColumnIndex = null;
+            _sortedDirection = FastTreeDataGridSortDirection.None;
+        }
+
+        _columnsDirty = true;
+        RequestViewportUpdate();
+        SortRequested?.Invoke(this, new FastTreeDataGridSortEventArgs(column, columnIndex, newDirection));
     }
 
     private void RequestViewportUpdate()
