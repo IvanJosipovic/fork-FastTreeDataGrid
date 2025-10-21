@@ -11,7 +11,6 @@ internal sealed class FileSystemNode : IFastTreeDataGridValueProvider, IFastTree
     public const string KeySize = "File.Size";
     public const string KeyModified = "File.Modified";
 
-    private readonly string _displayType;
     private readonly string _sizeText;
     private readonly string _modifiedText;
 
@@ -30,7 +29,9 @@ internal sealed class FileSystemNode : IFastTreeDataGridValueProvider, IFastTree
         IsDirectory = isDirectory;
         IsPlaceholder = isPlaceholder;
         IsLoading = isLoading;
-        _displayType = displayType;
+        DisplayType = displayType;
+        SizeBytes = size;
+        Modified = modified;
         _sizeText = isDirectory || isPlaceholder ? string.Empty : FormatSize(size);
         _modifiedText = isPlaceholder ? string.Empty : modified.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
     }
@@ -44,6 +45,12 @@ internal sealed class FileSystemNode : IFastTreeDataGridValueProvider, IFastTree
     public bool IsPlaceholder { get; }
 
     public bool IsLoading { get; }
+
+    public long SizeBytes { get; }
+
+    public DateTimeOffset Modified { get; }
+
+    public string DisplayType { get; }
 
     public bool IsGroup => IsDirectory;
 
@@ -59,7 +66,7 @@ internal sealed class FileSystemNode : IFastTreeDataGridValueProvider, IFastTree
     public object? GetValue(object? item, string key) => key switch
     {
         KeyName => IsPlaceholder ? "Loading..." : Name,
-        KeyType => _displayType,
+        KeyType => DisplayType,
         KeySize => _sizeText,
         KeyModified => _modifiedText,
         _ => string.Empty,

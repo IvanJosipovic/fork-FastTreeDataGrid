@@ -28,6 +28,12 @@ internal sealed class CryptoTickerNode : CryptoNode
 
     public string QuoteAsset { get; }
 
+    public decimal LastPrice => _lastPrice;
+
+    public decimal ChangePercent => _changePercent;
+
+    public decimal QuoteVolume => _quoteVolume;
+
     public override bool IsGroup => false;
 
     public override IReadOnlyList<CryptoNode> Children => Array.Empty<CryptoNode>();

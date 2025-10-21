@@ -5,8 +5,10 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Collections;
 using Avalonia.Threading;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crypto;
 
@@ -18,15 +20,20 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         "USDT", "USDC", "BUSD", "BTC", "ETH", "BNB", "EUR", "TRY", "GBP", "AUD", "DAI", "RUB", "ZAR", "JPY"
     };
     private const int MaxTickersPerGroup = 15;
+    private const string AllQuotesOption = "All quotes";
 
     private readonly List<CryptoNode> _rootNodes = new();
     private readonly Dictionary<string, CryptoGroupNode> _groups = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CryptoTickerNode> _tickers = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _timer;
     private readonly CancellationTokenSource _cts = new();
+    private readonly AvaloniaList<string> _quotes = new() { AllQuotesOption };
 
     private IFastTreeDataGridSource _cryptoSource;
     private FastTreeDataGridFlatSource<CryptoNode>? _flatSource;
+
+    private string _searchText = string.Empty;
+    private string _selectedQuote = AllQuotesOption;
 
     public CryptoTickersViewModel()
     {
@@ -48,6 +55,74 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CryptoSource)));
             }
         }
+    }
+
+    public IReadOnlyList<string> Quotes => _quotes;
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            var normalized = value?.Trim() ?? string.Empty;
+            if (!string.Equals(_searchText, normalized, StringComparison.Ordinal))
+            {
+                _searchText = normalized;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SearchText)));
+                UpdateFilter();
+            }
+        }
+    }
+
+    public string SelectedQuote
+    {
+        get => _selectedQuote;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? AllQuotesOption : value;
+            if (!string.Equals(_selectedQuote, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                _selectedQuote = normalized;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedQuote)));
+                UpdateFilter();
+            }
+        }
+    }
+
+    public bool ApplySort(FastTreeDataGridColumn column, FastTreeDataGridSortDirection direction)
+    {
+        if (column is null || _flatSource is null)
+        {
+            return false;
+        }
+
+        if (direction == FastTreeDataGridSortDirection.None)
+        {
+            _flatSource.Sort(null);
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(column.ValueKey))
+        {
+            _flatSource.Sort(null);
+            return false;
+        }
+
+        var comparison = GetComparison(column.ValueKey);
+        if (comparison is null)
+        {
+            _flatSource.Sort(null);
+            return false;
+        }
+
+        if (direction == FastTreeDataGridSortDirection.Descending)
+        {
+            var baseComparison = comparison;
+            comparison = (left, right) => baseComparison(right, left);
+        }
+
+        _flatSource.Sort(comparison);
+        return true;
     }
 
     public void Dispose()
@@ -111,6 +186,8 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         _flatSource = new FastTreeDataGridFlatSource<CryptoNode>(_rootNodes, node => node.Children);
         CryptoSource = _flatSource;
         ExpandAllGroups();
+        UpdateQuotes();
+        UpdateFilter();
     }
 
     private IEnumerable<(string Quote, List<CryptoTickerRecord> Records)> GroupTickers(IReadOnlyList<CryptoTickerRecord> records)
@@ -204,5 +281,173 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         }
 
         return 0m;
+    }
+
+    private Comparison<FastTreeDataGridRow>? GetComparison(string valueKey)
+    {
+        return valueKey switch
+        {
+            CryptoTickerNode.KeySymbol => CreateStringComparison(node => node.Symbol),
+            CryptoTickerNode.KeyQuote => CreateStringComparison(node => node.QuoteAsset),
+            CryptoTickerNode.KeyPrice => CreateDecimalComparison(node => node.LastPrice),
+            CryptoTickerNode.KeyChange => CreateDecimalComparison(node => node.ChangePercent),
+            CryptoTickerNode.KeyVolume => CreateDecimalComparison(node => node.QuoteVolume),
+            _ => null,
+        };
+    }
+
+    private static Comparison<FastTreeDataGridRow> CreateStringComparison(Func<CryptoTickerNode, string?> selector)
+    {
+        var comparer = StringComparer.CurrentCultureIgnoreCase;
+        return (leftRow, rightRow) =>
+        {
+            var order = CompareNodeOrder(leftRow.Item, rightRow.Item);
+            if (order != 0)
+            {
+                return order;
+            }
+
+            if (leftRow.Item is CryptoGroupNode leftGroup && rightRow.Item is CryptoGroupNode rightGroup)
+            {
+                return comparer.Compare(leftGroup.QuoteAsset, rightGroup.QuoteAsset);
+            }
+
+            if (leftRow.Item is CryptoTickerNode leftTicker && rightRow.Item is CryptoTickerNode rightTicker)
+            {
+                return comparer.Compare(selector(leftTicker) ?? string.Empty, selector(rightTicker) ?? string.Empty);
+            }
+
+            return 0;
+        };
+    }
+
+    private static Comparison<FastTreeDataGridRow> CreateDecimalComparison(Func<CryptoTickerNode, decimal> selector)
+    {
+        var comparer = StringComparer.CurrentCultureIgnoreCase;
+        return (leftRow, rightRow) =>
+        {
+            var order = CompareNodeOrder(leftRow.Item, rightRow.Item);
+            if (order != 0)
+            {
+                return order;
+            }
+
+            if (leftRow.Item is CryptoGroupNode leftGroup && rightRow.Item is CryptoGroupNode rightGroup)
+            {
+                return comparer.Compare(leftGroup.QuoteAsset, rightGroup.QuoteAsset);
+            }
+
+            if (leftRow.Item is CryptoTickerNode leftTicker && rightRow.Item is CryptoTickerNode rightTicker)
+            {
+                var comparison = selector(leftTicker).CompareTo(selector(rightTicker));
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+
+                return comparer.Compare(leftTicker.Symbol, rightTicker.Symbol);
+            }
+
+            return 0;
+        };
+    }
+
+    private static int CompareNodeOrder(object? left, object? right)
+    {
+        var leftIsGroup = left is CryptoGroupNode;
+        var rightIsGroup = right is CryptoGroupNode;
+
+        if (leftIsGroup && !rightIsGroup)
+        {
+            return -1;
+        }
+
+        if (!leftIsGroup && rightIsGroup)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private void UpdateFilter()
+    {
+        if (_flatSource is null)
+        {
+            return;
+        }
+
+        var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
+        var quote = _selectedQuote;
+        var allQuotes = string.Equals(quote, AllQuotesOption, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasSearch && allQuotes)
+        {
+            _flatSource.SetFilter(null);
+            return;
+        }
+
+        _flatSource.SetFilter(row =>
+        {
+            if (row.Item is CryptoGroupNode group)
+            {
+                var matchesQuote = allQuotes || string.Equals(group.QuoteAsset, quote, StringComparison.OrdinalIgnoreCase);
+                if (!matchesQuote)
+                {
+                    return false;
+                }
+
+                if (!hasSearch)
+                {
+                    return true;
+                }
+
+                return group.QuoteAsset.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (row.Item is CryptoTickerNode ticker)
+            {
+                if (!allQuotes && !string.Equals(ticker.QuoteAsset, quote, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (!hasSearch)
+                {
+                    return true;
+                }
+
+                return ticker.Symbol.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                    || ticker.QuoteAsset.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return true;
+        }, expandMatches: true);
+    }
+
+    private void UpdateQuotes()
+    {
+        var ordered = _groups.Keys
+            .OrderBy(GetQuotePriority)
+            .ThenBy(q => q, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _quotes.Clear();
+        _quotes.Add(AllQuotesOption);
+        foreach (var quote in ordered)
+        {
+            _quotes.Add(quote);
+        }
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Quotes)));
+
+        if (!_quotes.Any(q => string.Equals(q, _selectedQuote, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedQuote = AllQuotesOption;
+        }
+        else
+        {
+            UpdateFilter();
+        }
     }
 }

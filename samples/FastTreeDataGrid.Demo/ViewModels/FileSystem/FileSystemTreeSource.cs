@@ -13,11 +13,19 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
     private readonly List<TreeNode> _rootNodes = new();
     private readonly List<TreeNode> _visibleNodes = new();
     private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
+    private readonly Comparison<TreeNode> _defaultOrder = (left, right) => left.InsertionIndex.CompareTo(right.InsertionIndex);
+
     private bool _disposed;
+    private int _nextInsertionIndex;
+    private Comparison<TreeNode>? _nodeComparison;
+    private Func<FileSystemNode, bool>? _filterPredicate;
+    private bool _filterActive;
+    private bool _autoExpandFilteredMatches = true;
 
     public FileSystemTreeSource()
     {
         BuildRoots();
+        UpdateFilterStates();
         RebuildVisible();
     }
 
@@ -59,14 +67,53 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
             return;
         }
 
+        if (_filterActive && node.IsLoaded && !node.HasVisibleChildren)
+        {
+            return;
+        }
+
         node.IsExpanded = !node.IsExpanded;
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
+        RaiseResetRequested();
     }
 
     public void Sort(Comparison<FastTreeDataGridRow> comparison)
     {
-        // Sorting not implemented for file system source.
+        if (comparison is null)
+        {
+            return;
+        }
+
+        _nodeComparison = WrapComparison(comparison);
+        ApplySort();
+    }
+
+    public void ResetSort()
+    {
+        _nodeComparison = null;
+        ApplySort();
+    }
+
+    internal void ApplyFilter(Func<FileSystemNode, bool>? predicate, bool expandMatches = true)
+    {
+        var hadFilter = _filterActive;
+
+        _filterPredicate = predicate;
+        _filterActive = predicate is not null;
+        _autoExpandFilteredMatches = expandMatches;
+
+        if (!hadFilter && _filterActive)
+        {
+            CaptureExpansionStates();
+        }
+        else if (hadFilter && !_filterActive)
+        {
+            RestoreExpansionStates();
+        }
+
+        UpdateFilterStates();
+        RebuildVisible();
+        RaiseResetRequested();
     }
 
     public void Dispose()
@@ -82,6 +129,8 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
             var rootNode = CreateNode(FileSystemNode.CreateDirectory(drive.Name, drive.RootDirectory.FullName, drive.RootDirectory.LastWriteTimeUtc));
             _rootNodes.Add(rootNode);
         }
+
+        ApplySortToList(_rootNodes);
     }
 
     private void BeginLoad(TreeNode node)
@@ -91,7 +140,7 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
         node.Children.Clear();
         node.Children.Add(CreateNode(FileSystemNode.CreateLoading("Loading..."), node.Level + 1));
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
+        RaiseResetRequested();
 
         _ = LoadChildrenAsync(node);
     }
@@ -124,9 +173,21 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
 
         node.IsLoaded = true;
         node.IsLoading = false;
-        node.IsExpanded = node.Children.Count > 0;
+
+        ApplySortToSubtree(node);
+        UpdateFilterStates();
+
+        if (!_filterActive)
+        {
+            node.IsExpanded = node.Children.Count > 0;
+        }
+        else if (_autoExpandFilteredMatches)
+        {
+            node.IsExpanded = node.HasVisibleChildren || node.MatchesFilter;
+        }
+
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
+        RaiseResetRequested();
     }
 
     private IReadOnlyList<FileSystemNode> EnumerateChildren(string path)
@@ -150,25 +211,139 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
             // Ignore directories we cannot access.
         }
 
-        return list
-            .OrderBy(node => node.IsDirectory ? 0 : 1)
-            .ThenBy(node => node.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+        return list;
+    }
+
+    private void ApplySort()
+    {
+        ApplySortToList(_rootNodes);
+        foreach (var root in _rootNodes)
+        {
+            ApplySortToSubtree(root);
+        }
+
+        RebuildVisible();
+        RaiseResetRequested();
+    }
+
+    private void ApplySortToSubtree(TreeNode node)
+    {
+        if (node.Children.Count == 0)
+        {
+            return;
+        }
+
+        ApplySortToList(node.Children);
+        foreach (var child in node.Children)
+        {
+            ApplySortToSubtree(child);
+        }
+    }
+
+    private void ApplySortToList(List<TreeNode> nodes)
+    {
+        if (_nodeComparison is not null)
+        {
+            nodes.Sort(_nodeComparison);
+        }
+        else
+        {
+            nodes.Sort(_defaultOrder);
+        }
+    }
+
+    private void UpdateFilterStates()
+    {
+        if (!_filterActive)
+        {
+            ForEachNode(node =>
+            {
+                node.MatchesFilter = true;
+                node.HasVisibleChildren = DetermineHasChildren(node);
+                node.IsFilterIncluded = true;
+            });
+            return;
+        }
+
+        foreach (var root in _rootNodes)
+        {
+            EvaluateFilter(root);
+        }
+    }
+
+    private bool EvaluateFilter(TreeNode node)
+    {
+        var matches = node.Item.IsPlaceholder || _filterPredicate?.Invoke(node.Item) == true;
+        var hasMatchingChild = false;
+
+        foreach (var child in node.Children)
+        {
+            if (EvaluateFilter(child))
+            {
+                hasMatchingChild = true;
+            }
+        }
+
+        node.MatchesFilter = matches;
+        var hasPotentialChildren = node.Item.IsDirectory && (!node.IsLoaded || node.IsLoading);
+        node.HasVisibleChildren = hasMatchingChild || hasPotentialChildren;
+        node.IsFilterIncluded = matches || hasMatchingChild;
+
+        if (_autoExpandFilteredMatches && node.Item.IsDirectory)
+        {
+            if (!node.StoredExpansionState.HasValue)
+            {
+                node.StoredExpansionState = node.IsExpanded;
+            }
+
+            node.IsExpanded = node.HasVisibleChildren || matches;
+        }
+
+        return node.IsFilterIncluded;
+    }
+
+    private void CaptureExpansionStates()
+    {
+        ForEachNode(node =>
+        {
+            if (node.Item.IsDirectory && !node.StoredExpansionState.HasValue)
+            {
+                node.StoredExpansionState = node.IsExpanded;
+            }
+        });
+    }
+
+    private void RestoreExpansionStates()
+    {
+        ForEachNode(node =>
+        {
+            if (node.StoredExpansionState.HasValue)
+            {
+                node.IsExpanded = node.StoredExpansionState.Value;
+                node.StoredExpansionState = null;
+            }
+        });
     }
 
     private void RebuildVisible()
     {
         _visibleNodes.Clear();
-        for (var i = 0; i < _rootNodes.Count; i++)
+        foreach (var root in _rootNodes)
         {
-            AddVisible(_rootNodes[i], 0);
+            AddVisible(root, 0);
         }
     }
 
     private void AddVisible(TreeNode node, int level)
     {
+        if (_filterActive && !node.IsFilterIncluded)
+        {
+            return;
+        }
+
         node.Level = level;
-        node.RecreateRow(level, node.IsExpanded, DetermineHasChildren(node));
+        var hasChildren = GetEffectiveHasChildren(node);
+        node.RecreateRow(level, node.IsExpanded, hasChildren);
         _visibleNodes.Add(node);
 
         if (node.IsExpanded)
@@ -180,31 +355,91 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
         }
     }
 
+    private static Comparison<TreeNode> WrapComparison(Comparison<FastTreeDataGridRow> comparison) =>
+        (left, right) => comparison(left.Row, right.Row);
+
     private static bool DetermineHasChildren(TreeNode node) =>
         node.Item.IsDirectory && (!node.IsLoaded || node.IsLoading || node.Children.Count > 0);
 
+    private bool GetEffectiveHasChildren(TreeNode node)
+    {
+        if (!_filterActive)
+        {
+            return DetermineHasChildren(node);
+        }
+
+        if (!node.Item.IsDirectory)
+        {
+            return false;
+        }
+
+        if (!node.IsLoaded || node.IsLoading)
+        {
+            return true;
+        }
+
+        return node.HasVisibleChildren;
+    }
+
     private TreeNode CreateNode(FileSystemNode item, int level = 0)
     {
-        var node = new TreeNode(item, level, RequestRefresh);
+        var node = new TreeNode(item, level, RequestRefresh, _nextInsertionIndex++);
         node.RecreateRow(level, isExpanded: false, DetermineHasChildren(node));
         return node;
     }
 
     private void RequestRefresh()
     {
+        UpdateFilterStates();
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
+        RaiseResetRequested();
+    }
+
+    private void RaiseResetRequested()
+    {
+        var handler = ResetRequested;
+        if (handler is null)
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            handler.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            _dispatcher.Post(() => handler.Invoke(this, EventArgs.Empty), DispatcherPriority.Background);
+        }
+    }
+
+    private void ForEachNode(Action<TreeNode> action)
+    {
+        foreach (var root in _rootNodes)
+        {
+            ForEachNode(root, action);
+        }
+    }
+
+    private void ForEachNode(TreeNode node, Action<TreeNode> action)
+    {
+        action(node);
+        foreach (var child in node.Children)
+        {
+            ForEachNode(child, action);
+        }
     }
 
     private sealed class TreeNode
     {
         private readonly Action _requestRefresh;
 
-        public TreeNode(FileSystemNode item, int level, Action requestRefresh)
+        public TreeNode(FileSystemNode item, int level, Action requestRefresh, int insertionIndex)
         {
             Item = item;
             Level = level;
             _requestRefresh = requestRefresh;
+            InsertionIndex = insertionIndex;
             Row = new FastTreeDataGridRow(item, level, item.IsDirectory, isExpanded: false, requestRefresh);
         }
 
@@ -213,6 +448,11 @@ public sealed class FileSystemTreeSource : IFastTreeDataGridSource, IDisposable
         public bool IsExpanded { get; set; }
         public bool IsLoaded { get; set; }
         public bool IsLoading { get; set; }
+        public int InsertionIndex { get; }
+        public bool MatchesFilter { get; set; } = true;
+        public bool HasVisibleChildren { get; set; }
+        public bool IsFilterIncluded { get; set; } = true;
+        public bool? StoredExpansionState { get; set; }
         public List<TreeNode> Children { get; } = new();
         public FastTreeDataGridRow Row { get; private set; }
 

@@ -11,11 +11,11 @@ public sealed class MainWindowViewModel : IDisposable
 {
     public MainWindowViewModel()
     {
-        FileSystem = new FileSystemTreeSource();
-        FilesSource = FileSystem;
-        if (FileSystem.RowCount > 0)
+        var fileSystem = new FileSystemTreeSource();
+        Files = new FilesViewModel(fileSystem);
+        if (Files.Source.RowCount > 0)
         {
-            FileSystem.ToggleExpansion(0);
+            Files.Source.ToggleExpansion(0);
         }
 
         Countries = new CountriesViewModel(DemoDataFactory.CreateCountries());
@@ -30,9 +30,7 @@ public sealed class MainWindowViewModel : IDisposable
         WidgetBoards = new AvaloniaList<WidgetBoard>(WidgetBoardFactory.CreateBoards(widgetNodes));
     }
 
-    public FileSystemTreeSource FileSystem { get; }
-
-    public IFastTreeDataGridSource FilesSource { get; }
+    public FilesViewModel Files { get; }
 
     public CountriesViewModel Countries { get; }
 
@@ -45,7 +43,7 @@ public sealed class MainWindowViewModel : IDisposable
     public void Dispose()
     {
         Crypto.Dispose();
-        FileSystem.Dispose();
+        Files.Dispose();
     }
 
     private static void ExpandAllNodes(IFastTreeDataGridSource source)
