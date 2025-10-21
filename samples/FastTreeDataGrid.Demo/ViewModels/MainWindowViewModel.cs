@@ -25,7 +25,7 @@ public sealed class MainWindowViewModel : IDisposable
         Crypto = new CryptoTickersViewModel();
         Charts = new ChartSamplesViewModel();
         VariableHeights = new VariableHeightRowsViewModel();
-        VariableHeightsAdaptive = new VariableHeightRowsViewModel(groupCount: 32, itemsPerGroup: 800);
+        VariableHeightsAdaptive = new VariableHeightRowsViewModel(groupCount: 320, itemsPerGroup: 800);
 
         var widgetNodes = WidgetSamplesFactory.Create();
         var widgetsSource = new FastTreeDataGridFlatSource<WidgetGalleryNode>(widgetNodes, node => node.Children);
