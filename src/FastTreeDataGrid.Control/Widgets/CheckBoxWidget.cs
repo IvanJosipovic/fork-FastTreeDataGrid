@@ -19,7 +19,15 @@ public sealed class CheckBoxWidget : Widget
         IsInteractive = true;
     }
 
-    public event Action<bool?>? Toggled;
+    public event EventHandler<WidgetEventArgs>? Click;
+
+    public event EventHandler<WidgetEventArgs>? Checked;
+
+    public event EventHandler<WidgetEventArgs>? Unchecked;
+
+    public event EventHandler<WidgetEventArgs>? Indeterminate;
+
+    public event EventHandler<WidgetValueChangedEventArgs<bool?>>? IsCheckedChanged;
 
     public double StrokeThickness { get; set; } = double.NaN;
 
@@ -197,7 +205,7 @@ public sealed class CheckBoxWidget : Widget
             case WidgetPointerEventKind.Released:
                 if (IsWithinBounds(e.Position))
                 {
-                    ToggleValue();
+                    OnClick();
                 }
                 break;
             case WidgetPointerEventKind.Cancelled:
@@ -210,9 +218,20 @@ public sealed class CheckBoxWidget : Widget
         return true;
     }
 
-
-    private void ToggleValue()
+    private void OnClick()
     {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        ToggleValueInternal();
+        Click?.Invoke(this, new WidgetEventArgs(this));
+    }
+
+    private void ToggleValueInternal()
+    {
+        var oldValue = _value;
         _value = _value switch
         {
             null => true,
@@ -221,8 +240,31 @@ public sealed class CheckBoxWidget : Widget
         };
 
         _sourceValue = _value;
-        Toggled?.Invoke(_value);
+        RaiseCheckedEvents(oldValue, _value);
         RefreshStyle();
+    }
+
+    private void RaiseCheckedEvents(bool? oldValue, bool? newValue)
+    {
+        if (oldValue == newValue)
+        {
+            return;
+        }
+
+        IsCheckedChanged?.Invoke(this, new WidgetValueChangedEventArgs<bool?>(this, oldValue, newValue));
+
+        switch (newValue)
+        {
+            case true:
+                Checked?.Invoke(this, new WidgetEventArgs(this));
+                break;
+            case false:
+                Unchecked?.Invoke(this, new WidgetEventArgs(this));
+                break;
+            default:
+                Indeterminate?.Invoke(this, new WidgetEventArgs(this));
+                break;
+        }
     }
 
     private bool IsWithinBounds(Point position)

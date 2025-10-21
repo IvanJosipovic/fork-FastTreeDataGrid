@@ -439,7 +439,7 @@ internal static class WidgetBoardFactory
         };
 
         labelWidget.SetText($"{label} ({Math.Round(slider.Value)})");
-        slider.ValueChanged += v => labelWidget.SetText($"{label} ({Math.Round(v)})");
+        slider.ValueChanged += (_, args) => labelWidget.SetText($"{label} ({Math.Round(args.NewValue)})");
 
         row.Children.Add(labelWidget);
         row.Children.Add(slider);
@@ -472,7 +472,7 @@ internal static class WidgetBoardFactory
         toggle.SetState(initialState);
 
         labelWidget.SetText($"{label} ({(toggle.IsOn ? "On" : "Off")})");
-        toggle.Toggled += on => labelWidget.SetText($"{label} ({(on ? "On" : "Off")})");
+        toggle.Toggled += (_, args) => labelWidget.SetText($"{label} ({(args.NewValue ? "On" : "Off")})");
 
         row.Children.Add(labelWidget);
         row.Children.Add(toggle);
@@ -505,7 +505,8 @@ internal static class WidgetBoardFactory
         radio.SetChecked(isChecked);
 
         labelWidget.SetText($"{label} ({(radio.IsChecked ? "Checked" : "Unchecked")})");
-        radio.CheckedChanged += on => labelWidget.SetText($"{label} ({(on ? "Checked" : "Unchecked")})");
+        radio.IsCheckedChanged += (_, args) =>
+            labelWidget.SetText($"{label} ({(args.NewValue ? "Checked" : "Unchecked")})");
 
         row.Children.Add(labelWidget);
         row.Children.Add(radio);

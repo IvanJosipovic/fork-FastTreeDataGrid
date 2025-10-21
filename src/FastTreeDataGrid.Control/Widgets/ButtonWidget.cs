@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Theming;
+using System.Windows.Input;
 using ButtonPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.ButtonPalette;
 using ButtonVariantPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.ButtonVariantPalette;
 
@@ -22,6 +23,9 @@ public sealed class ButtonWidget : TemplatedWidget
     private ImmutableSolidColorBrush? _background;
     private ImmutableSolidColorBrush? _borderBrush;
     private double? _fontSize;
+    private ICommand? _command;
+    private object? _commandParameter;
+    private bool _isEnabledSource = true;
 
     private BorderWidget? _borderPart;
     private AccessTextWidget? _contentPart;
@@ -50,13 +54,54 @@ public sealed class ButtonWidget : TemplatedWidget
         IsInteractive = true;
     }
 
-    public event Action<ButtonWidget>? Clicked;
+    public event EventHandler<WidgetEventArgs>? Click;
 
     public ImmutableSolidColorBrush? Background { get; set; }
 
     public ImmutableSolidColorBrush? BorderBrush { get; set; }
 
     public double? FontSize { get; set; }
+
+    public ICommand? Command
+    {
+        get => _command;
+        set
+        {
+            if (ReferenceEquals(_command, value))
+            {
+                return;
+            }
+
+            if (_command is not null)
+            {
+                _command.CanExecuteChanged -= OnCommandCanExecuteChanged;
+            }
+
+            _command = value;
+
+            if (_command is not null)
+            {
+                _command.CanExecuteChanged += OnCommandCanExecuteChanged;
+            }
+
+            UpdateIsEnabledFromCommand();
+        }
+    }
+
+    public object? CommandParameter
+    {
+        get => _commandParameter;
+        set
+        {
+            if (Equals(_commandParameter, value))
+            {
+                return;
+            }
+
+            _commandParameter = value;
+            UpdateIsEnabledFromCommand();
+        }
+    }
 
     protected override Widget? CreateDefaultTemplate()
     {
@@ -105,6 +150,8 @@ public sealed class ButtonWidget : TemplatedWidget
         _background = Background;
         _borderBrush = BorderBrush;
         _fontSize = FontSize;
+        var command = Command;
+        var commandParameter = CommandParameter;
         CornerRadius = default;
 
         if (provider is not null && Key is not null)
@@ -120,6 +167,8 @@ public sealed class ButtonWidget : TemplatedWidget
                     _background = buttonValue.Background ?? Background;
                     _borderBrush = buttonValue.BorderBrush ?? BorderBrush;
                     _fontSize = buttonValue.FontSize ?? FontSize;
+                    command = buttonValue.Command ?? command;
+                    commandParameter = buttonValue.CommandParameter ?? commandParameter;
                     if (buttonValue.CornerRadius.HasValue)
                     {
                         CornerRadius = new CornerRadius(buttonValue.CornerRadius.Value);
@@ -133,7 +182,10 @@ public sealed class ButtonWidget : TemplatedWidget
         }
 
         var cornerRadius = CornerRadius == default ? palette.CornerRadius : CornerRadius;
-        IsEnabled = enabled;
+        _isEnabledSource = enabled;
+        Command = command;
+        CommandParameter = commandParameter;
+        UpdateIsEnabledFromCommand();
         ApplyTemplateValues(palette, cornerRadius);
         SetText(_text);
 
@@ -173,7 +225,7 @@ public sealed class ButtonWidget : TemplatedWidget
             case WidgetPointerEventKind.Released:
                 if (_isPointerPressed && IsWithinBounds(e.Position))
                 {
-                    Clicked?.Invoke(this);
+                    OnClick();
                 }
                 _isPointerPressed = false;
                 break;
@@ -348,5 +400,31 @@ public sealed class ButtonWidget : TemplatedWidget
     {
         var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
         return rect.Contains(position);
+    }
+
+    private void OnClick()
+    {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        Click?.Invoke(this, new WidgetEventArgs(this));
+
+        if (_command?.CanExecute(_commandParameter) == true)
+        {
+            _command.Execute(_commandParameter);
+        }
+    }
+
+    private void OnCommandCanExecuteChanged(object? sender, EventArgs e)
+    {
+        UpdateIsEnabledFromCommand();
+    }
+
+    private void UpdateIsEnabledFromCommand()
+    {
+        var canExecute = _command?.CanExecute(_commandParameter) ?? true;
+        base.IsEnabled = _isEnabledSource && canExecute;
     }
 }

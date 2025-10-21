@@ -20,7 +20,13 @@ public sealed class ToggleSwitchWidget : Widget
         IsInteractive = true;
     }
 
-    public event Action<bool>? Toggled;
+    public event EventHandler<WidgetEventArgs>? Click;
+
+    public event EventHandler<WidgetEventArgs>? Checked;
+
+    public event EventHandler<WidgetEventArgs>? Unchecked;
+
+    public event EventHandler<WidgetValueChangedEventArgs<bool>>? Toggled;
 
     public bool IsOn => _isOn;
 
@@ -121,7 +127,7 @@ public sealed class ToggleSwitchWidget : Widget
             case WidgetPointerEventKind.Released:
                 if (_isPointerPressed && IsWithinBounds(e.Position))
                 {
-                    ToggleState();
+                    OnClick();
                 }
                 _isPointerPressed = false;
                 break;
@@ -148,12 +154,44 @@ public sealed class ToggleSwitchWidget : Widget
             return;
         }
 
+        var oldValue = _isOn;
         _isOn = value;
         RefreshStyle();
 
         if (raise)
         {
-            Toggled?.Invoke(_isOn);
+            RaiseToggleEvents(oldValue, _isOn);
+        }
+    }
+
+    private void OnClick()
+    {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        ToggleState();
+        Click?.Invoke(this, new WidgetEventArgs(this));
+    }
+
+    private void RaiseToggleEvents(bool oldValue, bool newValue)
+    {
+        if (oldValue == newValue)
+        {
+            return;
+        }
+
+        var args = new WidgetValueChangedEventArgs<bool>(this, oldValue, newValue);
+        Toggled?.Invoke(this, args);
+
+        if (newValue)
+        {
+            Checked?.Invoke(this, new WidgetEventArgs(this));
+        }
+        else
+        {
+            Unchecked?.Invoke(this, new WidgetEventArgs(this));
         }
     }
 

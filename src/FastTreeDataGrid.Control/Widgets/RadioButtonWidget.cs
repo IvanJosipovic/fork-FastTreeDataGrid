@@ -19,7 +19,13 @@ public sealed class RadioButtonWidget : Widget
         IsInteractive = true;
     }
 
-    public event Action<bool>? CheckedChanged;
+    public event EventHandler<WidgetEventArgs>? Click;
+
+    public event EventHandler<WidgetEventArgs>? Checked;
+
+    public event EventHandler<WidgetEventArgs>? Unchecked;
+
+    public event EventHandler<WidgetValueChangedEventArgs<bool>>? IsCheckedChanged;
 
     public bool IsChecked => _isChecked;
 
@@ -118,7 +124,7 @@ public sealed class RadioButtonWidget : Widget
             case WidgetPointerEventKind.Released:
                 if (_isPointerPressed && IsWithinBounds(e.Position))
                 {
-                    SetChecked(true);
+                    OnClick();
                 }
                 _isPointerPressed = false;
                 break;
@@ -135,8 +141,13 @@ public sealed class RadioButtonWidget : Widget
 
     private void SetChecked(bool value, bool raise)
     {
+        var previous = _isChecked;
         if (_isChecked == value)
         {
+            if (raise)
+            {
+                Click?.Invoke(this, new WidgetEventArgs(this));
+            }
             return;
         }
 
@@ -145,7 +156,37 @@ public sealed class RadioButtonWidget : Widget
 
         if (raise)
         {
-            CheckedChanged?.Invoke(_isChecked);
+            RaiseCheckedEvents(previous, _isChecked);
+            Click?.Invoke(this, new WidgetEventArgs(this));
+        }
+    }
+
+    private void OnClick()
+    {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        SetChecked(true);
+    }
+
+    private void RaiseCheckedEvents(bool oldValue, bool newValue)
+    {
+        if (oldValue == newValue)
+        {
+            return;
+        }
+
+        IsCheckedChanged?.Invoke(this, new WidgetValueChangedEventArgs<bool>(this, oldValue, newValue));
+
+        if (newValue)
+        {
+            Checked?.Invoke(this, new WidgetEventArgs(this));
+        }
+        else
+        {
+            Unchecked?.Invoke(this, new WidgetEventArgs(this));
         }
     }
 

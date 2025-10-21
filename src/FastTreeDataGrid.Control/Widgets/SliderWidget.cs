@@ -22,7 +22,7 @@ public sealed class SliderWidget : Widget
         IsInteractive = true;
     }
 
-    public event Action<double>? ValueChanged;
+    public event EventHandler<WidgetValueChangedEventArgs<double>>? ValueChanged;
 
     public double Minimum
     {
@@ -63,8 +63,9 @@ public sealed class SliderWidget : Widget
                 return;
             }
 
+            var previous = _value;
             _value = clamped;
-            ValueChanged?.Invoke(_value);
+            ValueChanged?.Invoke(this, new WidgetValueChangedEventArgs<double>(this, previous, _value));
             RefreshStyle();
         }
     }

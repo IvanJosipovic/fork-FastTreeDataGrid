@@ -189,15 +189,16 @@ public partial class MainWindow : Window
 
                 if (item is WidgetGalleryNode node)
                 {
-                    toggle.Toggled += on =>
+                    toggle.Toggled += (_, args) =>
                     {
+                        var isOn = args.NewValue;
                         if (node.ToggleValue is ToggleSwitchWidgetValue current)
                         {
-                            node.ToggleValue = current with { IsOn = on };
+                            node.ToggleValue = current with { IsOn = isOn };
                         }
                         else
                         {
-                            node.ToggleValue = new ToggleSwitchWidgetValue(on);
+                            node.ToggleValue = new ToggleSwitchWidgetValue(isOn);
                         }
                     };
                 }

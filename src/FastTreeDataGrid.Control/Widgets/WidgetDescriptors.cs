@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
@@ -27,7 +28,9 @@ public sealed record ButtonWidgetValue(
     ImmutableSolidColorBrush? Background = null,
     ImmutableSolidColorBrush? BorderBrush = null,
     double? CornerRadius = null,
-    double? FontSize = null);
+    double? FontSize = null,
+    ICommand? Command = null,
+    object? CommandParameter = null);
 
 public sealed record CheckBoxWidgetValue(
     bool? IsChecked,
