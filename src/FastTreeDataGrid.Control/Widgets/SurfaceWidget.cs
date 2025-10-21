@@ -177,17 +177,32 @@ public class SurfaceWidget : Widget
         return handled;
     }
 
+    private Rect GetChildLocalBounds(Widget child)
+    {
+        var childBounds = child.Bounds;
+        var offsetX = childBounds.X - Bounds.X;
+        var offsetY = childBounds.Y - Bounds.Y;
+        return new Rect(offsetX, offsetY, childBounds.Width, childBounds.Height);
+    }
+
     private Widget? HitTestChild(Point position)
     {
         for (var i = Children.Count - 1; i >= 0; i--)
         {
             var child = Children[i];
-            if (!child.IsEnabled || !child.SupportsPointerInput)
+            if (!child.IsEnabled)
             {
                 continue;
             }
 
-            if (child.Bounds.Contains(position))
+            var supportsPointer = child.SupportsPointerInput || child is SurfaceWidget;
+            if (!supportsPointer)
+            {
+                continue;
+            }
+
+            var childBounds = GetChildLocalBounds(child);
+            if (childBounds.Contains(position))
             {
                 return child;
             }
@@ -222,8 +237,8 @@ public class SurfaceWidget : Widget
 
     private bool RoutePointerToChild(Widget child, in WidgetPointerEvent e, WidgetPointerEventKind kind)
     {
-        var bounds = child.Bounds;
-        var local = new Point(e.Position.X - bounds.X, e.Position.Y - bounds.Y);
+        var childBounds = GetChildLocalBounds(child);
+        var local = new Point(e.Position.X - childBounds.X, e.Position.Y - childBounds.Y);
         var forwarded = new WidgetPointerEvent(kind, local, e.Args);
         return child.HandlePointerEvent(forwarded);
     }
