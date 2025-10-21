@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Threading;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
@@ -13,51 +17,84 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
     private Predicate<FastTreeDataGridRow>? _rowFilter;
     private bool _autoExpandFilteredMatches = true;
     private int _nextOriginalIndex;
+    private readonly object _dataLock = new();
+    private readonly SemaphoreSlim _operationSemaphore = new(1, 1);
 
     public FastTreeDataGridFlatSource(IEnumerable<T> rootItems, Func<T, IEnumerable<T>> childrenSelector)
     {
         _childrenSelector = childrenSelector ?? throw new ArgumentNullException(nameof(childrenSelector));
-        BuildNodes(null, rootItems ?? Enumerable.Empty<T>(), level: 0);
-        FlattenNodes();
-        UpdateFilterStates();
-        RebuildVisible();
+        lock (_dataLock)
+        {
+            BuildNodes(null, rootItems ?? Enumerable.Empty<T>(), level: 0);
+            FlattenNodes();
+            UpdateFilterStates();
+            RebuildVisible();
+        }
     }
 
     public event EventHandler? ResetRequested;
 
-    public int RowCount => _visibleNodes.Count;
+    public int RowCount
+    {
+        get
+        {
+            lock (_dataLock)
+            {
+                return _visibleNodes.Count;
+            }
+        }
+    }
 
     public FastTreeDataGridRow GetRow(int index)
     {
-        if ((uint)index >= (uint)_visibleNodes.Count)
+        lock (_dataLock)
         {
-            throw new ArgumentOutOfRangeException(nameof(index));
-        }
+            if ((uint)index >= (uint)_visibleNodes.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
 
-        return _visibleNodes[index].Row;
+            return _visibleNodes[index].Row;
+        }
     }
 
     public void ToggleExpansion(int index)
     {
-        if ((uint)index >= (uint)_visibleNodes.Count)
+        var shouldNotify = false;
+
+        lock (_dataLock)
         {
-            return;
+            if ((uint)index >= (uint)_visibleNodes.Count)
+            {
+                return;
+            }
+
+            var node = _visibleNodes[index];
+            if (!node.HasChildren || (_rowFilter is not null && !node.HasVisibleChildren))
+            {
+                return;
+            }
+
+            node.IsExpanded = !node.IsExpanded;
+            node.Row.IsExpanded = node.IsExpanded;
+
+            RebuildVisible();
+            shouldNotify = true;
         }
 
-        var node = _visibleNodes[index];
-        if (!node.HasChildren || (_rowFilter is not null && !node.HasVisibleChildren))
+        if (shouldNotify)
         {
-            return;
+            RaiseResetRequested();
         }
-
-        node.IsExpanded = !node.IsExpanded;
-        node.Row.IsExpanded = node.IsExpanded;
-
-        RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    public void Sort(Comparison<FastTreeDataGridRow>? comparison)
+    public void Sort(Comparison<FastTreeDataGridRow>? comparison) =>
+        ScheduleWork(() => SortCore(comparison));
+
+    public void SetFilter(Predicate<FastTreeDataGridRow>? filter, bool expandMatches = true) =>
+        ScheduleWork(() => SetFilterCore(filter, expandMatches));
+
+    private void SortCore(Comparison<FastTreeDataGridRow>? comparison)
     {
         if (comparison is null)
         {
@@ -71,10 +108,9 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         FlattenNodes();
         UpdateFilterStates();
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetFilter(Predicate<FastTreeDataGridRow>? filter, bool expandMatches = true)
+    private void SetFilterCore(Predicate<FastTreeDataGridRow>? filter, bool expandMatches)
     {
         var hadFilter = _rowFilter is not null;
         _rowFilter = filter;
@@ -91,7 +127,64 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
 
         UpdateFilterStates();
         RebuildVisible();
-        ResetRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ScheduleWork(Action work)
+    {
+        _ = Task.Run(async () =>
+        {
+            Exception? error = null;
+            await _operationSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                lock (_dataLock)
+                {
+                    work();
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+            finally
+            {
+                _operationSemaphore.Release();
+            }
+
+            if (error is not null)
+            {
+                Debug.WriteLine(error);
+                return;
+            }
+
+            RaiseResetRequested();
+        });
+    }
+
+    private void RaiseResetRequested()
+    {
+        var handler = ResetRequested;
+        if (handler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var dispatcher = Dispatcher.UIThread;
+            if (dispatcher.CheckAccess())
+            {
+                handler.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                dispatcher.Post(() => handler.Invoke(this, EventArgs.Empty), DispatcherPriority.Background);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            handler.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void BuildNodes(TreeNode? parent, IEnumerable<T> items, int level)
@@ -235,10 +328,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         return true;
     }
 
-    private void OnNodeRequestMeasure()
-    {
-        ResetRequested?.Invoke(this, EventArgs.Empty);
-    }
+    private void OnNodeRequestMeasure() => RaiseResetRequested();
 
     private void SortRecursive(List<TreeNode> nodes, Comparison<FastTreeDataGridRow> comparison)
     {
