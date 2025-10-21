@@ -201,6 +201,7 @@ public sealed class CheckBoxWidget : Widget
                 }
                 break;
             case WidgetPointerEventKind.Cancelled:
+            case WidgetPointerEventKind.CaptureLost:
                 _value = _sourceValue;
                 RefreshStyle();
                 break;

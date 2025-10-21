@@ -272,8 +272,13 @@ public sealed class ButtonWidget : Widget
         if (IsPressedVisual)
         {
             var color = brush.Color;
+            if (color.A == 0)
+            {
+                return brush;
+            }
+
             byte Reduce(byte channel) => (byte)Math.Max(0, channel - 20);
-            return new ImmutableSolidColorBrush(Color.FromRgb(Reduce(color.R), Reduce(color.G), Reduce(color.B)));
+            return new ImmutableSolidColorBrush(Color.FromArgb(color.A, Reduce(color.R), Reduce(color.G), Reduce(color.B)));
         }
 
         return brush;
@@ -307,6 +312,7 @@ public sealed class ButtonWidget : Widget
                 _isPointerPressed = false;
                 break;
             case WidgetPointerEventKind.Cancelled:
+            case WidgetPointerEventKind.CaptureLost:
                 _isPointerPressed = false;
                 break;
         }
@@ -314,7 +320,7 @@ public sealed class ButtonWidget : Widget
         return handled || IsInteractive;
     }
 
-    private bool IsPressedVisual => _isPointerPressed || _isPressedSource;
+    private bool IsPressedVisual => VisualState == WidgetVisualState.Pressed || _isPressedSource;
 
     private bool IsWithinBounds(Point position)
     {

@@ -11,6 +11,7 @@ public enum WidgetPointerEventKind
     Pressed,
     Released,
     Cancelled,
+    CaptureLost,
 }
 
 public readonly record struct WidgetPointerEvent(

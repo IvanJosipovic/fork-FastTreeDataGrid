@@ -70,7 +70,6 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
         if (RoutePointer(e, WidgetPointerEventKind.Entered))
         {
             e.Handled = true;
-            InvalidateVisual();
         }
     }
 
@@ -96,7 +95,6 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
             _pointerCaptured = true;
             e.Pointer.Capture(this);
             Focus();
-            InvalidateVisual();
         }
     }
 
@@ -121,7 +119,6 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
         if (RoutePointer(e, WidgetPointerEventKind.Exited))
         {
             e.Handled = true;
-            InvalidateVisual();
         }
     }
 
@@ -130,8 +127,7 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
         base.OnPointerCaptureLost(e);
         if (_pointerCaptured)
         {
-            _root.HandlePointerEvent(new WidgetPointerEvent(WidgetPointerEventKind.Cancelled, default, null));
-            InvalidateVisual();
+            RoutePointer(null, WidgetPointerEventKind.CaptureLost);
             _pointerCaptured = false;
         }
     }
@@ -156,14 +152,15 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
         }
     }
 
-    private bool RoutePointer(PointerEventArgs e, WidgetPointerEventKind kind)
+    private bool RoutePointer(PointerEventArgs? e, WidgetPointerEventKind kind, Point? positionOverride = null)
     {
         _root.Arrange(new Rect(new Point(0, 0), Bounds.Size));
-        var point = e.GetCurrentPoint(this).Position;
+
+        var point = positionOverride ?? (e?.GetCurrentPoint(this).Position ?? default);
         var local = new Point(point.X - _root.Bounds.X, point.Y - _root.Bounds.Y);
         var evt = new WidgetPointerEvent(kind, local, e);
         var handled = _root.HandlePointerEvent(evt);
-        if (handled && kind != WidgetPointerEventKind.Moved)
+        if (handled)
         {
             InvalidateVisual();
         }

@@ -201,6 +201,7 @@ public sealed class SliderWidget : Widget
                 _isDragging = false;
                 break;
             case WidgetPointerEventKind.Cancelled:
+            case WidgetPointerEventKind.CaptureLost:
                 _isDragging = false;
                 break;
         }

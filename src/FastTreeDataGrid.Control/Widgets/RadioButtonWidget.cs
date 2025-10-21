@@ -123,6 +123,7 @@ public sealed class RadioButtonWidget : Widget
                 _isPointerPressed = false;
                 break;
             case WidgetPointerEventKind.Cancelled:
+            case WidgetPointerEventKind.CaptureLost:
                 _isPointerPressed = false;
                 break;
         }

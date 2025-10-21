@@ -171,28 +171,6 @@ public abstract class Widget
         WidgetStyleManager.Apply(this, _visualState);
     }
 
-    private void RefreshVisualState()
-    {
-        if (!_isEnabled)
-        {
-            SetVisualState(WidgetVisualState.Disabled);
-            return;
-        }
-
-        if (_isPressed)
-        {
-            SetVisualState(WidgetVisualState.Pressed);
-        }
-        else if (_isPointerOver)
-        {
-            SetVisualState(WidgetVisualState.PointerOver);
-        }
-        else
-        {
-            SetVisualState(WidgetVisualState.Normal);
-        }
-    }
-
     private void UpdatePointerState(in WidgetPointerEvent e)
     {
         if (!IsEnabled)
@@ -204,49 +182,77 @@ public abstract class Widget
         {
             case WidgetPointerEventKind.Entered:
                 _isPointerOver = true;
-                if (!_isPressed)
-                {
-                    SetVisualState(WidgetVisualState.PointerOver);
-                }
                 break;
 
             case WidgetPointerEventKind.Exited:
                 _isPointerOver = false;
-                if (!_isPressed)
-                {
-                    SetVisualState(WidgetVisualState.Normal);
-                }
+                break;
+
+            case WidgetPointerEventKind.Moved:
+                _isPointerOver = HitTestLocalBounds(e.Position);
                 break;
 
             case WidgetPointerEventKind.Pressed:
                 _isPressed = true;
-                SetVisualState(WidgetVisualState.Pressed);
+                _isPointerOver = true;
                 break;
 
             case WidgetPointerEventKind.Released:
                 _isPressed = false;
-                if (_isPointerOver)
-                {
-                    SetVisualState(WidgetVisualState.PointerOver);
-                }
-                else
-                {
-                    SetVisualState(WidgetVisualState.Normal);
-                }
+                _isPointerOver = HitTestLocalBounds(e.Position);
                 break;
 
             case WidgetPointerEventKind.Cancelled:
+            case WidgetPointerEventKind.CaptureLost:
                 _isPressed = false;
-                if (_isPointerOver)
-                {
-                    SetVisualState(WidgetVisualState.PointerOver);
-                }
-                else
-                {
-                    SetVisualState(WidgetVisualState.Normal);
-                }
+                _isPointerOver = false;
                 break;
         }
+
+        RefreshVisualState();
+    }
+
+    private void RefreshVisualState()
+    {
+        if (!_isEnabled)
+        {
+            SetVisualState(WidgetVisualState.Disabled);
+            return;
+        }
+
+        if (_isPressed)
+        {
+            if (_isPointerOver)
+            {
+                SetVisualState(WidgetVisualState.Pressed);
+            }
+            else
+            {
+                SetVisualState(WidgetVisualState.Normal);
+            }
+
+            return;
+        }
+
+        if (_isPointerOver)
+        {
+            SetVisualState(WidgetVisualState.PointerOver);
+        }
+        else
+        {
+            SetVisualState(WidgetVisualState.Normal);
+        }
+    }
+
+    protected bool HitTestLocalBounds(Point position)
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
+        return rect.Contains(position);
     }
 
     private static void RefreshAllStyles()

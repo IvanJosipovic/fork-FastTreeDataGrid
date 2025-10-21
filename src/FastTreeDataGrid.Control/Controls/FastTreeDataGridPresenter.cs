@@ -229,7 +229,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         if (_pointerCapturedWidget is not null)
         {
             var origin = new Point(_pointerCapturedWidget.Bounds.X, _pointerCapturedWidget.Bounds.Y);
-            RoutePointerToWidget(_pointerCapturedWidget, origin, null, WidgetPointerEventKind.Cancelled);
+            RoutePointerToWidget(_pointerCapturedWidget, origin, null, WidgetPointerEventKind.CaptureLost);
             _pointerCapturedWidget = null;
         }
     }
