@@ -7,6 +7,7 @@ using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Controls;
 using FastTreeDataGrid.Control.Widgets;
 using FastTreeDataGrid.Demo.ViewModels;
+using FastTreeDataGrid.Demo.ViewModels.Charts;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
 using FastTreeDataGrid.Demo.ViewModels.Widgets;
@@ -36,10 +37,57 @@ public partial class MainWindow : Window
             ConfigureCryptoColumns(cryptoGrid);
         }
 
+        if (this.FindControl<GridControl>("ChartsGrid") is { } chartsGrid)
+        {
+            ConfigureChartColumns(chartsGrid);
+        }
+
         if (this.FindControl<GridControl>("WidgetsGrid") is { } widgetsGrid)
         {
             ConfigureWidgetColumns(widgetsGrid);
         }
+    }
+
+    private static void ConfigureChartColumns(GridControl grid)
+    {
+        grid.Columns.Clear();
+        grid.IndentWidth = 18;
+        grid.RowHeight = 48;
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "Sample",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 220,
+            MinWidth = 180,
+            ValueKey = ChartSampleNode.KeyTitle,
+            CanUserSort = false,
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "Description",
+            SizingMode = ColumnSizingMode.Star,
+            MinWidth = 260,
+            ValueKey = ChartSampleNode.KeyDescription,
+            CanUserSort = false,
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "Chart",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 320,
+            MinWidth = 240,
+            ValueKey = ChartSampleNode.KeyChart,
+            CanUserSort = false,
+            WidgetFactory = (_, _) => new ChartWidget
+            {
+                Key = ChartSampleNode.KeyChart,
+                StrokeThickness = 1.6,
+                Margin = new Thickness(6, 8, 6, 8),
+            },
+        });
     }
 
     private static void ConfigureWidgetColumns(GridControl grid)

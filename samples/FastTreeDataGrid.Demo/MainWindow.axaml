@@ -89,6 +89,15 @@
           </Border>
         </Grid>
       </TabItem>
+      <TabItem Header="Charts">
+        <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+          <fast:FastTreeDataGrid x:Name="ChartsGrid"
+                                 ItemsSource="{Binding Charts.Source}"
+                                 RowHeight="48"
+                                 IndentWidth="18"
+                                 HeaderHeight="36" />
+        </Border>
+      </TabItem>
       <TabItem Header="Widgets">
         <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
           <fast:FastTreeDataGrid x:Name="WidgetsGrid"

@@ -4,6 +4,7 @@ using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
 using FastTreeDataGrid.Demo.ViewModels.Widgets;
 using Avalonia.Collections;
+using FastTreeDataGrid.Demo.ViewModels.Charts;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
@@ -21,6 +22,7 @@ public sealed class MainWindowViewModel : IDisposable
         Countries = new CountriesViewModel(DemoDataFactory.CreateCountries());
 
         Crypto = new CryptoTickersViewModel();
+        Charts = new ChartSamplesViewModel();
 
         var widgetNodes = WidgetSamplesFactory.Create();
         var widgetsSource = new FastTreeDataGridFlatSource<WidgetGalleryNode>(widgetNodes, node => node.Children);
@@ -35,6 +37,8 @@ public sealed class MainWindowViewModel : IDisposable
     public CountriesViewModel Countries { get; }
 
     public CryptoTickersViewModel Crypto { get; }
+
+    public ChartSamplesViewModel Charts { get; }
 
     public IFastTreeDataGridSource WidgetsSource { get; }
 
