@@ -22,9 +22,11 @@ public class FormattedTextWidget : TextWidget
 
         using var clip = PushClip(context);
 
-        if (_formattedText is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - EmSize) > double.Epsilon)
+        var emSize = GetEffectiveEmSize();
+
+        if (_formattedText is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - emSize) > double.Epsilon)
         {
-            _formattedText = CreateFormattedText();
+            _formattedText = CreateFormattedText(emSize);
         }
         else
         {
@@ -32,7 +34,7 @@ public class FormattedTextWidget : TextWidget
         }
 
         _cachedText = Text;
-        _cachedEmSize = EmSize;
+        _cachedEmSize = emSize;
 
         UpdateTransform();
 
@@ -66,14 +68,14 @@ public class FormattedTextWidget : TextWidget
             * Matrix.CreateTranslation(centerX, centerY);
     }
 
-    private FormattedText CreateFormattedText()
+    private FormattedText CreateFormattedText(double emSize)
     {
         var formatted = new FormattedText(
             Text ?? string.Empty,
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             Typeface.Default,
-            EmSize,
+            emSize,
             Foreground);
 
         UpdateFormattedMetrics(formatted);

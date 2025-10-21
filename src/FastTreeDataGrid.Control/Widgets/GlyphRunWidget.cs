@@ -37,18 +37,20 @@ public class GlyphRunWidget : TextWidget
 
         using var clip = PushClip(context);
 
-        if (_glyphRun is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - EmSize) > double.Epsilon)
+        var emSize = GetEffectiveEmSize();
+
+        if (_glyphRun is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - emSize) > double.Epsilon)
         {
-            _glyphRun = CreateGlyphRun(Text, Typeface.Default, EmSize);
+            _glyphRun = CreateGlyphRun(Text, Typeface.Default, emSize);
             if (_glyphRun is null)
             {
                 return;
             }
             _cachedText = Text;
-            _cachedEmSize = EmSize;
+            _cachedEmSize = emSize;
         }
 
-        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - EmSize) / 2);
+        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - emSize) / 2);
         var translate = Matrix.CreateTranslation(Bounds.X, originY);
         var centerX = Bounds.X + Bounds.Width / 2;
         var centerY = Bounds.Y + Bounds.Height / 2;

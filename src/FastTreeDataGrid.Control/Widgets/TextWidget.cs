@@ -9,7 +9,18 @@ public abstract class TextWidget : Widget
 {
     public string? Text { get; protected set; }
 
-    public double EmSize { get; set; }
+    public double EmSize { get; set; } = 12;
+
+    protected double GetEffectiveEmSize(double fallback = 12)
+    {
+        var size = EmSize;
+        if (!double.IsFinite(size) || size <= 0)
+        {
+            return fallback > 0 ? fallback : 12;
+        }
+
+        return size;
+    }
 
     public void SetText(string? text)
     {
