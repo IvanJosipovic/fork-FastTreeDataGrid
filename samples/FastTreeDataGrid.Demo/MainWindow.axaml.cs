@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
@@ -397,6 +398,22 @@ public partial class MainWindow : Window
             MinWidth = 100,
             ValueKey = CryptoTickerNode.KeyChange,
             CanUserSort = true,
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "24h Trend",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 160,
+            MinWidth = 140,
+            ValueKey = CryptoTickerNode.KeyChangeChart,
+            CanUserSort = false,
+            WidgetFactory = (_, _) => new ChartWidget
+            {
+                Key = CryptoTickerNode.KeyChangeChart,
+                StrokeThickness = 1.25,
+                Margin = new Thickness(4, 6, 4, 6),
+            },
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn

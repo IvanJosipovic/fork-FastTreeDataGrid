@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
@@ -67,3 +68,19 @@ public sealed record BadgeWidgetValue(
     double? Padding = null);
 
 public sealed record CustomDrawWidgetValue(Action<DrawingContext, Rect> Draw);
+
+public sealed record ChartSeriesValue(
+    IReadOnlyList<double> Points,
+    ImmutableSolidColorBrush? Stroke = null,
+    ImmutableSolidColorBrush? Fill = null,
+    double StrokeThickness = 1.5,
+    bool FillToBaseline = false);
+
+public sealed record ChartWidgetValue(
+    IReadOnlyList<ChartSeriesValue> Series,
+    double? Minimum = null,
+    double? Maximum = null,
+    double? Baseline = null,
+    bool ShowBaseline = false,
+    ImmutableSolidColorBrush? BaselineBrush = null,
+    double BaselineThickness = 1);

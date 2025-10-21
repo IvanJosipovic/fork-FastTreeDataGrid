@@ -79,6 +79,7 @@ internal static class WidgetFluentPalette
             ToggleSwitchPalette.Create(accessor),
             SliderPalette.Create(accessor),
             ProgressPalette.Create(accessor),
+            ChartPalette.Create(accessor),
             BadgePalette.Create(accessor, controlCornerRadius));
     }
 
@@ -175,6 +176,7 @@ internal static class WidgetFluentPalette
         ToggleSwitchPalette ToggleSwitch,
         SliderPalette Slider,
         ProgressPalette Progress,
+        ChartPalette Chart,
         BadgePalette Badge)
     {
         public static PaletteData CreateFallback()
@@ -188,6 +190,7 @@ internal static class WidgetFluentPalette
                 ToggleSwitchPalette.CreateFallback(),
                 SliderPalette.CreateFallback(),
                 ProgressPalette.CreateFallback(),
+                ChartPalette.CreateFallback(),
                 BadgePalette.CreateFallback(radius));
         }
     }
@@ -578,6 +581,29 @@ internal static class WidgetFluentPalette
                 new ImmutableSolidColorBrush(Color.FromRgb(0xE6, 0xE6, 0xE6)),
                 new ImmutableSolidColorBrush(Color.FromRgb(0x31, 0x82, 0xCE)),
                 new ImmutableSolidColorBrush(Color.FromRgb(0x31, 0x82, 0xCE)));
+        }
+    }
+
+    internal sealed record ChartPalette(
+        ImmutableSolidColorBrush Line,
+        ImmutableSolidColorBrush Fill,
+        ImmutableSolidColorBrush Baseline)
+    {
+        public static ChartPalette Create(ResourceAccessor accessor)
+        {
+            var fallback = CreateFallback();
+            var line = accessor.GetBrush("FastTreeDataGridChartLineBrush", fallback.Line) ?? fallback.Line;
+            var fill = accessor.GetBrush("FastTreeDataGridChartFillBrush", fallback.Fill) ?? fallback.Fill;
+            var baseline = accessor.GetBrush("FastTreeDataGridChartBaselineBrush", fallback.Baseline) ?? fallback.Baseline;
+            return new ChartPalette(line, fill, baseline);
+        }
+
+        public static ChartPalette CreateFallback()
+        {
+            return new ChartPalette(
+                new ImmutableSolidColorBrush(Color.FromRgb(0x31, 0x82, 0xCE)),
+                new ImmutableSolidColorBrush(Color.FromArgb(0x40, 0x31, 0x82, 0xCE)),
+                new ImmutableSolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)));
         }
     }
 
