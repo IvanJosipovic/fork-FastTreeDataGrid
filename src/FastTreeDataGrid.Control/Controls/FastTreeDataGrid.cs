@@ -149,6 +149,25 @@ public class FastTreeDataGrid : TemplatedControl
         RequestViewportUpdate();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (_presenter is null || _scrollViewer is null || _headerPresenter is null)
+        {
+            ApplyTemplate();
+        }
+
+        _presenter?.SetOwner(this);
+        if (_headerPresenter is not null)
+        {
+            _headerPresenter.HeaderHeight = HeaderHeight;
+        }
+
+        _columnsDirty = true;
+        RequestViewportUpdate();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
