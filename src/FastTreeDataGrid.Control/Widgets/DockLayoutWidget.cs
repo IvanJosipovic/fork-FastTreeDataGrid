@@ -31,101 +31,113 @@ public sealed class DockLayoutWidget : SurfaceWidget
     {
         base.Arrange(bounds);
 
-        var inner = bounds.Deflate(Padding);
-        if (inner.Width <= 0 || inner.Height <= 0 || Children.Count == 0)
+        var remaining = bounds.Deflate(Padding);
+        if (remaining.Width <= 0 || remaining.Height <= 0 || Children.Count == 0)
         {
             return;
         }
 
-        var left = inner.X;
-        var top = inner.Y;
-        var right = inner.Right;
-        var bottom = inner.Bottom;
+        var children = Children;
+        var lastFillIndex = LastChildFill && children.Count > 0 ? children.Count - 1 : -1;
 
-        for (var index = 0; index < Children.Count; index++)
+        for (var index = 0; index < children.Count; index++)
         {
-            var child = Children[index];
-            var dock = GetDock(child);
-            var isLast = LastChildFill && index == Children.Count - 1;
-
-            var availableWidth = Math.Max(0, right - left);
-            var availableHeight = Math.Max(0, bottom - top);
-
-            double width;
-            double height;
-
-            if (isLast)
+            if (remaining.Width <= 0 || remaining.Height <= 0)
             {
-                width = availableWidth;
-                height = availableHeight;
-                var finalRect = new Rect(left, top, width, height);
-                child.Arrange(finalRect);
-                continue;
+                break;
             }
 
-            switch (dock)
+            var child = children[index];
+            var fill = index == lastFillIndex;
+
+            if (fill)
             {
-                case Dock.Left:
-                    width = ResolvePrimaryLength(child.DesiredWidth, availableWidth);
-                    height = ResolveCrossLength(child.DesiredHeight, availableHeight);
-                    child.Arrange(new Rect(left, top, width, height));
-                    left += width;
-                    if (index < Children.Count - 1)
-                    {
-                        left += Spacing;
-                    }
-                    break;
+                child.Arrange(remaining);
+                break;
+            }
 
-                case Dock.Right:
-                    width = ResolvePrimaryLength(child.DesiredWidth, availableWidth);
-                    height = ResolveCrossLength(child.DesiredHeight, availableHeight);
-                    child.Arrange(new Rect(right - width, top, width, height));
-                    right -= width;
-                    if (index < Children.Count - 1)
-                    {
-                        right -= Spacing;
-                    }
-                    break;
+            var hasMore = index < children.Count - 1;
+            ArrangeChild(child, GetDock(child), hasMore, ref remaining);
+        }
+    }
 
-                case Dock.Top:
-                    height = ResolvePrimaryLength(child.DesiredHeight, availableHeight);
-                    width = ResolveCrossLength(child.DesiredWidth, availableWidth);
-                    child.Arrange(new Rect(left, top, width, height));
-                    top += height;
-                    if (index < Children.Count - 1)
-                    {
-                        top += Spacing;
-                    }
-                    break;
+    private void ArrangeChild(Widget child, Dock dock, bool hasMoreChildren, ref Rect remaining)
+    {
+        var available = remaining;
+        var spacing = Spacing > 0 ? Spacing : 0;
 
-                case Dock.Bottom:
-                    height = ResolvePrimaryLength(child.DesiredHeight, availableHeight);
-                    width = ResolveCrossLength(child.DesiredWidth, availableWidth);
-                    child.Arrange(new Rect(left, bottom - height, width, height));
-                    bottom -= height;
-                    if (index < Children.Count - 1)
-                    {
-                        bottom -= Spacing;
-                    }
-                    break;
+        switch (dock)
+        {
+            case Dock.Left:
+            {
+                var width = ResolvePrimary(child.DesiredWidth, available.Width);
+                var rect = new Rect(available.X, available.Y, width, available.Height);
+                child.Arrange(rect);
+
+                var adjust = width;
+                if (spacing > 0 && hasMoreChildren && available.Width - width > 0)
+                {
+                    adjust += spacing;
+                }
+
+                remaining = new Rect(available.X + adjust, available.Y, Math.Max(0, available.Width - adjust), available.Height);
+                break;
+            }
+
+            case Dock.Right:
+            {
+                var width = ResolvePrimary(child.DesiredWidth, available.Width);
+                var rect = new Rect(available.Right - width, available.Y, width, available.Height);
+                child.Arrange(rect);
+
+                var adjust = width;
+                if (spacing > 0 && hasMoreChildren && available.Width - width > 0)
+                {
+                    adjust += spacing;
+                }
+
+                remaining = new Rect(available.X, available.Y, Math.Max(0, available.Width - adjust), available.Height);
+                break;
+            }
+
+            case Dock.Top:
+            {
+                var height = ResolvePrimary(child.DesiredHeight, available.Height);
+                var rect = new Rect(available.X, available.Y, available.Width, height);
+                child.Arrange(rect);
+
+                var adjust = height;
+                if (spacing > 0 && hasMoreChildren && available.Height - height > 0)
+                {
+                    adjust += spacing;
+                }
+
+                remaining = new Rect(available.X, available.Y + adjust, available.Width, Math.Max(0, available.Height - adjust));
+                break;
+            }
+
+            case Dock.Bottom:
+            {
+                var height = ResolvePrimary(child.DesiredHeight, available.Height);
+                var rect = new Rect(available.X, available.Bottom - height, available.Width, height);
+                child.Arrange(rect);
+
+                var adjust = height;
+                if (spacing > 0 && hasMoreChildren && available.Height - height > 0)
+                {
+                    adjust += spacing;
+                }
+
+                remaining = new Rect(available.X, available.Y, available.Width, Math.Max(0, available.Height - adjust));
+                break;
             }
         }
     }
 
-    private double ResolvePrimaryLength(double requested, double available)
+    private double ResolvePrimary(double requested, double available)
     {
         var value = double.IsNaN(requested) || requested <= 0 ? DefaultDockLength : requested;
         value = Math.Min(value, available);
         return Math.Max(0, value);
-    }
-
-    private static double ResolveCrossLength(double requested, double available)
-    {
-        if (double.IsNaN(requested) || requested <= 0)
-        {
-            return available;
-        }
-
-        return Math.Max(0, Math.Min(requested, available));
     }
 }

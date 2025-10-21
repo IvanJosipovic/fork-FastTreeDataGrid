@@ -198,6 +198,12 @@ public sealed class ButtonWidget : Widget
         return brush;
     }
 
+    public void SetText(string text)
+    {
+        _text = text;
+        InvalidateFormattedText();
+    }
+
     public override bool HandlePointerEvent(in WidgetPointerEvent e)
     {
         var handled = base.HandlePointerEvent(e);

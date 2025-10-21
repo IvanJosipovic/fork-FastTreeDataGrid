@@ -20,6 +20,10 @@ internal static class WidgetSamplesFactory
             CreateGeometryGroup(),
             CreateButtonGroup(),
             CreateCheckBoxGroup(),
+            CreateToggleGroup(),
+            CreateRadioGroup(),
+            CreateSliderGroup(),
+            CreateBadgeGroup(),
             CreateProgressGroup(),
             CreateCustomGroup(),
             CreateLayoutGroup(),
@@ -52,7 +56,7 @@ internal static class WidgetSamplesFactory
         var warning = new WidgetGalleryNode("Warning", "Triangle icon using fill + stroke")
         {
             IconValue = new IconWidgetValue(
-                StreamGeometry.Parse("M16,4 L30,28 H2 Z"),
+                CreateWarningGeometry(),
                 new ImmutableSolidColorBrush(Color.FromRgb(255, 197, 61)),
                 new Pen(new ImmutableSolidColorBrush(Color.FromRgb(212, 128, 0)), 1.5),
                 Padding: 12)
@@ -69,7 +73,7 @@ internal static class WidgetSamplesFactory
         var polygon = new WidgetGalleryNode("Polygon", "UniformToFill stretch with outline")
         {
             GeometryValue = new GeometryWidgetValue(
-                StreamGeometry.Parse("M16,2 L30,12 L26,30 L6,30 L2,12 Z"),
+                CreatePolygonGeometry(),
                 Stretch.Uniform,
                 new ImmutableSolidColorBrush(Color.FromRgb(99, 200, 255)),
                 new Pen(new ImmutableSolidColorBrush(Color.FromRgb(28, 124, 172)), 1.5),
@@ -103,6 +107,12 @@ internal static class WidgetSamplesFactory
 
         return group;
     }
+
+    public static Geometry CreateWarningGeometry() => StreamGeometry.Parse("M16,4 L30,28 H2 Z");
+
+    public static Geometry CreateDocumentGeometry() => StreamGeometry.Parse("M6,6 L20,6 L28,14 L28,30 L6,30 Z M20,6 L20,14 L28,14");
+
+    public static Geometry CreatePolygonGeometry() => StreamGeometry.Parse("M16,2 L30,12 L26,30 L6,30 L2,12 Z");
 
     private static WidgetGalleryNode CreateButtonGroup()
     {
@@ -150,6 +160,106 @@ internal static class WidgetSamplesFactory
             CheckBoxValue = new CheckBoxWidgetValue(true, IsEnabled: false)
         };
         group.AddChild(disabled);
+
+        return group;
+    }
+
+    private static WidgetGalleryNode CreateToggleGroup()
+    {
+        var group = new WidgetGalleryNode("Toggle Switch", "ToggleSwitchWidget showing on/off/disabled states");
+
+        var onNode = new WidgetGalleryNode("On", "Active toggle")
+        {
+            ToggleValue = new ToggleSwitchWidgetValue(true)
+        };
+        group.AddChild(onNode);
+
+        var offNode = new WidgetGalleryNode("Off", "Inactive toggle")
+        {
+            ToggleValue = new ToggleSwitchWidgetValue(false)
+        };
+        group.AddChild(offNode);
+
+        var disabledNode = new WidgetGalleryNode("Disabled", "Toggle switch disabled")
+        {
+            ToggleValue = new ToggleSwitchWidgetValue(true, IsEnabled: false)
+        };
+        group.AddChild(disabledNode);
+
+        return group;
+    }
+
+    private static WidgetGalleryNode CreateRadioGroup()
+    {
+        var group = new WidgetGalleryNode("Radio Button", "RadioButtonWidget in various states");
+
+        var selected = new WidgetGalleryNode("Selected", "Radio selected")
+        {
+            RadioValue = new RadioButtonWidgetValue(true)
+        };
+        group.AddChild(selected);
+
+        var unselected = new WidgetGalleryNode("Unselected", "Radio not selected")
+        {
+            RadioValue = new RadioButtonWidgetValue(false)
+        };
+        group.AddChild(unselected);
+
+        var disabled = new WidgetGalleryNode("Disabled", "Radio disabled")
+        {
+            RadioValue = new RadioButtonWidgetValue(true, IsEnabled: false)
+        };
+        group.AddChild(disabled);
+
+        return group;
+    }
+
+    private static WidgetGalleryNode CreateSliderGroup()
+    {
+        var group = new WidgetGalleryNode("Slider", "SliderWidget showing track and interactive thumb");
+
+        var low = new WidgetGalleryNode("Low", "Value near minimum")
+        {
+            SliderValue = new SliderWidgetValue(0.2)
+        };
+        group.AddChild(low);
+
+        var mid = new WidgetGalleryNode("Mid", "Value near middle")
+        {
+            SliderValue = new SliderWidgetValue(0.6, FillBrush: new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)))
+        };
+        group.AddChild(mid);
+
+        var disabled = new WidgetGalleryNode("Disabled", "Slider disabled")
+        {
+            SliderValue = new SliderWidgetValue(0.75, IsEnabled: false)
+        };
+        group.AddChild(disabled);
+
+        return group;
+    }
+
+    private static WidgetGalleryNode CreateBadgeGroup()
+    {
+        var group = new WidgetGalleryNode("Badge", "BadgeWidget renders pill text indicators");
+
+        var info = new WidgetGalleryNode("Info", "Standard info badge")
+        {
+            BadgeValue = new BadgeWidgetValue("INFO", new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206)))
+        };
+        group.AddChild(info);
+
+        var success = new WidgetGalleryNode("Success", "Success indicator")
+        {
+            BadgeValue = new BadgeWidgetValue("SUCCESS", new ImmutableSolidColorBrush(Color.FromRgb(60, 180, 114)))
+        };
+        group.AddChild(success);
+
+        var warning = new WidgetGalleryNode("Warning", "Warning badge")
+        {
+            BadgeValue = new BadgeWidgetValue("WARN", new ImmutableSolidColorBrush(Color.FromRgb(255, 191, 0)), new ImmutableSolidColorBrush(Color.FromRgb(90, 60, 0)))
+        };
+        group.AddChild(warning);
 
         return group;
     }
@@ -398,7 +508,7 @@ internal static class WidgetSamplesFactory
         var node = new WidgetGalleryNode("Dock Layout", "DockLayoutWidget reserves banded edges with fill content")
         {
             IconValue = new IconWidgetValue(
-                StreamGeometry.Parse("M6,6 L20,6 L28,14 L28,30 L6,30 Z M20,6 L20,14 L28,14"),
+                CreateDocumentGeometry(),
                 new ImmutableSolidColorBrush(Color.FromRgb(79, 154, 255)),
                 new Pen(new ImmutableSolidColorBrush(Color.FromRgb(36, 98, 156)), 1),
                 Padding: 10),
@@ -535,7 +645,7 @@ internal static class WidgetSamplesFactory
         context.DrawLine(crossPen, new Point(center.X, center.Y - radius), new Point(center.X, center.Y + radius));
     }
 
-    private static Geometry CreateWaveGeometry()
+    public static Geometry CreateWaveGeometry()
     {
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())

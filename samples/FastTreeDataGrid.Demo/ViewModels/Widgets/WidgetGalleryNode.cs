@@ -16,6 +16,10 @@ public sealed class WidgetGalleryNode : IFastTreeDataGridValueProvider, IFastTre
     public const string KeyProgress = "Widget.Progress";
     public const string KeyCustom = "Widget.Custom";
     public const string KeyLayout = "Widget.Layout";
+    public const string KeyToggle = "Widget.Toggle";
+    public const string KeySlider = "Widget.Slider";
+    public const string KeyRadio = "Widget.Radio";
+    public const string KeyBadge = "Widget.Badge";
 
     private readonly List<WidgetGalleryNode> _children = new();
     private readonly Dictionary<string, object?> _additionalValues = new();
@@ -41,6 +45,14 @@ public sealed class WidgetGalleryNode : IFastTreeDataGridValueProvider, IFastTre
     public object? ProgressValue { get; set; }
 
     public object? CustomValue { get; set; }
+
+    public object? ToggleValue { get; set; }
+
+    public object? SliderValue { get; set; }
+
+    public object? RadioValue { get; set; }
+
+    public object? BadgeValue { get; set; }
 
     public Func<Widget>? LayoutFactory { get; set; }
 
@@ -69,6 +81,10 @@ public sealed class WidgetGalleryNode : IFastTreeDataGridValueProvider, IFastTre
         KeyProgress => ProgressValue,
         KeyCustom => CustomValue,
         KeyLayout => LayoutFactory,
+        KeyToggle => ToggleValue,
+        KeySlider => SliderValue,
+        KeyRadio => RadioValue,
+        KeyBadge => BadgeValue,
         _ => _additionalValues.TryGetValue(key, out var value) ? value : null
     };
 

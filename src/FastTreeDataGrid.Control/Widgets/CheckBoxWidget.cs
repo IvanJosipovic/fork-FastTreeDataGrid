@@ -24,6 +24,13 @@ public sealed class CheckBoxWidget : Widget
 
     public bool? Value => _value;
 
+    public void SetValue(bool? value)
+    {
+        _value = value;
+        _sourceValue = value;
+        RefreshStyle();
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
         _value = null;
@@ -166,11 +173,12 @@ public sealed class CheckBoxWidget : Widget
     {
         _value = _value switch
         {
-            true => false,
-            false => null,
             null => true,
+            true => false,
+            false => true,
         };
 
+        _sourceValue = _value;
         Toggled?.Invoke(_value);
         RefreshStyle();
     }

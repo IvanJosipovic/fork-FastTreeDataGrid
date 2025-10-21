@@ -11,6 +11,12 @@ public abstract class TextWidget : Widget
 
     public double EmSize { get; set; }
 
+    public void SetText(string? text)
+    {
+        Text = text ?? string.Empty;
+        Invalidate();
+    }
+
     public TextTrimming Trimming { get; set; } = TextTrimming.None;
 
     public TextAlignment TextAlignment { get; set; } = TextAlignment.Left;

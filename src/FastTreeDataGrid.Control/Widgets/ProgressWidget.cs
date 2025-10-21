@@ -15,12 +15,36 @@ public sealed class ProgressWidget : Widget
 
     public ImmutableSolidColorBrush? Background { get; set; }
 
+    public double Progress
+    {
+        get => _progress;
+        set => _progress = Math.Clamp(value, 0, 1);
+    }
+
+    public bool IsIndeterminate
+    {
+        get => _isIndeterminate;
+        set => _isIndeterminate = value;
+    }
+
+    public ImmutableSolidColorBrush? TrackForeground
+    {
+        get => _foreground;
+        set => _foreground = value;
+    }
+
+    public ImmutableSolidColorBrush? TrackBackground
+    {
+        get => _background;
+        set => _background = value;
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
         _progress = 0;
         _isIndeterminate = false;
-        _foreground = Foreground;
-        _background = Background;
+        _foreground = TrackForeground ?? Foreground;
+        _background = TrackBackground ?? Background;
 
         if (provider is null || Key is null)
         {
@@ -31,20 +55,21 @@ public sealed class ProgressWidget : Widget
         switch (value)
         {
             case ProgressWidgetValue progressValue:
-                _progress = progressValue.Progress;
-                _isIndeterminate = progressValue.IsIndeterminate;
-                _foreground = progressValue.Foreground ?? Foreground;
-                _background = progressValue.Background ?? Background;
+                Progress = progressValue.Progress;
+                IsIndeterminate = progressValue.IsIndeterminate;
+                TrackForeground = progressValue.Foreground ?? TrackForeground ?? Foreground;
+                TrackBackground = progressValue.Background ?? TrackBackground ?? Background;
                 break;
             case double numeric:
-                _progress = numeric;
+                Progress = numeric;
                 break;
             case float numericFloat:
-                _progress = numericFloat;
+                Progress = numericFloat;
                 break;
         }
 
-        _progress = Math.Clamp(_progress, 0, 1);
+        _foreground ??= Foreground;
+        _background ??= Background;
     }
 
     public override void Draw(DrawingContext context)
@@ -57,26 +82,26 @@ public sealed class ProgressWidget : Widget
 
         using var clip = PushClip(context);
 
-        var background = _background ?? new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
-        var foreground = _foreground ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
+        var background = TrackBackground ?? new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
+        var foreground = TrackForeground ?? new ImmutableSolidColorBrush(Color.FromRgb(49, 130, 206));
 
         var radius = Math.Min(rect.Height / 2, 6);
 
         using var rotation = context.PushTransform(CreateRotationMatrix());
         context.DrawRectangle(background, null, rect, radius, radius);
 
-        if (_isIndeterminate)
+        if (IsIndeterminate)
         {
             DrawIndeterminate(context, rect, foreground, radius);
             return;
         }
 
-        if (_progress <= 0)
+        if (Progress <= 0)
         {
             return;
         }
 
-        var progressWidth = Math.Max(0, rect.Width * _progress);
+        var progressWidth = Math.Max(0, rect.Width * Progress);
         if (progressWidth <= 0)
         {
             return;

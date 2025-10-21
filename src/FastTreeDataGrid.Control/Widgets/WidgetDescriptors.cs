@@ -38,4 +38,32 @@ public sealed record ProgressWidgetValue(
     ImmutableSolidColorBrush? Foreground = null,
     ImmutableSolidColorBrush? Background = null);
 
+public sealed record ToggleSwitchWidgetValue(
+    bool IsOn,
+    bool IsEnabled = true,
+    ImmutableSolidColorBrush? OnBrush = null,
+    ImmutableSolidColorBrush? OffBrush = null,
+    ImmutableSolidColorBrush? ThumbBrush = null);
+
+public sealed record RadioButtonWidgetValue(
+    bool IsChecked,
+    bool IsEnabled = true,
+    string? Group = null);
+
+public sealed record SliderWidgetValue(
+    double Value,
+    bool IsEnabled = true,
+    double Minimum = 0,
+    double Maximum = 1,
+    ImmutableSolidColorBrush? TrackBrush = null,
+    ImmutableSolidColorBrush? FillBrush = null,
+    ImmutableSolidColorBrush? ThumbBrush = null);
+
+public sealed record BadgeWidgetValue(
+    string Text,
+    ImmutableSolidColorBrush? Background = null,
+    ImmutableSolidColorBrush? Foreground = null,
+    double CornerRadius = 8,
+    double Padding = 6);
+
 public sealed record CustomDrawWidgetValue(Action<DrawingContext, Rect> Draw);

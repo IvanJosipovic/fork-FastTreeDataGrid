@@ -16,7 +16,7 @@
       <TextBlock Text="(click rows to expand or collapse)" VerticalAlignment="Center" Foreground="#666" />
     </StackPanel>
 
-    <TabControl Grid.Row="1" Margin="0,12,0,0">
+    <TabControl Grid.Row="1" Margin="0,12,0,0" TabStripPlacement="Left">
       <TabItem Header="Files">
         <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
           <fast:FastTreeDataGrid x:Name="FilesGrid"
@@ -51,6 +51,25 @@
                                  RowHeight="36"
                                  IndentWidth="18"
                                  HeaderHeight="36" />
+        </Border>
+      </TabItem>
+      <TabItem Header="Gallery">
+        <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding WidgetBoards}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                    <StackPanel Spacing="12">
+                      <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Description}" Foreground="#666" />
+                      <ContentPresenter Content="{Binding Board}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
         </Border>
       </TabItem>
     </TabControl>

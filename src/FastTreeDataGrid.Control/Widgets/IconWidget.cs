@@ -95,6 +95,19 @@ public sealed class IconWidget : Widget
         context.DrawGeometry(_fill ?? Foreground ?? Brushes.Gray, _stroke, _geometry);
     }
 
+    public void SetIcon(Geometry geometry, ImmutableSolidColorBrush? fill = null, Pen? stroke = null, double? padding = null)
+    {
+        _geometry = geometry;
+        _fill = fill ?? Foreground;
+        _stroke = stroke;
+        if (padding is not null)
+        {
+            Padding = padding.Value;
+        }
+        _padding = Padding;
+        RefreshStyle();
+    }
+
     private Matrix CreateRotationMatrix()
     {
         if (Math.Abs(Rotation) <= double.Epsilon)

@@ -95,6 +95,26 @@ public sealed class GeometryWidget : Widget
         context.DrawGeometry(_fill ?? Foreground ?? Brushes.Gray, _stroke, _geometry);
     }
 
+    public void SetGeometry(Geometry geometry, Stretch? stretch = null, IBrush? fill = null, Pen? stroke = null, double? padding = null)
+    {
+        _geometry = geometry;
+        if (stretch is not null)
+        {
+            Stretch = stretch.Value;
+        }
+
+        _stretch = Stretch;
+        _fill = fill ?? Foreground;
+        _stroke = stroke;
+
+        if (padding is not null)
+        {
+            Padding = padding.Value;
+        }
+        _padding = Padding;
+        RefreshStyle();
+    }
+
     private static (double scaleX, double scaleY) CalculateScale(Rect geometryBounds, double availableWidth, double availableHeight, Stretch stretch)
     {
         var widthScale = geometryBounds.Width <= 0 ? 1 : availableWidth / geometryBounds.Width;

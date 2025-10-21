@@ -125,6 +125,52 @@ public partial class MainWindow : Window
 
         grid.Columns.Add(new FastTreeDataGridColumn
         {
+            Header = "Toggle",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 110,
+            MinWidth = 100,
+            ValueKey = WidgetGalleryNode.KeyToggle,
+            WidgetFactory = (_, item) =>
+            {
+                var toggle = new ToggleSwitchWidget
+                {
+                    Key = WidgetGalleryNode.KeyToggle,
+                };
+
+                if (item is WidgetGalleryNode node)
+                {
+                    toggle.Toggled += on =>
+                    {
+                        if (node.ToggleValue is ToggleSwitchWidgetValue current)
+                        {
+                            node.ToggleValue = current with { IsOn = on };
+                        }
+                        else
+                        {
+                            node.ToggleValue = new ToggleSwitchWidgetValue(on);
+                        }
+                    };
+                }
+
+                return toggle;
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "Badge",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 120,
+            MinWidth = 100,
+            ValueKey = WidgetGalleryNode.KeyBadge,
+            WidgetFactory = (_, _) => new BadgeWidget
+            {
+                Key = WidgetGalleryNode.KeyBadge,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
             Header = "Progress",
             SizingMode = ColumnSizingMode.Pixel,
             PixelWidth = 140,
