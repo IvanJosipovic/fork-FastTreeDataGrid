@@ -34,6 +34,7 @@ public sealed class MainWindowViewModel : IDisposable
 
         WidgetBoards = new AvaloniaList<WidgetBoard>(WidgetBoardFactory.CreateBoards(widgetNodes));
         DataSources = new DataSourceSamplesViewModel();
+        DynamicDataSources = new DynamicDataSourcesViewModel();
     }
 
     public FilesViewModel Files { get; }
@@ -54,11 +55,14 @@ public sealed class MainWindowViewModel : IDisposable
 
     public DataSourceSamplesViewModel DataSources { get; }
 
+    public DynamicDataSourcesViewModel DynamicDataSources { get; }
+
     public void Dispose()
     {
         Crypto.Dispose();
         Files.Dispose();
         DataSources.Dispose();
+        DynamicDataSources.Dispose();
     }
 
     private static void ExpandAllNodes(IFastTreeDataGridSource source)
