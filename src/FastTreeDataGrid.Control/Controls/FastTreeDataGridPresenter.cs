@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
 
@@ -15,12 +16,14 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     private readonly List<RowRenderInfo> _rows = new();
     private FastTreeDataGrid? _owner;
     private readonly List<double> _columnOffsets = new();
+    private IFastTreeDataVirtualizationProvider? _virtualizationProvider;
 
     private Widget? _pointerCapturedWidget;
     private Widget? _pointerOverWidget;
     private Widget? _focusedWidget;
 
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
+    private readonly SolidColorBrush _placeholderBrush = new(Color.FromArgb(40, 200, 200, 200));
     private readonly ImmutableSolidColorBrush _toggleGlyphBrush = new(Color.FromRgb(96, 96, 96));
     private readonly Pen _gridPen = new(new SolidColorBrush(Color.FromRgb(210, 210, 210)), 1);
     private static readonly StreamGeometry s_collapsedGlyph = StreamGeometry.Parse("M 1,0 10,10 l -9,10 -1,-1 L 8,10 -0,1 Z");
@@ -36,7 +39,35 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
     public void SetOwner(FastTreeDataGrid? owner)
     {
+        if (ReferenceEquals(_owner, owner))
+        {
+            return;
+        }
+
         _owner = owner;
+        SetVirtualizationProvider(_owner?.VirtualizationProvider);
+    }
+
+    public void SetVirtualizationProvider(IFastTreeDataVirtualizationProvider? provider)
+    {
+        if (ReferenceEquals(_virtualizationProvider, provider))
+        {
+            return;
+        }
+
+        if (_virtualizationProvider is not null)
+        {
+            _virtualizationProvider.RowMaterialized -= OnProviderRowMaterialized;
+            _virtualizationProvider.CountChanged -= OnProviderCountChanged;
+        }
+
+        _virtualizationProvider = provider;
+
+        if (_virtualizationProvider is not null)
+        {
+            _virtualizationProvider.RowMaterialized += OnProviderRowMaterialized;
+            _virtualizationProvider.CountChanged += OnProviderCountChanged;
+        }
     }
 
     public void UpdateContent(IReadOnlyList<RowRenderInfo> rows, double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
@@ -85,6 +116,11 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
             // Transparent fill ensures pointer hit-testing works across the entire row surface.
             context.FillRectangle(Brushes.Transparent, rowRect);
+
+            if (row.IsPlaceholder)
+            {
+                context.FillRectangle(_placeholderBrush, rowRect);
+            }
 
             if (row.IsSelected)
             {
@@ -299,6 +335,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
                 continue;
             }
 
+            if (row.IsPlaceholder)
+            {
+                rowInfo = row;
+                return null;
+            }
+
             foreach (var cell in row.Cells)
             {
                 if (cell.Widget is { } widget && widget.SupportsPointerInput && widget.IsEnabled && widget.Bounds.Contains(point))
@@ -329,7 +371,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             return true;
         }
 
-        var widget = HitTestWidget(point, out _);
+        var widget = HitTestWidget(point, out var rowInfo);
+        if (rowInfo is { IsPlaceholder: true })
+        {
+            return false;
+        }
+
         if (widget is null)
         {
             return false;
@@ -427,7 +474,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             bool hasChildren,
             bool isExpanded,
             Rect toggleRect,
-            bool isGroup)
+            bool isGroup,
+            bool isPlaceholder)
         {
             Row = row;
             RowIndex = rowIndex;
@@ -438,6 +486,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             IsExpanded = isExpanded;
             ToggleRect = toggleRect;
             IsGroup = isGroup;
+            IsPlaceholder = isPlaceholder;
         }
 
         public FastTreeDataGridRow Row { get; }
@@ -450,6 +499,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         public Rect ToggleRect { get; }
         public Rect? ToggleBounds { get; set; }
         public bool IsGroup { get; }
+        public bool IsPlaceholder { get; }
         public List<CellRenderInfo> Cells { get; } = new();
     }
 
@@ -509,4 +559,13 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         return new Size(width, height);
     }
 
+    private void OnProviderRowMaterialized(object? sender, FastTreeDataGridRowMaterializedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Render);
+    }
+
+    private void OnProviderCountChanged(object? sender, FastTreeDataGridCountChangedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Render);
+    }
 }

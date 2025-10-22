@@ -4,15 +4,16 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public interface IFastTreeDataGridSource
+public interface IFastTreeDataVirtualizationProvider : IDisposable, IAsyncDisposable
 {
-    event EventHandler? ResetRequested;
     event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated;
     event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized;
+    event EventHandler<FastTreeDataGridCountChangedEventArgs>? CountChanged;
 
-    int RowCount { get; }
-    bool SupportsPlaceholders { get; }
+    bool IsInitialized { get; }
+    bool SupportsMutations { get; }
 
+    ValueTask InitializeAsync(CancellationToken cancellationToken);
     ValueTask<int> GetRowCountAsync(CancellationToken cancellationToken);
     ValueTask<FastTreeDataGridPageResult> GetPageAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken);
     ValueTask PrefetchAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken);
@@ -21,7 +22,11 @@ public interface IFastTreeDataGridSource
     bool TryGetMaterializedRow(int index, out FastTreeDataGridRow row);
     bool IsPlaceholder(int index);
 
-    FastTreeDataGridRow GetRow(int index);
+    Task ApplySortFilterAsync(FastTreeDataGridSortFilterRequest request, CancellationToken cancellationToken);
 
-    void ToggleExpansion(int index);
+    Task<int> LocateRowIndexAsync(object? item, CancellationToken cancellationToken);
+
+    Task CreateAsync(object viewModel, CancellationToken cancellationToken);
+    Task UpdateAsync(object viewModel, CancellationToken cancellationToken);
+    Task DeleteAsync(object viewModel, CancellationToken cancellationToken);
 }

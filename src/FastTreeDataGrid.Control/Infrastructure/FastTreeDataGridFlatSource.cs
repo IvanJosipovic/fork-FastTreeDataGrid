@@ -4,11 +4,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FastTreeDataGrid.Control.Models;
 using Avalonia.Threading;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
+public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFastTreeDataGridSortFilterHandler
 {
     private readonly Func<T, IEnumerable<T>> _childrenSelector;
     private readonly Func<T, string>? _keySelector;
@@ -47,6 +48,8 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
     }
 
     public event EventHandler? ResetRequested;
+    public event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated;
+    public event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized;
 
     public int RowCount
     {
@@ -57,6 +60,107 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
                 return _visibleNodes.Count;
             }
         }
+    }
+
+    public bool SupportsPlaceholders => false;
+
+    public ValueTask<int> GetRowCountAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<int>(RowCount);
+    }
+
+    public ValueTask<FastTreeDataGridPageResult> GetPageAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var startIndex = request.StartIndex;
+        List<FastTreeDataGridRow> rows;
+        lock (_dataLock)
+        {
+            if (_visibleNodes.Count == 0 || request.Count == 0 || request.StartIndex >= _visibleNodes.Count)
+            {
+                rows = new List<FastTreeDataGridRow>();
+            }
+            else
+            {
+                startIndex = Math.Max(0, request.StartIndex);
+                var endExclusive = Math.Min(_visibleNodes.Count, startIndex + request.Count);
+                var capacity = Math.Max(0, endExclusive - startIndex);
+                rows = new List<FastTreeDataGridRow>(capacity);
+
+                for (var i = startIndex; i < endExclusive; i++)
+                {
+                    rows.Add(_visibleNodes[i].Row);
+                }
+            }
+        }
+
+        if (rows.Count == 0)
+        {
+            return new ValueTask<FastTreeDataGridPageResult>(FastTreeDataGridPageResult.Empty);
+        }
+
+        NotifyRowsMaterialized(startIndex, rows);
+
+        return new ValueTask<FastTreeDataGridPageResult>(
+            new FastTreeDataGridPageResult(rows, Array.Empty<int>(), completion: null, cancellation: null));
+    }
+
+    public ValueTask PrefetchAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken)
+    {
+        _ = request ?? throw new ArgumentNullException(nameof(request));
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
+    }
+
+    public Task InvalidateAsync(FastTreeDataGridInvalidationRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        switch (request.Kind)
+        {
+            case FastTreeDataGridInvalidationKind.Full:
+                RaiseResetRequested();
+                break;
+            case FastTreeDataGridInvalidationKind.Range:
+            case FastTreeDataGridInvalidationKind.MetadataOnly:
+                RaiseInvalidated(request);
+                break;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public bool TryGetMaterializedRow(int index, out FastTreeDataGridRow row)
+    {
+        lock (_dataLock)
+        {
+            if ((uint)index < (uint)_visibleNodes.Count)
+            {
+                row = _visibleNodes[index].Row;
+                return true;
+            }
+        }
+
+        row = default!;
+        return false;
+    }
+
+    public bool IsPlaceholder(int index)
+    {
+        _ = index;
+        return false;
     }
 
     public FastTreeDataGridRow GetRow(int index)
@@ -207,6 +311,52 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         }
     }
 
+    public Task ApplySortFilterAsync(FastTreeDataGridSortFilterRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (request.FilterDescriptors.Count == 0)
+        {
+            SetFilter(null);
+        }
+        else
+        {
+            SetFilter(row => EvaluateFilters(row, request.FilterDescriptors));
+        }
+
+        if (request.SortDescriptors.Count == 0)
+        {
+            Sort(null);
+        }
+        else
+        {
+            var descriptor = request.SortDescriptors[0];
+            if (descriptor.RowComparison is not null)
+            {
+                var comparison = descriptor.Direction == FastTreeDataGridSortDirection.Descending
+                    ? new Comparison<FastTreeDataGridRow>((a, b) => descriptor.RowComparison!(b, a))
+                    : descriptor.RowComparison;
+                Sort(comparison);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static bool EvaluateFilters(FastTreeDataGridRow row, IReadOnlyList<FastTreeDataGridFilterDescriptor> filters)
+    {
+        for (var i = 0; i < filters.Count; i++)
+        {
+            var descriptor = filters[i];
+            if (descriptor.Predicate is not null && !descriptor.Predicate(row.Item))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 
     private void ScheduleWork(Action work)
     {
@@ -242,6 +392,8 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
 
     private void RaiseResetRequested()
     {
+        RaiseInvalidated(new FastTreeDataGridInvalidationRequest(FastTreeDataGridInvalidationKind.Full));
+
         var handler = ResetRequested;
         if (handler is null)
         {
@@ -263,6 +415,52 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource
         catch (InvalidOperationException)
         {
             handler.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void RaiseInvalidated(FastTreeDataGridInvalidationRequest request)
+    {
+        var handler = Invalidated;
+        if (handler is null)
+        {
+            return;
+        }
+
+        var args = new FastTreeDataGridInvalidatedEventArgs(request);
+        try
+        {
+            var dispatcher = Dispatcher.UIThread;
+            if (dispatcher.CheckAccess())
+            {
+                handler.Invoke(this, args);
+            }
+            else
+            {
+                dispatcher.Post(() => handler.Invoke(this, args), DispatcherPriority.Background);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            handler.Invoke(this, args);
+        }
+    }
+
+    private void NotifyRowsMaterialized(int startIndex, IReadOnlyList<FastTreeDataGridRow> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var handler = RowMaterialized;
+        if (handler is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            handler.Invoke(this, new FastTreeDataGridRowMaterializedEventArgs(startIndex + i, rows[i]));
         }
     }
 

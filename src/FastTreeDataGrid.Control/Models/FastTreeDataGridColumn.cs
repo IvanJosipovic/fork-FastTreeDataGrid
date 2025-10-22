@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
@@ -45,6 +46,9 @@ public class FastTreeDataGridColumn : AvaloniaObject
 
     public static readonly StyledProperty<IWidgetTemplate?> CellTemplateProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, IWidgetTemplate?>(nameof(CellTemplate));
+
+    public static readonly StyledProperty<Comparison<FastTreeDataGridRow>?> SortComparisonProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, Comparison<FastTreeDataGridRow>?>(nameof(SortComparison));
 
     public object? Header
     {
@@ -122,6 +126,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(SortDirectionProperty);
         set => SetValue(SortDirectionProperty, value);
+    }
+
+    public Comparison<FastTreeDataGridRow>? SortComparison
+    {
+        get => GetValue(SortComparisonProperty);
+        set => SetValue(SortComparisonProperty, value);
     }
 
     public double ActualWidth { get; internal set; }

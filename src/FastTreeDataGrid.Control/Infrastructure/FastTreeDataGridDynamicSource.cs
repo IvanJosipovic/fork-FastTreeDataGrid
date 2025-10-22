@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
@@ -11,6 +13,8 @@ public abstract class FastTreeDataGridDynamicSource<T> : IFastTreeDataGridSource
     private readonly object _eventLock = new();
     private EventHandler? _resetRequested;
     private bool _resetPending;
+    private EventHandler<FastTreeDataGridInvalidatedEventArgs>? _invalidated;
+    private EventHandler<FastTreeDataGridRowMaterializedEventArgs>? _rowMaterialized;
 
     protected FastTreeDataGridDynamicSource(
         IEnumerable<T> initialItems,
@@ -29,6 +33,8 @@ public abstract class FastTreeDataGridDynamicSource<T> : IFastTreeDataGridSource
             keySelector,
             keyComparer);
         _inner.ResetRequested += OnInnerResetRequested;
+        _inner.Invalidated += OnInnerInvalidated;
+        _inner.RowMaterialized += OnInnerRowMaterialized;
     }
 
     protected FastTreeDataGridFlatSource<T> Inner => _inner;
@@ -59,7 +65,62 @@ public abstract class FastTreeDataGridDynamicSource<T> : IFastTreeDataGridSource
         }
     }
 
+    public event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated
+    {
+        add
+        {
+            lock (_eventLock)
+            {
+                _invalidated += value;
+            }
+        }
+        remove
+        {
+            lock (_eventLock)
+            {
+                _invalidated -= value;
+            }
+        }
+    }
+
+    public event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized
+    {
+        add
+        {
+            lock (_eventLock)
+            {
+                _rowMaterialized += value;
+            }
+        }
+        remove
+        {
+            lock (_eventLock)
+            {
+                _rowMaterialized -= value;
+            }
+        }
+    }
+
     public int RowCount => _inner.RowCount;
+
+    public bool SupportsPlaceholders => _inner.SupportsPlaceholders;
+
+    public ValueTask<int> GetRowCountAsync(CancellationToken cancellationToken) =>
+        _inner.GetRowCountAsync(cancellationToken);
+
+    public ValueTask<FastTreeDataGridPageResult> GetPageAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken) =>
+        _inner.GetPageAsync(request, cancellationToken);
+
+    public ValueTask PrefetchAsync(FastTreeDataGridPageRequest request, CancellationToken cancellationToken) =>
+        _inner.PrefetchAsync(request, cancellationToken);
+
+    public Task InvalidateAsync(FastTreeDataGridInvalidationRequest request, CancellationToken cancellationToken) =>
+        _inner.InvalidateAsync(request, cancellationToken);
+
+    public bool TryGetMaterializedRow(int index, out FastTreeDataGridRow row) =>
+        _inner.TryGetMaterializedRow(index, out row);
+
+    public bool IsPlaceholder(int index) => _inner.IsPlaceholder(index);
 
     public FastTreeDataGridRow GetRow(int index) => _inner.GetRow(index);
 
@@ -97,6 +158,28 @@ public abstract class FastTreeDataGridDynamicSource<T> : IFastTreeDataGridSource
         }
     }
 
+    private void OnInnerInvalidated(object? sender, FastTreeDataGridInvalidatedEventArgs e)
+    {
+        EventHandler<FastTreeDataGridInvalidatedEventArgs>? handler;
+        lock (_eventLock)
+        {
+            handler = _invalidated;
+        }
+
+        handler?.Invoke(this, e);
+    }
+
+    private void OnInnerRowMaterialized(object? sender, FastTreeDataGridRowMaterializedEventArgs e)
+    {
+        EventHandler<FastTreeDataGridRowMaterializedEventArgs>? handler;
+        lock (_eventLock)
+        {
+            handler = _rowMaterialized;
+        }
+
+        handler?.Invoke(this, e);
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         if (!disposing || _disposed)
@@ -105,10 +188,14 @@ public abstract class FastTreeDataGridDynamicSource<T> : IFastTreeDataGridSource
         }
 
         _inner.ResetRequested -= OnInnerResetRequested;
+        _inner.Invalidated -= OnInnerInvalidated;
+        _inner.RowMaterialized -= OnInnerRowMaterialized;
         lock (_eventLock)
         {
             _resetRequested = null;
             _resetPending = false;
+            _invalidated = null;
+            _rowMaterialized = null;
         }
         _disposed = true;
     }

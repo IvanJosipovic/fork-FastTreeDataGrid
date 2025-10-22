@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
@@ -55,6 +58,10 @@ public class FastTreeDataGrid : TemplatedControl
     private FastTreeDataGridPresenter? _presenter;
     private ScrollViewer? _scrollViewer;
     private IFastTreeDataGridSource? _itemsSource;
+    private IFastTreeDataVirtualizationProvider? _virtualizationProvider;
+    private FastTreeDataGridViewportScheduler? _viewportScheduler;
+    private CancellationTokenSource? _providerInitializationCts;
+    private FastTreeDataGridVirtualizationSettings _virtualizationSettings = new();
     private bool _templateHandlersAttached;
     private bool _isAttachedToVisualTree;
     private object? _selectedItem;
@@ -64,6 +71,7 @@ public class FastTreeDataGrid : TemplatedControl
     private int? _sortedColumnIndex;
     private FastTreeDataGridSortDirection _sortedDirection = FastTreeDataGridSortDirection.None;
     private IFastTreeDataGridRowLayout? _rowLayout;
+    private FastTreeDataGridThrottleDispatcher? _resetThrottle;
 
     static FastTreeDataGrid()
     {
@@ -74,6 +82,7 @@ public class FastTreeDataGrid : TemplatedControl
     {
         _columns.CollectionChanged += OnColumnsChanged;
         SetRowLayout(new FastTreeDataGridUniformRowLayout());
+        ResetThrottleDispatcher();
     }
 
     public IFastTreeDataGridSource? ItemsSource
@@ -115,6 +124,19 @@ public class FastTreeDataGrid : TemplatedControl
         get => _rowLayout;
         set => SetRowLayout(value);
     }
+
+    public FastTreeDataGridVirtualizationSettings VirtualizationSettings
+    {
+        get => _virtualizationSettings;
+        set
+        {
+            _virtualizationSettings = value ?? new FastTreeDataGridVirtualizationSettings();
+            _viewportScheduler?.UpdateSettings(_virtualizationSettings);
+            ResetThrottleDispatcher();
+        }
+    }
+
+    internal IFastTreeDataVirtualizationProvider? VirtualizationProvider => _virtualizationProvider;
 
     public event EventHandler<FastTreeDataGridSortEventArgs>? SortRequested;
 
@@ -195,6 +217,7 @@ public class FastTreeDataGrid : TemplatedControl
         if (_presenter is not null)
         {
             _presenter.SetOwner(this);
+            _presenter.SetVirtualizationProvider(_virtualizationProvider);
         }
 
         if (_headerPresenter is not null)
@@ -213,6 +236,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
+        ApplySortStateToProvider();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -291,6 +315,8 @@ public class FastTreeDataGrid : TemplatedControl
             oldSource.ResetRequested -= OnSourceResetRequested;
         }
 
+        DisposeVirtualizationProvider();
+
         _itemsSource = newSource;
         _rowLayout?.Bind(_itemsSource);
         _rowLayout?.Reset();
@@ -300,6 +326,8 @@ public class FastTreeDataGrid : TemplatedControl
             newSource.ResetRequested += OnSourceResetRequested;
         }
 
+        ConfigureVirtualizationProvider(newSource);
+
         SetValue(SelectedIndexProperty, -1);
         RequestViewportUpdate();
     }
@@ -308,6 +336,222 @@ public class FastTreeDataGrid : TemplatedControl
     {
         _rowLayout?.Reset();
         RequestViewportUpdate();
+    }
+
+    private void ConfigureVirtualizationProvider(IFastTreeDataGridSource? source)
+    {
+        var provider = FastTreeDataGridVirtualizationProviderRegistry.Create(source, _virtualizationSettings);
+        if (provider is null)
+        {
+            _virtualizationProvider = null;
+            _presenter?.SetVirtualizationProvider(null);
+            return;
+        }
+
+        AttachVirtualizationProvider(provider);
+    }
+
+    private void AttachVirtualizationProvider(IFastTreeDataVirtualizationProvider provider)
+    {
+        if (ReferenceEquals(_virtualizationProvider, provider))
+        {
+            return;
+        }
+
+        DisposeVirtualizationProvider();
+
+        _virtualizationProvider = provider;
+        _virtualizationProvider.Invalidated += OnVirtualizationProviderInvalidated;
+        _virtualizationProvider.RowMaterialized += OnVirtualizationProviderRowMaterialized;
+        _virtualizationProvider.CountChanged += OnVirtualizationProviderCountChanged;
+
+        _presenter?.SetVirtualizationProvider(_virtualizationProvider);
+
+        _providerInitializationCts?.Cancel();
+        _providerInitializationCts?.Dispose();
+        _providerInitializationCts = new CancellationTokenSource();
+        _viewportScheduler = new FastTreeDataGridViewportScheduler(_virtualizationProvider, _virtualizationSettings);
+        ResetThrottleDispatcher();
+        var token = _providerInitializationCts.Token;
+        _ = InitializeVirtualizationProviderAsync(_virtualizationProvider, token);
+    }
+
+    private void DisposeVirtualizationProvider()
+    {
+        _providerInitializationCts?.Cancel();
+        _providerInitializationCts?.Dispose();
+        _providerInitializationCts = null;
+
+        if (_virtualizationProvider is null)
+        {
+            _presenter?.SetVirtualizationProvider(null);
+            return;
+        }
+
+        _viewportScheduler?.Dispose();
+        _viewportScheduler = null;
+        _resetThrottle?.Dispose();
+        _resetThrottle = null;
+
+        _virtualizationProvider.Invalidated -= OnVirtualizationProviderInvalidated;
+        _virtualizationProvider.RowMaterialized -= OnVirtualizationProviderRowMaterialized;
+        _virtualizationProvider.CountChanged -= OnVirtualizationProviderCountChanged;
+
+        _presenter?.SetVirtualizationProvider(null);
+
+        try
+        {
+            _virtualizationProvider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+
+        _virtualizationProvider = null;
+    }
+
+    private async Task InitializeVirtualizationProviderAsync(IFastTreeDataVirtualizationProvider provider, CancellationToken token)
+    {
+        try
+        {
+            await provider.InitializeAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+
+        if (token.IsCancellationRequested || !ReferenceEquals(provider, _virtualizationProvider))
+        {
+            return;
+        }
+
+        EnqueueThrottledReset();
+    }
+
+    private void OnVirtualizationProviderInvalidated(object? sender, FastTreeDataGridInvalidatedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _virtualizationProvider))
+        {
+            return;
+        }
+
+        _viewportScheduler?.CancelAll();
+        EnqueueThrottledReset();
+    }
+
+    private void OnVirtualizationProviderRowMaterialized(object? sender, FastTreeDataGridRowMaterializedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _virtualizationProvider))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!ReferenceEquals(sender, _virtualizationProvider))
+            {
+                return;
+            }
+
+            RequestViewportUpdate();
+        }, DispatcherPriority.Render);
+    }
+
+    private void OnVirtualizationProviderCountChanged(object? sender, FastTreeDataGridCountChangedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _virtualizationProvider))
+        {
+            return;
+        }
+
+        _viewportScheduler?.CancelAll();
+        EnqueueThrottledReset();
+    }
+
+    private void EnqueueThrottledReset()
+    {
+        if (_resetThrottle is null)
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                FastTreeDataGridVirtualizationDiagnostics.ResetCount.Add(1, CreateControlTags());
+                _rowLayout?.Reset();
+                RequestViewportUpdate();
+                await RestoreSelectionAsync(CancellationToken.None);
+            }, _virtualizationSettings.DispatcherPriority);
+            return;
+        }
+
+        _resetThrottle.Enqueue(async ct =>
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                FastTreeDataGridVirtualizationDiagnostics.ResetCount.Add(1, CreateControlTags());
+                _rowLayout?.Reset();
+                RequestViewportUpdate();
+            }, _virtualizationSettings.DispatcherPriority);
+
+            await RestoreSelectionAsync(ct).ConfigureAwait(false);
+        });
+    }
+
+    private async Task RestoreSelectionAsync(CancellationToken token)
+    {
+        if (SelectedItem is null || _virtualizationProvider is null)
+        {
+            return;
+        }
+
+        var provider = _virtualizationProvider;
+        var item = SelectedItem;
+
+        int index;
+        try
+        {
+            index = await provider.LocateRowIndexAsync(item, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            return;
+        }
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (token.IsCancellationRequested || !ReferenceEquals(provider, _virtualizationProvider))
+            {
+                return;
+            }
+
+            SetValue(SelectedIndexProperty, index);
+        }, _virtualizationSettings.DispatcherPriority);
+    }
+
+    private void ResetThrottleDispatcher()
+    {
+        _resetThrottle?.Dispose();
+        var delay = TimeSpan.FromMilliseconds(_virtualizationSettings.ResetThrottleDelayMilliseconds);
+        _resetThrottle = new FastTreeDataGridThrottleDispatcher(delay);
     }
 
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -382,6 +626,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         if (_presenter is not null)
         {
+            _presenter.SetVirtualizationProvider(null);
             _presenter.SetOwner(null);
         }
 
@@ -510,6 +755,8 @@ public class FastTreeDataGrid : TemplatedControl
             _columnsDirty = true;
             RequestViewportUpdate();
         }
+
+        ApplySortStateToProvider();
     }
 
     private void OnColumnSortRequested(int columnIndex)
@@ -565,7 +812,37 @@ public class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
+        ApplySortStateToProvider();
         SortRequested?.Invoke(this, new FastTreeDataGridSortEventArgs(column, columnIndex, newDirection));
+    }
+
+    private void ApplySortStateToProvider()
+    {
+        if (_virtualizationProvider is null)
+        {
+            return;
+        }
+
+        var descriptors = new List<FastTreeDataGridSortDescriptor>();
+
+        if (_sortedColumnIndex is int index && index >= 0 && index < _columns.Count && _sortedDirection != FastTreeDataGridSortDirection.None)
+        {
+            var column = _columns[index];
+            descriptors.Add(new FastTreeDataGridSortDescriptor
+            {
+                ColumnKey = column.ValueKey ?? index.ToString(CultureInfo.InvariantCulture),
+                Direction = _sortedDirection,
+                RowComparison = column.SortComparison,
+            });
+        }
+
+        var request = new FastTreeDataGridSortFilterRequest
+        {
+            SortDescriptors = descriptors,
+            FilterDescriptors = Array.Empty<FastTreeDataGridFilterDescriptor>(),
+        };
+
+        _ = _virtualizationProvider.ApplySortFilterAsync(request, CancellationToken.None);
     }
 
     private void RequestViewportUpdate()
@@ -586,14 +863,17 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void UpdateViewport()
     {
+        var stopwatch = Stopwatch.StartNew();
         if (!_isAttachedToVisualTree || _scrollViewer is null || _presenter is null || _itemsSource is null)
         {
+            RecordViewportMetrics(stopwatch, 0, 0);
             return;
         }
 
         if (_columns.Count == 0)
         {
             _presenter.UpdateContent(Array.Empty<FastTreeDataGridPresenter.RowRenderInfo>(), 0, 0, Array.Empty<double>());
+            RecordViewportMetrics(stopwatch, 0, 0);
             return;
         }
 
@@ -628,7 +908,15 @@ public class FastTreeDataGrid : TemplatedControl
         if (range.IsEmpty)
         {
             _presenter.UpdateContent(Array.Empty<FastTreeDataGridPresenter.RowRenderInfo>(), totalWidth, totalHeight, _columnOffsets);
+            RecordViewportMetrics(stopwatch, 0, 0);
             return;
+        }
+
+        var requestCount = Math.Max(0, range.LastIndexExclusive - range.FirstIndex);
+        var prefetchRadius = Math.Max(buffer, 0);
+        if (requestCount > 0)
+        {
+            _viewportScheduler?.Request(new FastTreeDataGridViewportRequest(range.FirstIndex, requestCount, prefetchRadius));
         }
 
         var rows = new List<FastTreeDataGridPresenter.RowRenderInfo>(Math.Max(0, range.LastIndexExclusive - range.FirstIndex));
@@ -647,6 +935,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         for (var rowIndex = range.FirstIndex; rowIndex < range.LastIndexExclusive; rowIndex++)
         {
+            var isPlaceholder = _virtualizationProvider?.IsPlaceholder(rowIndex) == true;
             var row = _itemsSource.GetRow(rowIndex);
             var rowHeight = layout.GetRowHeight(rowIndex, row, defaultRowHeight);
             var hasChildren = row.HasChildren;
@@ -664,7 +953,8 @@ public class FastTreeDataGrid : TemplatedControl
                 hasChildren,
                 row.IsExpanded,
                 toggleRect,
-                isGroup);
+                isGroup,
+                isPlaceholder);
 
             var x = 0d;
             for (var columnIndex = 0; columnIndex < _columns.Count; columnIndex++)
@@ -686,17 +976,20 @@ public class FastTreeDataGrid : TemplatedControl
                 var contentBounds = new Rect(x + indentOffset + cellPadding, rowTop, contentWidth, rowHeight);
 
                 Widget? widget = null;
-                if (column.WidgetFactory is { } factory)
-                {
-                    widget = factory(row.ValueProvider, row.Item);
-                }
-                else if (column.CellTemplate is { } template)
-                {
-                    widget = template.Build();
-                }
-
                 FormattedText? formatted = null;
                 Point textOrigin = new(contentBounds.X, contentBounds.Y + (rowHeight / 2));
+
+                if (!isPlaceholder)
+                {
+                    if (column.WidgetFactory is { } factory)
+                    {
+                        widget = factory(row.ValueProvider, row.Item);
+                    }
+                    else if (column.CellTemplate is { } template)
+                    {
+                        widget = template.Build();
+                    }
+                }
 
                 if (widget is null)
                 {
@@ -706,7 +999,12 @@ public class FastTreeDataGrid : TemplatedControl
                         EmSize = CalculateCellFontSize(rowHeight),
                         Foreground = GetImmutableBrush(textBrush),
                     };
-                    textWidget.UpdateValue(row.ValueProvider, row.Item);
+
+                    if (!isPlaceholder)
+                    {
+                        textWidget.UpdateValue(row.ValueProvider, row.Item);
+                    }
+
                     textWidget.Arrange(contentBounds);
                     textWidget.Invalidate();
                     widget = textWidget;
@@ -755,16 +1053,45 @@ public class FastTreeDataGrid : TemplatedControl
                 x += width;
             }
 
+            if (isPlaceholder)
+            {
+                layout.InvalidateRow(rowIndex);
+            }
+
             rows.Add(rowInfo);
             rowTop += rowHeight;
         }
 
         _presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);
 
+        var placeholderCount = rows.Count(static r => r.IsPlaceholder);
+        RecordViewportMetrics(stopwatch, rows.Count, placeholderCount);
+
         if (autoWidthUpdated)
         {
             _autoWidthChanged = true;
             RequestViewportUpdate();
+        }
+    }
+
+    private KeyValuePair<string, object?>[] CreateControlTags() => new[]
+    {
+        new KeyValuePair<string, object?>("control_hash", GetHashCode()),
+    };
+
+    private void RecordViewportMetrics(Stopwatch stopwatch, int rowsRendered, int placeholderRows)
+    {
+        stopwatch.Stop();
+        var tags = CreateControlTags();
+        FastTreeDataGridVirtualizationDiagnostics.ViewportUpdateDuration.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
+        if (rowsRendered > 0)
+        {
+            FastTreeDataGridVirtualizationDiagnostics.ViewportRowsRendered.Add(rowsRendered, tags);
+        }
+
+        if (placeholderRows > 0)
+        {
+            FastTreeDataGridVirtualizationDiagnostics.PlaceholderRowsRendered.Add(placeholderRows, tags);
         }
     }
 

@@ -304,3 +304,4 @@ docs/docfx/api/.manifest
 docs/docfx/api/*.yml
 docs/docfx/obj/
 *.so
+/BenchmarkDotNet.Artifacts

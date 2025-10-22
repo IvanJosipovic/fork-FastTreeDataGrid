@@ -8,6 +8,7 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 - Immediate-mode widgets render text, icons, gauges, and input affordances without Avalonia layout passes, templated controls, or data bindings.
 - Flexible columns support pixel, star, and auto sizing, hierarchical indentation, custom cell templates, and selection hooks.
 - Pluggable row layouts and data sources adapt to uniform, adaptive, or variable row heights and to static, async, or streaming data feeds.
+- Provider-agnostic virtualization lets you plug in ModelFlow, REST-backed, or custom engines via `FastTreeDataGridVirtualizationProviderRegistry`.
 
 ## Architecture at a Glance
 
@@ -148,6 +149,22 @@ FastTreeDataGrid prioritises frame time predictability:
 - No bindings: data flows through `IFastTreeDataGridValueProvider` and explicit value keys, eliminating binding allocations and change propagation costs.
 - Batched measure: column widths and row heights are recomputed incrementally, and flat sources reuse nodes across resets via stable keys.
 
+## Documentation
+
+- [Providers & Virtualization Integration](docs/virtualization/providers.md)
+- [Metrics & Diagnostics](docs/virtualization/metrics.md)
+- [Benchmarks](docs/virtualization/benchmarks.md)
+- [Virtualization Migration Guide](docs/virtualization/migration.md)
+
+## Virtualization Integration Best Practices
+
+- Register your data engine (ModelFlow, REST, gRPC, etc.) with `FastTreeDataGridVirtualizationProviderRegistry` so the grid auto-discovers the correct provider at runtime.
+- Configure `FastTreeDataGrid.VirtualizationSettings` per control to tune page size, prefetch radius, concurrency, and dispatcher priority.
+- Emit metrics via `FastTreeDataGridVirtualizationDiagnostics` (MeterListener/OpenTelemetry) to watch fetch latency, placeholder density, and reset frequency.
+- Run the BenchmarkDotNet suite (`benchmarks/FastTreeDataGrid.Benchmarks`) against large test sets to validate provider throughput before shipping.
+- Keep row value providers lightweight—avoid synchronous network calls from `IFastTreeDataGridValueProvider` implementations.
+- Prefer placeholder-aware widgets to avoid accessing null data while virtualization is inflight.
+
 ## Getting started
 
 1. Restore and build the solution:
@@ -171,6 +188,7 @@ FastTreeDataGrid prioritises frame time predictability:
 - Live dashboards using `FastTreeDataGridStreamingSource<T>` and `FastTreeDataGridHybridSource<T>`.
 - A widget gallery highlighting text, icon, badge, checkbox, slider, and custom draw widgets.
 - Variable-height and adaptive row layouts alongside uniform grids.
+- Virtualization diagnostics tab illustrating provider registration, metrics capture, and virtualization settings in action.
 
 ## Next steps
 
