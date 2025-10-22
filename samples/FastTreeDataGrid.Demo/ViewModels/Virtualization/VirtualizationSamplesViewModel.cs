@@ -1,17 +1,12 @@
-using System;
-using FastTreeDataGrid.Control.Controls;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Virtualization;
 
 public sealed class VirtualizationSamplesViewModel
 {
-    private readonly RandomVirtualizationSource _source;
-
     public VirtualizationSamplesViewModel()
     {
-        _source = new RandomVirtualizationSource(1_000_000_000);
-        Settings = new FastTreeDataGridVirtualizationSettings
+        RandomSettings = new FastTreeDataGridVirtualizationSettings
         {
             PageSize = 512,
             PrefetchRadius = 4,
@@ -19,11 +14,28 @@ public sealed class VirtualizationSamplesViewModel
             MaxConcurrentLoads = 8,
             ResetThrottleDelayMilliseconds = 80,
         };
+        RandomSource = new RandomVirtualizationSource(1_000_000_000);
+
+        HackerNewsSettings = new FastTreeDataGridVirtualizationSettings
+        {
+            PageSize = 64,
+            PrefetchRadius = 2,
+            MaxPages = 32,
+            MaxConcurrentLoads = 8,
+            ResetThrottleDelayMilliseconds = 80,
+        };
+        HackerNewsSource = new HackerNewsVirtualizationSource();
     }
 
-    public IFastTreeDataGridSource Source => _source;
+    public RandomVirtualizationSource RandomSource { get; }
 
-    public FastTreeDataGridVirtualizationSettings Settings { get; }
+    public FastTreeDataGridVirtualizationSettings RandomSettings { get; }
 
-    public string Summary => "Virtualized random data (1,000,000,000 rows).";
+    public string RandomSummary => "Virtualized pseudo-random data (1,000,000,000 rows) generated deterministically on demand.";
+
+    public HackerNewsVirtualizationSource HackerNewsSource { get; }
+
+    public FastTreeDataGridVirtualizationSettings HackerNewsSettings { get; }
+
+    public string HackerNewsSummary => "Top Hacker News stories fetched lazily from the public REST API when rows enter the viewport.";
 }

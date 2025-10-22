@@ -188,7 +188,7 @@ FastTreeDataGrid prioritises frame time predictability:
 - Live dashboards using `FastTreeDataGridStreamingSource<T>` and `FastTreeDataGridHybridSource<T>`.
 - A widget gallery highlighting text, icon, badge, checkbox, slider, and custom draw widgets.
 - Variable-height and adaptive row layouts alongside uniform grids.
-- Virtualization diagnostics tab illustrating provider registration, metrics capture, and virtualization settings in action.
+- Virtualization tab featuring a 1B-row pseudo-random provider and a REST-backed Hacker News provider that showcase the virtualization stack.
 
 ## Next steps
 

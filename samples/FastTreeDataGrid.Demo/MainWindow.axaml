@@ -1004,57 +1004,138 @@
         </TabControl>
       </TabItem>
       <TabItem Header="Virtualization">
-        <Grid RowDefinitions="Auto,*">
-          <StackPanel Grid.Row="0"
-                      Orientation="Vertical"
-                      Spacing="4"
-                      Margin="0,0,0,8"
-                      DataContext="{Binding Virtualization}">
-            <TextBlock Text="Virtualized random data (1,000,000,000 rows)" FontWeight="SemiBold" />
-            <TextBlock Text="Rows are generated on demand via the virtualization provider and rendered without preloading the dataset." Foreground="#666" />
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="Page Size:" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Settings.PageSize}" FontWeight="SemiBold" VerticalAlignment="Center" />
-              <TextBlock Text="Prefetch Radius:" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Settings.PrefetchRadius}" FontWeight="SemiBold" VerticalAlignment="Center" />
-              <TextBlock Text="Rows:" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Source.RowCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </StackPanel>
-          </StackPanel>
-          <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
-            <FastTreeDataGrid ItemsSource="{Binding Virtualization.Source}"
-                              VirtualizationSettings="{Binding Virtualization.Settings}"
-                              RowHeight="28"
-                              IndentWidth="18"
-                              HeaderHeight="34">
-              <FastTreeDataGrid.Columns>
-                <FastTreeDataGridColumn Header="#"
-                                        SizingMode="Pixel"
-                                        PixelWidth="110"
-                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyIndex}" />
-                <FastTreeDataGridColumn Header="Value"
-                                        SizingMode="Pixel"
-                                        PixelWidth="160"
-                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyValue}">
-                  <FastTreeDataGridColumn.CellTemplate>
-                    <WidgetTemplate>
-                      <FormattedTextWidget EmSize="12" />
-                    </WidgetTemplate>
-                  </FastTreeDataGridColumn.CellTemplate>
-                </FastTreeDataGridColumn>
-                <FastTreeDataGridColumn Header="Hash"
-                                        SizingMode="Star"
-                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyHash}">
-                  <FastTreeDataGridColumn.CellTemplate>
-                    <WidgetTemplate>
-                      <BadgeWidget Padding="6" />
-                    </WidgetTemplate>
-                  </FastTreeDataGridColumn.CellTemplate>
-                </FastTreeDataGridColumn>
-              </FastTreeDataGrid.Columns>
-            </FastTreeDataGrid>
-          </Border>
-        </Grid>
+        <TabControl>
+          <TabItem Header="Random (1B rows)">
+            <Grid RowDefinitions="Auto,*">
+              <StackPanel Grid.Row="0"
+                          Orientation="Vertical"
+                          Spacing="4"
+                          Margin="0,0,0,8"
+                          DataContext="{Binding Virtualization}">
+                <TextBlock Text="{Binding RandomSummary}" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <TextBlock Text="Page Size:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding RandomSettings.PageSize}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="Prefetch Radius:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding RandomSettings.PrefetchRadius}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="Rows:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding RandomSource.RowCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+              <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+                <FastTreeDataGrid ItemsSource="{Binding Virtualization.RandomSource}"
+                                  VirtualizationSettings="{Binding Virtualization.RandomSettings}"
+                                  RowHeight="28"
+                                  IndentWidth="18"
+                                  HeaderHeight="34">
+                  <FastTreeDataGrid.Columns>
+                    <FastTreeDataGridColumn Header="#"
+                                            SizingMode="Pixel"
+                                            PixelWidth="110"
+                                            ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyIndex}" />
+                    <FastTreeDataGridColumn Header="Value"
+                                            SizingMode="Pixel"
+                                            PixelWidth="160"
+                                            ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyValue}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <FormattedTextWidget EmSize="12" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                    <FastTreeDataGridColumn Header="Hash"
+                                            SizingMode="Star"
+                                            ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyHash}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <BadgeWidget Padding="6" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                  </FastTreeDataGrid.Columns>
+                </FastTreeDataGrid>
+              </Border>
+            </Grid>
+          </TabItem>
+          <TabItem Header="Hacker News (REST)">
+            <Grid RowDefinitions="Auto,*">
+              <StackPanel Grid.Row="0"
+                          Orientation="Vertical"
+                          Spacing="4"
+                          Margin="0,0,0,8"
+                          DataContext="{Binding Virtualization}">
+                <TextBlock Text="{Binding HackerNewsSummary}" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <TextBlock Text="Page Size:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding HackerNewsSettings.PageSize}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="Prefetch Radius:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding HackerNewsSettings.PrefetchRadius}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="Stories:" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding HackerNewsSource.RowCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+              <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+                <FastTreeDataGrid ItemsSource="{Binding Virtualization.HackerNewsSource}"
+                                  VirtualizationSettings="{Binding Virtualization.HackerNewsSettings}"
+                                  RowHeight="32"
+                                  IndentWidth="18"
+                                  HeaderHeight="36">
+                  <FastTreeDataGrid.Columns>
+                    <FastTreeDataGridColumn Header="#"
+                                            SizingMode="Pixel"
+                                            PixelWidth="80"
+                                            ValueKey="{x:Static virt:HackerNewsColumns.KeyIndex}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                    <FastTreeDataGridColumn Header="Title"
+                                            SizingMode="Star"
+                                            ValueKey="{x:Static virt:HackerNewsColumns.KeyTitle}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <FormattedTextWidget EmSize="13" Trimming="CharacterEllipsis" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                    <FastTreeDataGridColumn Header="Score"
+                                            SizingMode="Pixel"
+                                            PixelWidth="90"
+                                            ValueKey="{x:Static virt:HackerNewsColumns.KeyScore}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                    <FastTreeDataGridColumn Header="Author"
+                                            SizingMode="Pixel"
+                                            PixelWidth="140"
+                                            ValueKey="{x:Static virt:HackerNewsColumns.KeyAuthor}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <BadgeWidget Padding="6" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                    <FastTreeDataGridColumn Header="Age"
+                                            SizingMode="Pixel"
+                                            PixelWidth="120"
+                                            ValueKey="{x:Static virt:HackerNewsColumns.KeyAge}">
+                      <FastTreeDataGridColumn.CellTemplate>
+                        <WidgetTemplate>
+                          <FormattedTextWidget EmSize="12" />
+                        </WidgetTemplate>
+                      </FastTreeDataGridColumn.CellTemplate>
+                    </FastTreeDataGridColumn>
+                  </FastTreeDataGrid.Columns>
+                </FastTreeDataGrid>
+              </Border>
+            </Grid>
+          </TabItem>
+        </TabControl>
       </TabItem>
     </TabControl>
   </Grid>
