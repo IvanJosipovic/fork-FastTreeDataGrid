@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.Demo.Views.CountriesTab"
+             x:DataType="vm:MainWindowViewModel">
+  <Grid RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Spacing="8"
+                Margin="0,0,0,8"
+                DataContext="{Binding Countries}">
+      <TextBox Width="220"
+               Watermark="Search countries..."
+               Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+      <TextBlock Text="Region:"
+                 VerticalAlignment="Center" />
+      <ComboBox Width="220"
+                ItemsSource="{Binding Regions}"
+                SelectedItem="{Binding SelectedRegion}"
+                VerticalAlignment="Center" />
+    </StackPanel>
+    <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+      <controls:FastTreeDataGrid x:Name="CountriesGrid"
+                                 ItemsSource="{Binding Countries.Source}"
+                                 RowHeight="28"
+                                 IndentWidth="18"
+                                 HeaderHeight="34" />
+    </Border>
+  </Grid>
+</UserControl>

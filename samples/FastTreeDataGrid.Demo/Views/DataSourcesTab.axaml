@@ -1,0 +1,678 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.Demo.Views.DataSourcesTab"
+             x:DataType="vm:MainWindowViewModel">
+  <TabControl>
+    <TabItem Header="Widget Metrics">
+      <Grid DataContext="{Binding DataSources}">
+        <TabControl>
+          <TabItem Header="Async">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding AsyncWidgets}"
+                                RowHeight="36"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Widget"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Details"
+                                          SizingMode="Star"
+                                          MinWidth="320"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyDescription}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" Foreground="#666" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Badge"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyBadge}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Progress"
+                                          SizingMode="Pixel"
+                                          PixelWidth="180"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyProgress}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Streaming">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding StreamingWidgets}"
+                                RowHeight="36"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Widget"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Details"
+                                          SizingMode="Star"
+                                          MinWidth="320"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyDescription}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" Foreground="#666" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Badge"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyBadge}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Progress"
+                                          SizingMode="Pixel"
+                                          PixelWidth="180"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyProgress}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Hybrid">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding HybridWidgets}"
+                                RowHeight="36"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Widget"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Details"
+                                          SizingMode="Star"
+                                          MinWidth="320"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyDescription}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" Foreground="#666" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Badge"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyBadge}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Progress"
+                                          SizingMode="Pixel"
+                                          PixelWidth="180"
+                                          ValueKey="{x:Static widgets:WidgetGalleryNode.KeyProgress}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </TabItem>
+    <TabItem Header="Dynamic Metrics">
+      <Grid DataContext="{Binding DynamicDataSources}">
+        <TabControl>
+          <TabItem Header="Async">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding AsyncSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Streaming">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding StreamingSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Hybrid">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding HybridSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </TabItem>
+    <TabItem Header="Live Mutations">
+      <Grid DataContext="{Binding LiveMutations}">
+        <TabControl>
+          <TabItem Header="Async">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding AsyncSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Streaming">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding StreamingSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+          <TabItem Header="Hybrid">
+            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,8,0,0">
+              <FastTreeDataGrid ItemsSource="{Binding HybridSource}"
+                                RowHeight="32"
+                                IndentWidth="18"
+                                HeaderHeight="36">
+                <FastTreeDataGrid.Columns>
+                  <FastTreeDataGridColumn Header="Node"
+                                          SizingMode="Star"
+                                          MinWidth="260"
+                                          IsHierarchy="True"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyName}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="13" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Type"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyCategory}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Units"
+                                          SizingMode="Pixel"
+                                          PixelWidth="140"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyUnits}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Volume"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyVolume}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Δ%"
+                                          SizingMode="Pixel"
+                                          PixelWidth="100"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyChange}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <FormattedTextWidget TextAlignment="Right" EmSize="12" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Load"
+                                          SizingMode="Pixel"
+                                          PixelWidth="160"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyLoad}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <ProgressWidget />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                  <FastTreeDataGridColumn Header="Status"
+                                          SizingMode="Pixel"
+                                          PixelWidth="120"
+                                          ValueKey="{x:Static vm:DynamicDataNode.KeyStatus}">
+                    <FastTreeDataGridColumn.CellTemplate>
+                      <WidgetTemplate>
+                        <BadgeWidget Padding="6" />
+                      </WidgetTemplate>
+                    </FastTreeDataGridColumn.CellTemplate>
+                  </FastTreeDataGridColumn>
+                </FastTreeDataGrid.Columns>
+              </FastTreeDataGrid>
+            </Border>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </TabItem>
+  </TabControl>
+</UserControl>

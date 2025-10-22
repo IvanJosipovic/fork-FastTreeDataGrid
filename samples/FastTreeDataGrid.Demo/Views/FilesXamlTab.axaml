@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:fs="clr-namespace:FastTreeDataGrid.Demo.ViewModels.FileSystem"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.Demo.Views.FilesXamlTab"
+             x:DataType="vm:MainWindowViewModel">
+  <Grid RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Spacing="8"
+                Margin="0,0,0,8"
+                DataContext="{Binding Files}">
+      <TextBox Width="240"
+               Watermark="Search files..."
+               Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+    </StackPanel>
+    <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+      <controls:FastTreeDataGrid x:Name="FilesGridXaml"
+                                 ItemsSource="{Binding Files.Source}"
+                                 RowHeight="28"
+                                 IndentWidth="18"
+                                 HeaderHeight="34"
+                                 SortRequested="OnFilesSortRequested">
+        <controls:FastTreeDataGrid.Columns>
+          <FastTreeDataGridColumn Header="Name"
+                                  SizingMode="Star"
+                                  MinWidth="280"
+                                  IsHierarchy="True"
+                                  CanUserSort="True"
+                                  ValueKey="{x:Static fs:FileSystemNode.KeyName}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget Key="{x:Static fs:FileSystemNode.KeyName}"
+                                     EmSize="13"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Type"
+                                  SizingMode="Pixel"
+                                  PixelWidth="140"
+                                  MinWidth="110"
+                                  CanUserSort="True"
+                                  ValueKey="{x:Static fs:FileSystemNode.KeyType}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <BadgeWidget Padding="6" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Size"
+                                  SizingMode="Pixel"
+                                  PixelWidth="120"
+                                  MinWidth="100"
+                                  CanUserSort="True"
+                                  ValueKey="{x:Static fs:FileSystemNode.KeySize}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget TextAlignment="Right"
+                                     EmSize="12"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Modified"
+                                  SizingMode="Pixel"
+                                  PixelWidth="160"
+                                  MinWidth="140"
+                                  CanUserSort="True"
+                                  ValueKey="{x:Static fs:FileSystemNode.KeyModified}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>
