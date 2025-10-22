@@ -1,9 +1,14 @@
+using System;
+using System.IO;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Virtualization;
 
 public sealed class VirtualizationSamplesViewModel
 {
+    private static readonly string SqliteDatabasePath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastTreeDataGrid.Demo", "virtualization.db");
+
     public VirtualizationSamplesViewModel()
     {
         RandomSettings = new FastTreeDataGridVirtualizationSettings
@@ -25,6 +30,18 @@ public sealed class VirtualizationSamplesViewModel
             ResetThrottleDelayMilliseconds = 80,
         };
         HackerNewsSource = new HackerNewsVirtualizationSource();
+
+        SqliteSettings = new FastTreeDataGridVirtualizationSettings
+        {
+            PageSize = 512,
+            PrefetchRadius = 3,
+            MaxPages = 64,
+            MaxConcurrentLoads = 6,
+            ResetThrottleDelayMilliseconds = 80,
+        };
+
+        var connectionString = SqliteVirtualizationBootstrapper.CreateConnectionString(SqliteDatabasePath);
+        SqliteSource = new SqliteVirtualizationSource(connectionString);
     }
 
     public RandomVirtualizationSource RandomSource { get; }
@@ -38,4 +55,12 @@ public sealed class VirtualizationSamplesViewModel
     public FastTreeDataGridVirtualizationSettings HackerNewsSettings { get; }
 
     public string HackerNewsSummary => "Top Hacker News stories fetched lazily from the public REST API when rows enter the viewport.";
+
+    public SqliteVirtualizationSource SqliteSource { get; }
+
+    public FastTreeDataGridVirtualizationSettings SqliteSettings { get; }
+
+    public string SqliteSummary => "SQLite-backed virtualization seeded with 1,000,000 rows on startup. Rows materialize on demand with placeholders until fetched.";
+
+    public int SqliteRowCount => SqliteVirtualizationBootstrapper.TargetRowCount;
 }

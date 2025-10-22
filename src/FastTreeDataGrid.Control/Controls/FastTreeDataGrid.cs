@@ -1011,11 +1011,7 @@ public class FastTreeDataGrid : TemplatedControl
                         EmSize = CalculateCellFontSize(rowHeight),
                         Foreground = GetImmutableBrush(textBrush),
                     };
-
-                    if (!isPlaceholder)
-                    {
-                        textWidget.UpdateValue(row.ValueProvider, row.Item);
-                    }
+                    textWidget.UpdateValue(row.ValueProvider, row.Item);
 
                     textWidget.Arrange(contentBounds);
                     textWidget.Invalidate();
