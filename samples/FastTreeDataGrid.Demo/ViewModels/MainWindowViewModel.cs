@@ -6,6 +6,7 @@ using Avalonia.Collections;
 using FastTreeDataGrid.Demo.ViewModels.Charts;
 using FastTreeDataGrid.Demo.ViewModels.VariableHeights;
 using FastTreeDataGrid.Demo.ViewModels.Widgets;
+using FastTreeDataGrid.Demo.ViewModels.Virtualization;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
@@ -36,6 +37,7 @@ public sealed class MainWindowViewModel : IDisposable
         DataSources = new DataSourceSamplesViewModel();
         DynamicDataSources = new DynamicDataSourcesViewModel();
         LiveMutations = new LiveMutationDataSourcesViewModel();
+        Virtualization = new VirtualizationSamplesViewModel();
     }
 
     public FilesViewModel Files { get; }
@@ -59,6 +61,8 @@ public sealed class MainWindowViewModel : IDisposable
     public DynamicDataSourcesViewModel DynamicDataSources { get; }
 
     public LiveMutationDataSourcesViewModel LiveMutations { get; }
+
+    public VirtualizationSamplesViewModel Virtualization { get; }
 
     public void Dispose()
     {

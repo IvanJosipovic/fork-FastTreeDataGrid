@@ -7,6 +7,7 @@
         xmlns:vh="clr-namespace:FastTreeDataGrid.Demo.ViewModels.VariableHeights"
         xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
         xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
+        xmlns:virt="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Virtualization"
         mc:Ignorable="d"
         x:DataType="vm:MainWindowViewModel"
         d:DesignWidth="1024"
@@ -1001,6 +1002,59 @@
             </Grid>
           </TabItem>
         </TabControl>
+      </TabItem>
+      <TabItem Header="Virtualization">
+        <Grid RowDefinitions="Auto,*">
+          <StackPanel Grid.Row="0"
+                      Orientation="Vertical"
+                      Spacing="4"
+                      Margin="0,0,0,8"
+                      DataContext="{Binding Virtualization}">
+            <TextBlock Text="Virtualized random data (1,000,000,000 rows)" FontWeight="SemiBold" />
+            <TextBlock Text="Rows are generated on demand via the virtualization provider and rendered without preloading the dataset." Foreground="#666" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <TextBlock Text="Page Size:" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Settings.PageSize}" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Text="Prefetch Radius:" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Settings.PrefetchRadius}" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Text="Rows:" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Source.RowCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+          <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
+            <FastTreeDataGrid ItemsSource="{Binding Virtualization.Source}"
+                              VirtualizationSettings="{Binding Virtualization.Settings}"
+                              RowHeight="28"
+                              IndentWidth="18"
+                              HeaderHeight="34">
+              <FastTreeDataGrid.Columns>
+                <FastTreeDataGridColumn Header="#"
+                                        SizingMode="Pixel"
+                                        PixelWidth="110"
+                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyIndex}" />
+                <FastTreeDataGridColumn Header="Value"
+                                        SizingMode="Pixel"
+                                        PixelWidth="160"
+                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyValue}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <FormattedTextWidget EmSize="12" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+                <FastTreeDataGridColumn Header="Hash"
+                                        SizingMode="Star"
+                                        ValueKey="{x:Static virt:RandomVirtualizationColumns.KeyHash}">
+                  <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                      <BadgeWidget Padding="6" />
+                    </WidgetTemplate>
+                  </FastTreeDataGridColumn.CellTemplate>
+                </FastTreeDataGridColumn>
+              </FastTreeDataGrid.Columns>
+            </FastTreeDataGrid>
+          </Border>
+        </Grid>
       </TabItem>
     </TabControl>
   </Grid>

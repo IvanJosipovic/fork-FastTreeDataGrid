@@ -47,6 +47,12 @@ public class FastTreeDataGrid : TemplatedControl
     public static readonly DirectProperty<FastTreeDataGrid, IFastTreeDataGridRowLayout?> RowLayoutProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IFastTreeDataGridRowLayout?>(nameof(RowLayout), o => o.RowLayout, (o, v) => o.SetRowLayout(v));
 
+    public static readonly DirectProperty<FastTreeDataGrid, FastTreeDataGridVirtualizationSettings> VirtualizationSettingsProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, FastTreeDataGridVirtualizationSettings>(
+            nameof(VirtualizationSettings),
+            o => o.VirtualizationSettings,
+            (o, v) => o.VirtualizationSettings = v);
+
     private readonly AvaloniaList<FastTreeDataGridColumn> _columns = new();
     private readonly List<double> _columnWidths = new();
     private readonly List<double> _columnOffsets = new();
@@ -130,7 +136,13 @@ public class FastTreeDataGrid : TemplatedControl
         get => _virtualizationSettings;
         set
         {
-            _virtualizationSettings = value ?? new FastTreeDataGridVirtualizationSettings();
+            var newValue = value ?? new FastTreeDataGridVirtualizationSettings();
+            if (ReferenceEquals(_virtualizationSettings, newValue))
+            {
+                return;
+            }
+
+            SetAndRaise(VirtualizationSettingsProperty, ref _virtualizationSettings, newValue);
             _viewportScheduler?.UpdateSettings(_virtualizationSettings);
             ResetThrottleDispatcher();
         }
