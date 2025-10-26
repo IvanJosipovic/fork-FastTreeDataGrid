@@ -109,12 +109,21 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         ClearOverlays();
     }
 
-    public void UpdateSelection(int selectedIndex)
+    public void UpdateSelection(IReadOnlyList<int> selectedIndices)
     {
+        var selection = selectedIndices ?? Array.Empty<int>();
+        HashSet<int>? selectionLookup = null;
+        if (selection.Count > 0)
+        {
+            selectionLookup = selection is IReadOnlyCollection<int> collection
+                ? new HashSet<int>(collection)
+                : new HashSet<int>(selection);
+        }
+
         var changed = false;
         foreach (var row in _rows)
         {
-            var shouldSelect = row.RowIndex == selectedIndex;
+            var shouldSelect = selectionLookup?.Contains(row.RowIndex) ?? false;
             if (row.IsSelected != shouldSelect)
             {
                 row.IsSelected = shouldSelect;
@@ -321,6 +330,11 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         {
             e.Handled = true;
         }
+
+        if (!e.Handled && _owner is not null && _owner.HandlePresenterKeyDown(e))
+        {
+            e.Handled = true;
+        }
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
@@ -339,6 +353,23 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+
+        using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
+
+        if (_focusedWidget is not null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(e.Text) && _owner is not null && _owner.HandlePresenterTextInput(e.Text))
+        {
+            e.Handled = true;
+        }
+    }
+
     internal bool HandlePointer(Point point, PointerPressedEventArgs e)
     {
         var row = HitTestRow(point);
@@ -347,8 +378,14 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             return false;
         }
 
+        var pointerProps = e.GetCurrentPoint(this).Properties;
+        if (!pointerProps.IsLeftButtonPressed)
+        {
+            return false;
+        }
+
         var toggleHit = HitTestToggle(row, point);
-        _owner?.HandlePresenterPointerPressed(row, point, e.ClickCount, toggleHit);
+        _owner?.HandlePresenterPointerPressed(row, point, e.ClickCount, toggleHit, e.KeyModifiers);
         return true;
     }
 

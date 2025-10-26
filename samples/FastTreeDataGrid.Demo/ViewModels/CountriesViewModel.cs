@@ -16,6 +16,10 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
 
     private string _searchText = string.Empty;
     private string _selectedRegion = AllRegionsOption;
+    private IReadOnlyList<int> _selectedIndices = Array.Empty<int>();
+    private IReadOnlyList<CountryNode> _selectedCountries = Array.Empty<CountryNode>();
+    private IReadOnlyList<string> _selectedCountryNames = Array.Empty<string>();
+    private string _selectionSummary = "No rows selected";
 
     internal CountriesViewModel(IReadOnlyList<CountryNode> rootNodes)
     {
@@ -26,6 +30,16 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public static Func<FastTreeDataGridRow, string?> CountryNameSelector { get; } = row =>
+    {
+        if (row.Item is CountryNode node)
+        {
+            return node.IsGroup ? node.Title : node.DisplayName;
+        }
+
+        return row.Item?.ToString();
+    };
 
     public IFastTreeDataGridSource Source => _source;
 
@@ -55,6 +69,22 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
                 UpdateFilter();
             }
         }
+    }
+
+    public IReadOnlyList<int> SelectedIndices
+    {
+        get => _selectedIndices;
+        set => SetSelectedIndices(value);
+    }
+
+    internal IReadOnlyList<CountryNode> SelectedCountries => _selectedCountries;
+
+    public IReadOnlyList<string> SelectedCountryNames => _selectedCountryNames;
+
+    public string SelectionSummary
+    {
+        get => _selectionSummary;
+        private set => SetProperty(ref _selectionSummary, value, nameof(SelectionSummary));
     }
 
     public bool ApplySort(FastTreeDataGridColumn column, FastTreeDataGridSortDirection direction)
@@ -155,6 +185,105 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         };
 
         _source.SetFilter(predicate, expandMatches: true);
+    }
+
+    private void SetSelectedIndices(IReadOnlyList<int>? value)
+    {
+        var incoming = value ?? Array.Empty<int>();
+
+        if (ReferenceEquals(incoming, _selectedIndices))
+        {
+            return;
+        }
+
+        if (_selectedIndices.Count == incoming.Count && _selectedIndices.SequenceEqual(incoming))
+        {
+            return;
+        }
+
+        _selectedIndices = incoming;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedIndices)));
+        UpdateSelectedCountries();
+    }
+
+    private void UpdateSelectedCountries()
+    {
+        if (_selectedIndices.Count == 0)
+        {
+            _selectedCountries = Array.Empty<CountryNode>();
+            _selectedCountryNames = Array.Empty<string>();
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCountries)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCountryNames)));
+            SelectionSummary = "No rows selected";
+            return;
+        }
+
+        var items = new List<CountryNode>();
+        var names = new List<string>();
+        foreach (var index in _selectedIndices)
+        {
+            if (index < 0 || index >= _source.RowCount)
+            {
+                continue;
+            }
+
+            var row = _source.GetRow(index);
+            if (row.Item is CountryNode node)
+            {
+                items.Add(node);
+                names.Add(node.IsGroup ? node.Title : node.DisplayName ?? node.Title);
+            }
+        }
+
+        _selectedCountries = items;
+        _selectedCountryNames = names;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCountries)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedCountryNames)));
+        SelectionSummary = BuildSelectionSummary(items);
+    }
+
+    private static string BuildSelectionSummary(IReadOnlyList<CountryNode> items)
+    {
+        if (items.Count == 0)
+        {
+            return "No rows selected";
+        }
+
+        if (items.Count == 1)
+        {
+            var node = items[0];
+            return node.IsGroup
+                ? $"Selected group: {node.Title}"
+                : $"Selected country: {node.DisplayName}";
+        }
+
+        var preview = items
+            .Where(node => !node.IsGroup)
+            .Take(3)
+            .Select(node => node.DisplayName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToList();
+
+        if (preview.Count == 0)
+        {
+            preview = items.Take(3).Select(node => node.Title).ToList();
+        }
+
+        var summary = string.Join(", ", preview);
+        if (items.Count > preview.Count)
+        {
+            summary = string.IsNullOrEmpty(summary)
+                ? $"{items.Count} items selected"
+                : $"{summary}, +{items.Count - preview.Count} more";
+        }
+        else if (!string.IsNullOrEmpty(summary))
+        {
+            summary = preview.Count == 1 ? summary : $"{summary}";
+        }
+
+        return string.IsNullOrEmpty(summary)
+            ? $"{items.Count} items selected"
+            : $"Selected ({items.Count}): {summary}";
     }
 
     private string? GetRegionFilter()

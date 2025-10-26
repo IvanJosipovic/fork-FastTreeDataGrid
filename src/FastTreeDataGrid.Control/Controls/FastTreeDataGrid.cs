@@ -53,6 +53,30 @@ public class FastTreeDataGrid : TemplatedControl
             o => o.VirtualizationSettings,
             (o, v) => o.VirtualizationSettings = v);
 
+    public static readonly DirectProperty<FastTreeDataGrid, IFastTreeDataGridSelectionModel?> SelectionModelProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IFastTreeDataGridSelectionModel?>(
+            nameof(SelectionModel),
+            o => o.SelectionModel,
+            (o, v) => o.SetSelectionModel(v));
+
+    public static readonly DirectProperty<FastTreeDataGrid, FastTreeDataGridSelectionMode> SelectionModeProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, FastTreeDataGridSelectionMode>(
+            nameof(SelectionMode),
+            o => o.SelectionMode,
+            (o, v) => o.SelectionMode = v);
+
+    public static readonly DirectProperty<FastTreeDataGrid, Func<FastTreeDataGridRow, string?>?> TypeSearchSelectorProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, Func<FastTreeDataGridRow, string?>?>(
+            nameof(TypeSearchSelector),
+            o => o.TypeSearchSelector,
+            (o, v) => o.TypeSearchSelector = v);
+
+    public static readonly DirectProperty<FastTreeDataGrid, IReadOnlyList<int>> SelectedIndicesProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IReadOnlyList<int>>(
+            nameof(SelectedIndices),
+            o => o.SelectedIndices,
+            (o, v) => o.SetSelectedIndices(v));
+
     private readonly AvaloniaList<FastTreeDataGridColumn> _columns = new();
     private readonly List<double> _columnWidths = new();
     private readonly List<double> _columnOffsets = new();
@@ -78,6 +102,14 @@ public class FastTreeDataGrid : TemplatedControl
     private FastTreeDataGridSortDirection _sortedDirection = FastTreeDataGridSortDirection.None;
     private IFastTreeDataGridRowLayout? _rowLayout;
     private FastTreeDataGridThrottleDispatcher? _resetThrottle;
+    private IFastTreeDataGridSelectionModel _selectionModel = null!;
+    private FastTreeDataGridSelectionMode _selectionMode = FastTreeDataGridSelectionMode.Extended;
+    private bool _synchronizingSelection;
+    private Func<FastTreeDataGridRow, string?>? _typeSearchSelector;
+    private IReadOnlyList<int> _selectedIndices = Array.Empty<int>();
+    private string _typeSearchBuffer = string.Empty;
+    private DateTime _typeSearchTimestamp = DateTime.MinValue;
+    private static readonly TimeSpan s_typeSearchResetInterval = TimeSpan.FromSeconds(1.5);
 
     static FastTreeDataGrid()
     {
@@ -89,6 +121,7 @@ public class FastTreeDataGrid : TemplatedControl
         _columns.CollectionChanged += OnColumnsChanged;
         SetRowLayout(new FastTreeDataGridUniformRowLayout());
         ResetThrottleDispatcher();
+        SetSelectionModel(new FastTreeDataGridSelectionModel());
     }
 
     public IFastTreeDataGridSource? ItemsSource
@@ -151,6 +184,28 @@ public class FastTreeDataGrid : TemplatedControl
     internal IFastTreeDataVirtualizationProvider? VirtualizationProvider => _virtualizationProvider;
 
     public event EventHandler<FastTreeDataGridSortEventArgs>? SortRequested;
+    public event EventHandler<FastTreeDataGridSelectionChangedEventArgs>? SelectionChanged;
+    public event EventHandler<FastTreeDataGridTypeSearchEventArgs>? TypeSearchRequested;
+
+    public IFastTreeDataGridSelectionModel SelectionModel
+    {
+        get => _selectionModel;
+        set => SetSelectionModel(value);
+    }
+
+    public FastTreeDataGridSelectionMode SelectionMode
+    {
+        get => _selectionMode;
+        set => SetSelectionMode(value);
+    }
+
+    public IReadOnlyList<int> SelectedIndices => _selectedIndices;
+
+    public Func<FastTreeDataGridRow, string?>? TypeSearchSelector
+    {
+        get => _typeSearchSelector;
+        set => SetAndRaise(TypeSearchSelectorProperty, ref _typeSearchSelector, value);
+    }
 
     private void SetSelectedItem(object? value)
     {
@@ -181,6 +236,148 @@ public class FastTreeDataGrid : TemplatedControl
         RequestViewportUpdate();
     }
 
+    private void SetSelectionModel(IFastTreeDataGridSelectionModel? model)
+    {
+        var newModel = model ?? new FastTreeDataGridSelectionModel();
+
+        if (ReferenceEquals(_selectionModel, newModel))
+        {
+            return;
+        }
+
+        var oldModel = _selectionModel;
+
+        if (oldModel is not null)
+        {
+            oldModel.SelectionChanged -= OnSelectionModelSelectionChanged;
+            oldModel.Detach();
+        }
+
+        newModel.SelectionMode = _selectionMode;
+        newModel.Attach(this);
+        newModel.SelectionChanged += OnSelectionModelSelectionChanged;
+
+        _selectionModel = newModel;
+        RaisePropertyChanged(SelectionModelProperty, oldModel, newModel);
+        UpdateSelectionFromModel();
+        SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
+    }
+
+    private void SetSelectionMode(FastTreeDataGridSelectionMode mode)
+    {
+        var newValue = Enum.IsDefined(typeof(FastTreeDataGridSelectionMode), mode)
+            ? mode
+            : FastTreeDataGridSelectionMode.Extended;
+
+        if (_selectionMode == newValue)
+        {
+            return;
+        }
+
+        SetAndRaise(SelectionModeProperty, ref _selectionMode, newValue);
+        _selectionModel.SelectionMode = newValue;
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            _selectionModel.Clear();
+        }
+    }
+
+    private void SetSelectedIndices(IReadOnlyList<int>? indices)
+    {
+        if (_selectionModel is null)
+        {
+            return;
+        }
+
+        var normalized = NormalizeSelectionInput(indices);
+        if (normalized.Count == 0 && _selectedIndices.Count == 0)
+        {
+            return;
+        }
+
+        if (normalized.Count == _selectedIndices.Count && normalized.SequenceEqual(_selectedIndices))
+        {
+            return;
+        }
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            _selectionModel.Clear();
+            return;
+        }
+
+        if (normalized.Count == 0)
+        {
+            _selectionModel.Clear();
+            return;
+        }
+
+        var primary = normalized[^1];
+        var anchor = normalized[0];
+        _selectionModel.SetSelection(normalized, primary, anchor);
+    }
+
+    private void OnSelectionModelSelectionChanged(object? sender, FastTreeDataGridSelectionChangedEventArgs e)
+    {
+        if (_synchronizingSelection)
+        {
+            SetSelectedIndicesInternal(e.SelectedIndices);
+            UpdateRowSelectionIndicators();
+            SelectionChanged?.Invoke(this, e);
+            return;
+        }
+
+        _synchronizingSelection = true;
+        try
+        {
+            SetCurrentValue(SelectedIndexProperty, e.PrimaryIndex);
+            UpdateSelectedItemFromSelection(e.PrimaryIndex);
+        }
+        finally
+        {
+            _synchronizingSelection = false;
+        }
+
+        SetSelectedIndicesInternal(e.SelectedIndices);
+        UpdateRowSelectionIndicators();
+        SelectionChanged?.Invoke(this, e);
+    }
+
+    private void UpdateSelectionFromModel()
+    {
+        if (_selectionModel is null)
+        {
+            return;
+        }
+
+        _synchronizingSelection = true;
+        try
+        {
+            SetCurrentValue(SelectedIndexProperty, _selectionModel.PrimaryIndex);
+            UpdateSelectedItemFromSelection(_selectionModel.PrimaryIndex);
+        }
+        finally
+        {
+            _synchronizingSelection = false;
+        }
+
+        SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
+        UpdateRowSelectionIndicators();
+    }
+
+    private void UpdateSelectedItemFromSelection(int primaryIndex)
+    {
+        if (_itemsSource is null || primaryIndex < 0 || primaryIndex >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(primaryIndex))
+        {
+            SetSelectedItem(null);
+            return;
+        }
+
+        var row = _itemsSource.GetRow(primaryIndex);
+        SetSelectedItem(row.Item);
+    }
+
     private IFastTreeDataGridRowLayout GetActiveRowLayout()
     {
         if (_rowLayout is null)
@@ -193,14 +390,18 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void UpdateSelectionFromIndex(int index)
     {
-        if (_itemsSource is null || index < 0 || index >= _itemsSource.RowCount)
+        if (_synchronizingSelection || _selectionModel is null)
         {
-            SetSelectedItem(null);
+            return;
+        }
+
+        if (index < 0)
+        {
+            _selectionModel.Clear();
         }
         else
         {
-            var row = _itemsSource.GetRow(index);
-            SetSelectedItem(row.Item);
+            _selectionModel.SelectSingle(index);
         }
     }
 
@@ -340,6 +541,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         ConfigureVirtualizationProvider(newSource);
 
+        ResetTypeSearch();
         SetValue(SelectedIndexProperty, -1);
         RequestViewportUpdate();
     }
@@ -347,6 +549,7 @@ public class FastTreeDataGrid : TemplatedControl
     private void OnSourceResetRequested(object? sender, EventArgs e)
     {
         _rowLayout?.Reset();
+        ResetTypeSearch();
         RequestViewportUpdate();
     }
 
@@ -902,6 +1105,21 @@ public class FastTreeDataGrid : TemplatedControl
         var viewport = _scrollViewer.Viewport;
         var offset = _scrollViewer.Offset;
 
+        _selectionModel?.CoerceSelection(totalRows);
+        if (_selectionModel is not null)
+        {
+            SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
+        }
+
+        var selectedIndices = _selectedIndices;
+        HashSet<int>? selectionLookup = null;
+        if (selectedIndices.Count > 0)
+        {
+            selectionLookup = selectedIndices is IReadOnlyCollection<int> collection
+                ? new HashSet<int>(collection)
+                : new HashSet<int>(selectedIndices);
+        }
+
         var viewportHeight = viewport.Height > 0 ? viewport.Height : Bounds.Height;
         var viewportWidth = viewport.Width > 0 ? viewport.Width : Bounds.Width;
         var totalHeight = layout.GetTotalHeight(viewportHeight, defaultRowHeight, totalRows);
@@ -961,7 +1179,7 @@ public class FastTreeDataGrid : TemplatedControl
                 rowIndex,
                 rowTop,
                 rowHeight,
-                rowIndex == SelectedIndex,
+                selectionLookup?.Contains(rowIndex) ?? false,
                 hasChildren,
                 row.IsExpanded,
                 toggleRect,
@@ -1071,6 +1289,7 @@ public class FastTreeDataGrid : TemplatedControl
         }
 
         _presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);
+        _presenter.UpdateSelection(selectedIndices);
 
         var placeholderCount = rows.Count(static r => r.IsPlaceholder);
         RecordViewportMetrics(stopwatch, rows.Count, placeholderCount);
@@ -1126,19 +1345,577 @@ public class FastTreeDataGrid : TemplatedControl
         };
     }
 
-    internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit)
+    internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit, KeyModifiers modifiers)
     {
         if (_itemsSource is null)
         {
             return;
         }
 
-        SelectedIndex = rowInfo.RowIndex;
+        var index = rowInfo.RowIndex;
+        var normalized = NormalizeKeyModifiers(modifiers);
+        var hasShift = (normalized & KeyModifiers.Shift) == KeyModifiers.Shift;
+        var hasControl = HasControlModifier(normalized);
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            _selectionModel.Clear();
+        }
+        else
+        {
+            if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+            {
+                _selectionModel.SelectSingle(index);
+            }
+            else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
+            {
+                var anchor = _selectionModel.AnchorIndex >= 0
+                    ? _selectionModel.AnchorIndex
+                    : (_selectionModel.PrimaryIndex >= 0 ? _selectionModel.PrimaryIndex : index);
+                _selectionModel.SelectRange(anchor, index, keepExisting: hasControl);
+            }
+            else if (hasControl)
+            {
+                _selectionModel.Toggle(index);
+            }
+            else
+            {
+                _selectionModel.SelectSingle(index);
+            }
+
+            if (!hasShift)
+            {
+                _selectionModel.SetAnchor(index);
+            }
+
+            EnsureRowVisible(index);
+        }
+
+        ResetTypeSearch();
 
         var shouldToggle = rowInfo.HasChildren && (toggleHit || clickCount > 1);
         if (shouldToggle)
         {
             _itemsSource.ToggleExpansion(rowInfo.RowIndex);
+        }
+    }
+
+    internal bool HandlePresenterKeyDown(KeyEventArgs e)
+    {
+        if (_itemsSource is null)
+        {
+            return false;
+        }
+
+        var totalRows = _itemsSource.RowCount;
+        if (totalRows <= 0)
+        {
+            return false;
+        }
+
+        var modifiers = NormalizeKeyModifiers(e.KeyModifiers);
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                ResetTypeSearch();
+                NavigateByDelta(1, modifiers);
+                return true;
+            case Key.Up:
+                ResetTypeSearch();
+                NavigateByDelta(-1, modifiers);
+                return true;
+            case Key.PageDown:
+                ResetTypeSearch();
+                NavigateByDelta(CalculatePageDelta(), modifiers);
+                return true;
+            case Key.PageUp:
+                ResetTypeSearch();
+                NavigateByDelta(-CalculatePageDelta(), modifiers);
+                return true;
+            case Key.Home:
+                ResetTypeSearch();
+                NavigateToIndex(0, modifiers);
+                return true;
+            case Key.End:
+                ResetTypeSearch();
+                NavigateToIndex(totalRows - 1, modifiers);
+                return true;
+            case Key.Left:
+                ResetTypeSearch();
+                return HandleCollapseKey(modifiers);
+            case Key.Right:
+                ResetTypeSearch();
+                return HandleExpandKey(modifiers);
+            default:
+                return false;
+        }
+    }
+
+    internal bool HandlePresenterTextInput(string text)
+    {
+        if (_itemsSource is null || string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - _typeSearchTimestamp > s_typeSearchResetInterval)
+        {
+            _typeSearchBuffer = string.Empty;
+        }
+
+        _typeSearchTimestamp = now;
+        _typeSearchBuffer += text;
+
+        var totalRows = _itemsSource.RowCount;
+        var startIndex = _selectionModel.PrimaryIndex;
+        var args = new FastTreeDataGridTypeSearchEventArgs(_typeSearchBuffer, startIndex, totalRows);
+        TypeSearchRequested?.Invoke(this, args);
+
+        if (args.Handled)
+        {
+            if (args.TargetIndex >= 0)
+            {
+                NavigateToIndex(args.TargetIndex, KeyModifiers.None);
+            }
+
+            return true;
+        }
+
+        var matchIndex = FindTypeSearchMatch(_typeSearchBuffer, startIndex);
+        if (matchIndex >= 0)
+        {
+            NavigateToIndex(matchIndex, KeyModifiers.None);
+            return true;
+        }
+
+        if (_typeSearchBuffer.Length > 1)
+        {
+            var fallback = _typeSearchBuffer[^1].ToString();
+            matchIndex = FindTypeSearchMatch(fallback, startIndex);
+            if (matchIndex >= 0)
+            {
+                _typeSearchBuffer = fallback;
+                NavigateToIndex(matchIndex, KeyModifiers.None);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int CalculatePageDelta()
+    {
+        var viewportHeight = _scrollViewer is { } sv && sv.Viewport.Height > 0
+            ? sv.Viewport.Height
+            : Bounds.Height;
+
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            viewportHeight = RowHeight;
+        }
+
+        var rowHeight = Math.Max(1d, RowHeight);
+        var result = (int)Math.Floor(viewportHeight / rowHeight);
+        return Math.Max(1, result);
+    }
+
+    private void NavigateByDelta(int delta, KeyModifiers modifiers)
+    {
+        if (_itemsSource is null || delta == 0)
+        {
+            return;
+        }
+
+        var target = DetermineRelativeIndex(delta);
+        if (target >= 0)
+        {
+            ApplyKeyboardSelection(target, modifiers);
+        }
+    }
+
+    private void NavigateToIndex(int index, KeyModifiers modifiers)
+    {
+        if (_itemsSource is null)
+        {
+            return;
+        }
+
+        var count = _itemsSource.RowCount;
+        if (count <= 0)
+        {
+            return;
+        }
+
+        var target = Math.Clamp(index, 0, count - 1);
+        ApplyKeyboardSelection(target, modifiers);
+    }
+
+    private int DetermineRelativeIndex(int delta)
+    {
+        if (_itemsSource is null)
+        {
+            return -1;
+        }
+
+        var count = _itemsSource.RowCount;
+        if (count <= 0)
+        {
+            return -1;
+        }
+
+        var current = _selectionModel.PrimaryIndex;
+        if (current < 0)
+        {
+            return delta > 0 ? 0 : count - 1;
+        }
+
+        return Math.Clamp(current + delta, 0, count - 1);
+    }
+
+    private void ApplyKeyboardSelection(int targetIndex, KeyModifiers modifiers)
+    {
+        if (_itemsSource is null || targetIndex < 0)
+        {
+            return;
+        }
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            return;
+        }
+
+        var hasShift = (modifiers & KeyModifiers.Shift) == KeyModifiers.Shift;
+        var hasControl = HasControlModifier(modifiers);
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+        {
+            _selectionModel.SelectSingle(targetIndex);
+        }
+        else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
+        {
+            var anchor = _selectionModel.AnchorIndex >= 0
+                ? _selectionModel.AnchorIndex
+                : (_selectionModel.PrimaryIndex >= 0 ? _selectionModel.PrimaryIndex : targetIndex);
+
+            _selectionModel.SelectRange(anchor, targetIndex, keepExisting: hasControl);
+        }
+        else
+        {
+            _selectionModel.SelectSingle(targetIndex);
+        }
+
+        if (!hasShift)
+        {
+            _selectionModel.SetAnchor(targetIndex);
+        }
+
+        EnsureRowVisible(targetIndex);
+    }
+
+    private bool HandleCollapseKey(KeyModifiers modifiers)
+    {
+        if (_itemsSource is null)
+        {
+            return false;
+        }
+
+        if (HasControlModifier(modifiers) || (modifiers & KeyModifiers.Alt) == KeyModifiers.Alt)
+        {
+            return false;
+        }
+
+        var index = _selectionModel.PrimaryIndex;
+        if (index < 0 || index >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(index))
+        {
+            return false;
+        }
+
+        var row = _itemsSource.GetRow(index);
+        if (row.HasChildren && row.IsExpanded)
+        {
+            _itemsSource.ToggleExpansion(index);
+            return true;
+        }
+
+        if (row.Level > 0)
+        {
+            var parentIndex = FindParentIndex(index, row.Level);
+            if (parentIndex >= 0)
+            {
+                NavigateToIndex(parentIndex, KeyModifiers.None);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HandleExpandKey(KeyModifiers modifiers)
+    {
+        if (_itemsSource is null)
+        {
+            return false;
+        }
+
+        if (HasControlModifier(modifiers) || (modifiers & KeyModifiers.Alt) == KeyModifiers.Alt)
+        {
+            return false;
+        }
+
+        var index = _selectionModel.PrimaryIndex;
+        if (index < 0)
+        {
+            index = 0;
+        }
+
+        if (index >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(index))
+        {
+            return false;
+        }
+
+        var row = _itemsSource.GetRow(index);
+        if (!row.HasChildren)
+        {
+            return false;
+        }
+
+        if (!row.IsExpanded)
+        {
+            _itemsSource.ToggleExpansion(index);
+            return true;
+        }
+
+        var childIndex = index + 1;
+        if (childIndex >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(childIndex))
+        {
+            return false;
+        }
+
+        var childRow = _itemsSource.GetRow(childIndex);
+        if (childRow.Level > row.Level)
+        {
+            NavigateToIndex(childIndex, KeyModifiers.None);
+            return true;
+        }
+
+        return false;
+    }
+
+    private int FindParentIndex(int startIndex, int currentLevel)
+    {
+        if (_itemsSource is null || currentLevel <= 0)
+        {
+            return -1;
+        }
+
+        for (var i = startIndex - 1; i >= 0; i--)
+        {
+            if (_itemsSource.IsPlaceholder(i))
+            {
+                continue;
+            }
+
+            var candidate = _itemsSource.GetRow(i);
+            if (candidate.Level < currentLevel)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private int FindTypeSearchMatch(string query, int startIndex)
+    {
+        if (_itemsSource is null)
+        {
+            return -1;
+        }
+
+        var total = _itemsSource.RowCount;
+        if (total <= 0)
+        {
+            return -1;
+        }
+
+        var normalized = query?.Trim();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return -1;
+        }
+
+        if (startIndex < 0 || startIndex >= total)
+        {
+            startIndex = -1;
+        }
+
+        for (var step = 1; step <= total; step++)
+        {
+            var index = (startIndex + step) % total;
+            if (_itemsSource.IsPlaceholder(index))
+            {
+                continue;
+            }
+
+            var row = _itemsSource.GetRow(index);
+            var text = GetTypeSearchText(row);
+            if (!string.IsNullOrEmpty(text) && text.StartsWith(normalized, StringComparison.CurrentCultureIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private string? GetTypeSearchText(FastTreeDataGridRow row)
+    {
+        if (_typeSearchSelector is not null)
+        {
+            return _typeSearchSelector(row);
+        }
+
+        var column = GetDefaultSearchColumn();
+        if (column is null)
+        {
+            return row.Item?.ToString();
+        }
+
+        return GetCellText(row, column);
+    }
+
+    private FastTreeDataGridColumn? GetDefaultSearchColumn()
+    {
+        if (_columns.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var column in _columns)
+        {
+            if (column.IsHierarchy || column.ValueKey is not null)
+            {
+                return column;
+            }
+        }
+
+        return _columns[0];
+    }
+
+    private void SetSelectedIndicesInternal(IReadOnlyList<int> indices)
+    {
+        var newValue = indices ?? Array.Empty<int>();
+        var oldValue = _selectedIndices;
+
+        if (ReferenceEquals(oldValue, newValue))
+        {
+            return;
+        }
+
+        if (oldValue.Count == newValue.Count && oldValue.SequenceEqual(newValue))
+        {
+            return;
+        }
+
+        _selectedIndices = newValue;
+        RaisePropertyChanged(SelectedIndicesProperty, oldValue, newValue);
+    }
+
+    private List<int> NormalizeSelectionInput(IReadOnlyList<int>? indices)
+    {
+        if (indices is null || indices.Count == 0)
+        {
+            return new List<int>();
+        }
+
+        var result = new SortedSet<int>();
+        var rowCount = _itemsSource?.RowCount;
+        var clamp = rowCount.HasValue && rowCount.Value >= 0;
+        var maxIndex = rowCount.GetValueOrDefault();
+
+        foreach (var index in indices)
+        {
+            if (index < 0)
+            {
+                continue;
+            }
+
+            if (clamp && index >= maxIndex)
+            {
+                continue;
+            }
+
+            if (result.Add(index) && _selectionMode == FastTreeDataGridSelectionMode.Single)
+            {
+                break;
+            }
+        }
+
+        if (result.Count == 0)
+        {
+            return new List<int>();
+        }
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.Single && result.Count > 1)
+        {
+            var retained = result.Max;
+            result.Clear();
+            result.Add(retained);
+        }
+
+        return result.ToList();
+    }
+
+    private void ResetTypeSearch()
+    {
+        _typeSearchBuffer = string.Empty;
+        _typeSearchTimestamp = DateTime.MinValue;
+    }
+
+    private void EnsureRowVisible(int index)
+    {
+        if (_scrollViewer is null || _itemsSource is null || index < 0)
+        {
+            return;
+        }
+
+        var layout = GetActiveRowLayout();
+        var defaultRowHeight = Math.Max(1d, RowHeight);
+
+        var rowTop = layout.GetRowTop(index);
+        var rowHeight = defaultRowHeight;
+        if (_itemsSource.TryGetMaterializedRow(index, out var row))
+        {
+            rowHeight = Math.Max(1d, layout.GetRowHeight(index, row, defaultRowHeight));
+        }
+
+        var currentOffset = _scrollViewer.Offset;
+        var viewportHeight = _scrollViewer.Viewport.Height > 0 ? _scrollViewer.Viewport.Height : Bounds.Height;
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            viewportHeight = defaultRowHeight;
+        }
+
+        var viewportTop = currentOffset.Y;
+        var viewportBottom = viewportTop + viewportHeight;
+        var rowBottom = rowTop + rowHeight;
+
+        double? newOffsetY = null;
+
+        if (rowTop < viewportTop)
+        {
+            newOffsetY = rowTop;
+        }
+        else if (rowBottom > viewportBottom)
+        {
+            newOffsetY = Math.Max(0, rowBottom - viewportHeight);
+        }
+
+        if (newOffsetY.HasValue)
+        {
+            _scrollViewer.Offset = new Vector(currentOffset.X, newOffsetY.Value);
         }
     }
 
@@ -1164,9 +1941,25 @@ public class FastTreeDataGrid : TemplatedControl
         return Math.Clamp(rowHeight - 10, 10, 20);
     }
 
+    private static KeyModifiers NormalizeKeyModifiers(KeyModifiers modifiers)
+    {
+        if ((modifiers & KeyModifiers.Meta) == KeyModifiers.Meta)
+        {
+            modifiers |= KeyModifiers.Control;
+        }
+
+        return modifiers;
+    }
+
+    private static bool HasControlModifier(KeyModifiers modifiers)
+    {
+        var normalized = NormalizeKeyModifiers(modifiers);
+        return (normalized & KeyModifiers.Control) == KeyModifiers.Control;
+    }
+
     private void UpdateRowSelectionIndicators()
     {
-        _presenter?.UpdateSelection(SelectedIndex);
+        _presenter?.UpdateSelection(_selectedIndices);
     }
 
     private void RecalculateColumns()
