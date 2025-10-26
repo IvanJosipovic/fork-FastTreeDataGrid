@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalonia;
+using Avalonia.Controls.Templates;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
 
@@ -58,6 +59,9 @@ public class FastTreeDataGridColumn : AvaloniaObject
 
     public static readonly StyledProperty<IWidgetTemplate?> CellTemplateProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, IWidgetTemplate?>(nameof(CellTemplate));
+
+    public static readonly StyledProperty<IDataTemplate?> CellControlTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(CellControlTemplate));
 
     public static readonly StyledProperty<Comparison<FastTreeDataGridRow>?> SortComparisonProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, Comparison<FastTreeDataGridRow>?>(nameof(SortComparison));
@@ -119,6 +123,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(CellTemplateProperty);
         set => SetValue(CellTemplateProperty, value);
+    }
+
+    public IDataTemplate? CellControlTemplate
+    {
+        get => GetValue(CellControlTemplateProperty);
+        set => SetValue(CellControlTemplateProperty, value);
     }
 
     public bool IsHierarchy

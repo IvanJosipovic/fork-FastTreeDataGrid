@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
+using AvaloniaControl = Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Controls;
 
@@ -24,6 +27,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private Widget? _focusedWidget;
     private readonly Dictionary<Widget, OverlayEntry> _overlayMap = new();
     private readonly List<OverlayEntry> _overlayOrder = new();
+    private readonly Dictionary<AvaloniaControl, Rect> _controlLayouts = new();
+    private readonly List<AvaloniaControl> _controlChildren = new();
 
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
     private readonly SolidColorBrush _placeholderBrush = new(Color.FromArgb(40, 200, 200, 200));
@@ -55,6 +60,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         _animationRegistration = null;
         _overlayRegistration?.Dispose();
         _overlayRegistration = null;
+        ClearControlChildren();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -93,12 +99,16 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
     public void UpdateContent(IReadOnlyList<RowRenderInfo> rows, double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
     {
+        ClearControlChildren();
         _rows.Clear();
         _rows.AddRange(rows);
         _columnOffsets.Clear();
         _columnOffsets.AddRange(columnOffsets);
         Width = totalWidth;
         Height = totalHeight;
+
+        AttachControlsForRows(_rows);
+
         InvalidateMeasure();
         InvalidateArrange();
         InvalidateVisual();
@@ -129,12 +139,119 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 row.IsSelected = shouldSelect;
                 changed = true;
             }
+
+            UpdateControlSelectionState(row);
         }
 
         if (changed)
         {
             InvalidateVisual();
         }
+    }
+
+    private static void UpdateControlSelectionState(RowRenderInfo row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        foreach (var cell in row.Cells)
+        {
+            if (cell.Control is { } control)
+            {
+                control.SetValue(SelectingItemsControl.IsSelectedProperty, row.IsSelected);
+            }
+        }
+    }
+
+    private void AttachControlsForRows(IReadOnlyList<RowRenderInfo> rows)
+    {
+        if (rows is null || rows.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Control is { } control)
+                {
+                    AttachControl(control, cell.ContentBounds, row.IsSelected);
+                }
+            }
+        }
+    }
+
+    private void AttachControl(AvaloniaControl control, Rect bounds, bool isSelected)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.RemoveHandler(InputElement.PointerPressedEvent, ControlOnPointerPressed);
+        control.AddHandler(InputElement.PointerPressedEvent, ControlOnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        control.SetValue(SelectingItemsControl.IsSelectedProperty, isSelected);
+        control.ClipToBounds = true;
+        _controlLayouts[control] = bounds;
+
+        if (!_controlChildren.Contains(control))
+        {
+            VisualChildren.Add(control);
+            if (control is ILogical logical)
+            {
+                LogicalChildren.Add(logical);
+            }
+
+            _controlChildren.Add(control);
+        }
+    }
+
+    private void ClearControlChildren()
+    {
+        if (_controlChildren.Count == 0)
+        {
+            _controlLayouts.Clear();
+            return;
+        }
+
+        for (var i = _controlChildren.Count - 1; i >= 0; i--)
+        {
+            var control = _controlChildren[i];
+            control.RemoveHandler(InputElement.PointerPressedEvent, ControlOnPointerPressed);
+            VisualChildren.Remove(control);
+            if (control is ILogical logical)
+            {
+                LogicalChildren.Remove(logical);
+            }
+        }
+
+        _controlChildren.Clear();
+        _controlLayouts.Clear();
+    }
+
+    private void ControlOnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_owner is null)
+        {
+            return;
+        }
+
+        if (!IsFocused && Focusable && IsEffectivelyEnabled)
+        {
+            Focus();
+        }
+
+        var point = e.GetCurrentPoint(this).Position;
+
+        if (RoutePointerEvent(point, e, WidgetPointerEventKind.Pressed))
+        {
+            return;
+        }
+
+        HandlePointer(point, e);
     }
 
     public override void Render(DrawingContext context)
@@ -1008,18 +1125,22 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
     internal sealed class CellRenderInfo
     {
-        public CellRenderInfo(Rect bounds, Widget? widget, FormattedText? formattedText, Point textOrigin)
+        public CellRenderInfo(Rect bounds, Rect contentBounds, Widget? widget, FormattedText? formattedText, Point textOrigin, AvaloniaControl? control)
         {
             Bounds = bounds;
+            ContentBounds = contentBounds;
             Widget = widget;
             FormattedText = formattedText;
             TextOrigin = textOrigin;
+            Control = control;
         }
 
         public Rect Bounds { get; }
+        public Rect ContentBounds { get; }
         public Widget? Widget { get; }
         public FormattedText? FormattedText { get; }
         public Point TextOrigin { get; }
+        public AvaloniaControl? Control { get; }
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -1035,6 +1156,16 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         if (double.IsNaN(height) || double.IsInfinity(height) || height < 0)
         {
             height = 0;
+        }
+
+        if (_controlLayouts.Count > 0)
+        {
+            foreach (var pair in _controlLayouts)
+            {
+                var bounds = pair.Value;
+                var measure = new Size(Math.Max(0, bounds.Width), Math.Max(0, bounds.Height));
+                pair.Key.Measure(measure);
+            }
         }
 
         return new Size(width, height);
@@ -1057,6 +1188,15 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             height = double.IsNaN(finalSize.Height) || double.IsInfinity(finalSize.Height) || finalSize.Height < 0
                 ? 0
                 : finalSize.Height;
+        }
+
+        if (_controlLayouts.Count > 0)
+        {
+            foreach (var pair in _controlLayouts)
+            {
+                var bounds = pair.Value;
+                pair.Key.Arrange(bounds);
+            }
         }
 
         return new Size(width, height);

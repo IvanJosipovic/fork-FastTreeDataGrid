@@ -31,6 +31,9 @@
       <TabItem Header="Countries">
         <views:CountriesTab />
       </TabItem>
+      <TabItem Header="Countries (Controls)">
+        <views:CountriesControlsTab />
+      </TabItem>
       <TabItem Header="Crypto">
         <views:CryptoTab />
       </TabItem>

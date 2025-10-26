@@ -18,6 +18,7 @@ using Avalonia.Interactivity;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
+using AvaloniaControl = Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Controls;
 
@@ -1724,22 +1725,41 @@ public class FastTreeDataGrid : TemplatedControl
                 var contentBounds = new Rect(x + indentOffset + cellPadding, rowTop, contentWidth, rowHeight);
 
                 Widget? widget = null;
+                AvaloniaControl? control = null;
                 FormattedText? formatted = null;
                 Point textOrigin = new(contentBounds.X, contentBounds.Y + (rowHeight / 2));
 
                 if (!isPlaceholder)
                 {
-                    if (column.WidgetFactory is { } factory)
+                    if (column.CellControlTemplate is { } controlTemplate)
+                    {
+                        control = controlTemplate.Build(row.Item);
+                        if (control is not null)
+                        {
+                            if (row.Item is not null)
+                            {
+                                control.DataContext = row.Item;
+                            }
+
+                            control.Measure(new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height)));
+                        }
+                    }
+
+                    if (control is null && column.WidgetFactory is { } factory)
                     {
                         widget = factory(row.ValueProvider, row.Item);
                     }
-                    else if (column.CellTemplate is { } template)
+                    else if (control is null && column.CellTemplate is { } template)
                     {
                         widget = template.Build();
                     }
                 }
 
-                if (widget is null)
+                if (control is not null)
+                {
+                    // Intentionally left blank: controls are measured/arranged by the presenter.
+                }
+                else if (widget is null)
                 {
                     var textWidget = new FormattedTextWidget
                     {
@@ -1781,16 +1801,29 @@ public class FastTreeDataGrid : TemplatedControl
                     widget.Arrange(contentBounds);
                 }
 
-                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(bounds, widget, formatted, textOrigin));
+                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(bounds, contentBounds, widget, formatted, textOrigin, control));
 
-                if (column.SizingMode == ColumnSizingMode.Auto && formatted is not null)
+                if (column.SizingMode == ColumnSizingMode.Auto)
                 {
-                    var measured = formatted.Width + indentOffset + (cellPadding * 2);
-                    var adjusted = Math.Clamp(measured, column.MinWidth, column.MaxWidth);
-                    if (adjusted > column.CachedAutoWidth + 0.5)
+                    double measured = 0d;
+
+                    if (control is not null)
                     {
-                        column.CachedAutoWidth = adjusted;
-                        autoWidthUpdated = true;
+                        measured = control.DesiredSize.Width + indentOffset + (cellPadding * 2);
+                    }
+                    else if (formatted is not null)
+                    {
+                        measured = formatted.Width + indentOffset + (cellPadding * 2);
+                    }
+
+                    if (measured > 0)
+                    {
+                        var adjusted = Math.Clamp(measured, column.MinWidth, column.MaxWidth);
+                        if (adjusted > column.CachedAutoWidth + 0.5)
+                        {
+                            column.CachedAutoWidth = adjusted;
+                            autoWidthUpdated = true;
+                        }
                     }
                 }
             }
