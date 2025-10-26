@@ -77,17 +77,17 @@ public partial class CountriesTab : UserControl
             return;
         }
 
-        var handled = viewModel.Countries.ApplySort(e.Column, e.Direction);
+        var handled = viewModel.Countries.ApplySort(e.Descriptions);
 
         if (sender is GridControl grid)
         {
-            if (!handled || e.Direction == FastTreeDataGridSortDirection.None)
+            if (!handled || e.Descriptions.Count == 0)
             {
                 grid.ClearSortState();
             }
             else
             {
-                grid.SetSortState(e.ColumnIndex, e.Direction);
+                grid.SetSortState(e.Descriptions);
             }
         }
     }

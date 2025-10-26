@@ -36,39 +36,59 @@ public sealed class FilesViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public bool ApplySort(FastTreeDataGridColumn column, FastTreeDataGridSortDirection direction)
+    public bool ApplySort(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
     {
-        if (column is null)
-        {
-            return false;
-        }
-
-        if (direction == FastTreeDataGridSortDirection.None)
+        if (descriptions is null || descriptions.Count == 0)
         {
             _source.ResetSort();
             return true;
         }
 
-        if (string.IsNullOrEmpty(column.ValueKey))
+        Comparison<FastTreeDataGridRow>? combined = null;
+
+        foreach (var description in descriptions)
+        {
+            var column = description.Column;
+            if (string.IsNullOrEmpty(column.ValueKey))
+            {
+                continue;
+            }
+
+            var comparison = GetComparison(column.ValueKey);
+            if (comparison is null)
+            {
+                continue;
+            }
+
+            if (description.Direction == FastTreeDataGridSortDirection.Descending)
+            {
+                var baseComparison = comparison;
+                comparison = (left, right) => baseComparison(right, left);
+            }
+
+            if (combined is null)
+            {
+                combined = comparison;
+            }
+            else
+            {
+                var previous = combined;
+                var current = comparison;
+                combined = (left, right) =>
+                {
+                    var result = previous(left, right);
+                    return result != 0 ? result : current(left, right);
+                };
+            }
+        }
+
+        if (combined is null)
         {
             _source.ResetSort();
             return false;
         }
 
-        var comparison = GetComparison(column.ValueKey);
-        if (comparison is null)
-        {
-            _source.ResetSort();
-            return false;
-        }
-
-        if (direction == FastTreeDataGridSortDirection.Descending)
-        {
-            var baseComparison = comparison;
-            comparison = (left, right) => baseComparison(right, left);
-        }
-
-        _source.Sort(comparison);
+        _source.Sort(combined);
         return true;
     }
 

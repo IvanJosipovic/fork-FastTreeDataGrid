@@ -98,8 +98,7 @@ public class FastTreeDataGrid : TemplatedControl
     private bool _viewportUpdateQueued;
     private bool _columnsDirty = true;
     private bool _autoWidthChanged;
-    private int? _sortedColumnIndex;
-    private FastTreeDataGridSortDirection _sortedDirection = FastTreeDataGridSortDirection.None;
+    private readonly List<FastTreeDataGridSortDescription> _sortDescriptions = new();
     private IFastTreeDataGridRowLayout? _rowLayout;
     private FastTreeDataGridThrottleDispatcher? _resetThrottle;
     private IFastTreeDataGridSelectionModel _selectionModel = null!;
@@ -378,6 +377,49 @@ public class FastTreeDataGrid : TemplatedControl
         SetSelectedItem(row.Item);
     }
 
+    private void AttachColumnHandlers(FastTreeDataGridColumn column)
+    {
+        if (column is null)
+        {
+            return;
+        }
+
+        column.PropertyChanged += OnColumnPropertyChanged;
+    }
+
+    private void DetachColumnHandlers(FastTreeDataGridColumn column)
+    {
+        if (column is null)
+        {
+            return;
+        }
+
+        column.PropertyChanged -= OnColumnPropertyChanged;
+    }
+
+    private void OnColumnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == FastTreeDataGridColumn.PinnedPositionProperty ||
+            e.Property == FastTreeDataGridColumn.SortDirectionProperty ||
+            e.Property == FastTreeDataGridColumn.SortOrderProperty ||
+            e.Property == FastTreeDataGridColumn.CanUserResizeProperty ||
+            e.Property == FastTreeDataGridColumn.CanUserReorderProperty)
+        {
+            _columnsDirty = true;
+            RequestViewportUpdate();
+        }
+    }
+
+    private double GetViewportWidth()
+    {
+        if (_scrollViewer is { } sv && sv.Viewport.Width > 0)
+        {
+            return sv.Viewport.Width;
+        }
+
+        return Bounds.Width > 0 ? Bounds.Width : 0;
+    }
+
     private IFastTreeDataGridRowLayout GetActiveRowLayout()
     {
         if (_rowLayout is null)
@@ -449,7 +491,7 @@ public class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
-        ApplySortStateToProvider();
+        ApplySortStateToProvider(_sortDescriptions.Count == 0 ? Array.Empty<FastTreeDataGridSortDescription>() : _sortDescriptions.ToArray());
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -771,11 +813,38 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _columnsDirty = true;
-        if (_sortedColumnIndex.HasValue && (_sortedColumnIndex.Value < 0 || _sortedColumnIndex.Value >= _columns.Count))
+        if (e is null)
         {
-            ClearSortStateInternal(requestUpdate: false);
+            return;
         }
+
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var column in _columns)
+            {
+                AttachColumnHandlers(column);
+            }
+        }
+        else
+        {
+            if (e.OldItems is not null)
+            {
+                foreach (FastTreeDataGridColumn column in e.OldItems)
+                {
+                    DetachColumnHandlers(column);
+                }
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (FastTreeDataGridColumn column in e.NewItems)
+                {
+                    AttachColumnHandlers(column);
+                }
+            }
+        }
+
+        _columnsDirty = true;
         RequestViewportUpdate();
     }
 
@@ -802,6 +871,13 @@ public class FastTreeDataGrid : TemplatedControl
         {
             _headerPresenter.ColumnResizeRequested += OnColumnResizeRequested;
             _headerPresenter.ColumnSortRequested += OnColumnSortRequested;
+            _headerPresenter.ColumnReorderRequested += OnColumnReorderRequested;
+            _headerPresenter.ColumnPinRequested += OnColumnPinRequested;
+            _headerPresenter.ColumnAutoSizeRequested += OnColumnAutoSizeRequested;
+            _headerPresenter.AutoSizeAllRequested += OnAutoSizeAllRequested;
+            _headerPresenter.ColumnMoveLeftRequested += OnColumnMoveLeftRequested;
+            _headerPresenter.ColumnMoveRightRequested += OnColumnMoveRightRequested;
+            _headerPresenter.ColumnHideRequested += OnColumnHideRequested;
         }
 
         _templateHandlersAttached = true;
@@ -830,6 +906,13 @@ public class FastTreeDataGrid : TemplatedControl
         {
             _headerPresenter.ColumnResizeRequested -= OnColumnResizeRequested;
             _headerPresenter.ColumnSortRequested -= OnColumnSortRequested;
+            _headerPresenter.ColumnReorderRequested -= OnColumnReorderRequested;
+            _headerPresenter.ColumnPinRequested -= OnColumnPinRequested;
+            _headerPresenter.ColumnAutoSizeRequested -= OnColumnAutoSizeRequested;
+            _headerPresenter.AutoSizeAllRequested -= OnAutoSizeAllRequested;
+            _headerPresenter.ColumnMoveLeftRequested -= OnColumnMoveLeftRequested;
+            _headerPresenter.ColumnMoveRightRequested -= OnColumnMoveRightRequested;
+            _headerPresenter.ColumnHideRequested -= OnColumnHideRequested;
         }
 
         _templateHandlersAttached = false;
@@ -917,34 +1000,35 @@ public class FastTreeDataGrid : TemplatedControl
         RecalculateColumns();
         _columnsDirty = false;
 
-        _headerPresenter?.UpdateWidths(_columnWidths);
+        _headerPresenter?.UpdateWidths(_columnWidths, _scrollViewer?.Offset.X ?? 0, GetViewportWidth());
 
         SynchronizeHeaderScroll();
         RequestViewportUpdate();
     }
 
-    public void SetSortState(int columnIndex, FastTreeDataGridSortDirection direction)
+    public void SetSortState(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
     {
-        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
-        {
-            return;
-        }
+        _sortDescriptions.Clear();
 
-        _sortedColumnIndex = direction == FastTreeDataGridSortDirection.None ? null : columnIndex;
-        _sortedDirection = direction;
-
-        for (var i = 0; i < _columns.Count; i++)
+        if (descriptions is not null)
         {
-            var column = _columns[i];
-            var target = i == columnIndex ? direction : FastTreeDataGridSortDirection.None;
-            if (column.SortDirection != target)
+            foreach (var description in descriptions)
             {
-                column.SortDirection = target;
+                if (description.Direction == FastTreeDataGridSortDirection.None)
+                {
+                    continue;
+                }
+
+                if (!_columns.Contains(description.Column))
+                {
+                    continue;
+                }
+
+                _sortDescriptions.Add(new FastTreeDataGridSortDescription(description.Column, description.Direction, 0));
             }
         }
 
-        _columnsDirty = true;
-        RequestViewportUpdate();
+        ApplySortVisualState(requestUpdate: true);
     }
 
     public void ClearSortState()
@@ -954,27 +1038,16 @@ public class FastTreeDataGrid : TemplatedControl
 
     private void ClearSortStateInternal(bool requestUpdate)
     {
-        _sortedColumnIndex = null;
-        _sortedDirection = FastTreeDataGridSortDirection.None;
-
-        foreach (var column in _columns)
+        if (_sortDescriptions.Count > 0)
         {
-            if (column.SortDirection != FastTreeDataGridSortDirection.None)
-            {
-                column.SortDirection = FastTreeDataGridSortDirection.None;
-            }
+            _sortDescriptions.Clear();
         }
 
-        if (requestUpdate)
-        {
-            _columnsDirty = true;
-            RequestViewportUpdate();
-        }
-
-        ApplySortStateToProvider();
+        ApplySortVisualState(requestUpdate);
+        ApplySortStateToProvider(Array.Empty<FastTreeDataGridSortDescription>());
     }
 
-    private void OnColumnSortRequested(int columnIndex)
+    private void OnColumnSortRequested(int columnIndex, FastTreeDataGridSortDirection? explicitDirection, KeyModifiers modifiers)
     {
         if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
         {
@@ -987,66 +1060,84 @@ public class FastTreeDataGrid : TemplatedControl
             return;
         }
 
-        var newDirection = FastTreeDataGridSortDirection.Ascending;
-        if (_sortedColumnIndex == columnIndex)
-        {
-            newDirection = _sortedDirection switch
-            {
-                FastTreeDataGridSortDirection.None => FastTreeDataGridSortDirection.Ascending,
-                FastTreeDataGridSortDirection.Ascending => FastTreeDataGridSortDirection.Descending,
-                FastTreeDataGridSortDirection.Descending => FastTreeDataGridSortDirection.None,
-                _ => FastTreeDataGridSortDirection.None,
-            };
-        }
+        var allowMultiple = (modifiers & KeyModifiers.Shift) == KeyModifiers.Shift;
+        var targetDirection = explicitDirection ?? GetNextSortDirection(column.SortDirection);
 
-        if (newDirection == FastTreeDataGridSortDirection.None)
+        if (!allowMultiple)
         {
-            ClearSortStateInternal(requestUpdate: false);
+            _sortDescriptions.Clear();
+            if (targetDirection != FastTreeDataGridSortDirection.None)
+            {
+                _sortDescriptions.Add(new FastTreeDataGridSortDescription(column, targetDirection, 0));
+            }
         }
         else
         {
-            _sortedColumnIndex = columnIndex;
-            _sortedDirection = newDirection;
-
-            for (var i = 0; i < _columns.Count; i++)
+            var existingIndex = _sortDescriptions.FindIndex(d => d.Column == column);
+            if (targetDirection == FastTreeDataGridSortDirection.None)
             {
-                var currentColumn = _columns[i];
-                var targetDirection = i == columnIndex ? newDirection : FastTreeDataGridSortDirection.None;
-                if (currentColumn.SortDirection != targetDirection)
+                if (existingIndex >= 0)
                 {
-                    currentColumn.SortDirection = targetDirection;
+                    _sortDescriptions.RemoveAt(existingIndex);
                 }
+            }
+            else if (existingIndex >= 0)
+            {
+                _sortDescriptions[existingIndex] = new FastTreeDataGridSortDescription(column, targetDirection, 0);
+            }
+            else
+            {
+                _sortDescriptions.Add(new FastTreeDataGridSortDescription(column, targetDirection, 0));
             }
         }
 
-        if (newDirection == FastTreeDataGridSortDirection.None)
+        ApplySortVisualState(requestUpdate: true);
+
+        var resultingDirection = FastTreeDataGridSortDirection.None;
+        for (var i = 0; i < _sortDescriptions.Count; i++)
         {
-            _sortedColumnIndex = null;
-            _sortedDirection = FastTreeDataGridSortDirection.None;
+            if (_sortDescriptions[i].Column == column)
+            {
+                resultingDirection = _sortDescriptions[i].Direction;
+                break;
+            }
         }
 
-        _columnsDirty = true;
-        RequestViewportUpdate();
-        ApplySortStateToProvider();
-        SortRequested?.Invoke(this, new FastTreeDataGridSortEventArgs(column, columnIndex, newDirection));
+        var descriptionsSnapshot = _sortDescriptions.Count == 0
+            ? Array.Empty<FastTreeDataGridSortDescription>()
+            : _sortDescriptions.ToArray();
+
+        ApplySortStateToProvider(descriptionsSnapshot);
+        RaiseSortRequested(columnIndex, resultingDirection, modifiers);
     }
 
-    private void ApplySortStateToProvider()
+    private void ApplySortStateToProvider(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
     {
         if (_virtualizationProvider is null)
         {
             return;
         }
 
-        var descriptors = new List<FastTreeDataGridSortDescriptor>();
-
-        if (_sortedColumnIndex is int index && index >= 0 && index < _columns.Count && _sortedDirection != FastTreeDataGridSortDirection.None)
+        if (descriptions.Count == 0)
         {
-            var column = _columns[index];
+            var emptyRequest = new FastTreeDataGridSortFilterRequest
+            {
+                SortDescriptors = Array.Empty<FastTreeDataGridSortDescriptor>(),
+                FilterDescriptors = Array.Empty<FastTreeDataGridFilterDescriptor>(),
+            };
+
+            _ = _virtualizationProvider.ApplySortFilterAsync(emptyRequest, CancellationToken.None);
+            return;
+        }
+
+        var descriptors = new List<FastTreeDataGridSortDescriptor>(descriptions.Count);
+        foreach (var description in descriptions)
+        {
+            var column = description.Column;
             descriptors.Add(new FastTreeDataGridSortDescriptor
             {
-                ColumnKey = column.ValueKey ?? index.ToString(CultureInfo.InvariantCulture),
-                Direction = _sortedDirection,
+                ColumnKey = column.ValueKey,
+                Direction = description.Direction,
                 RowComparison = column.SortComparison,
             });
         }
@@ -1058,6 +1149,358 @@ public class FastTreeDataGrid : TemplatedControl
         };
 
         _ = _virtualizationProvider.ApplySortFilterAsync(request, CancellationToken.None);
+    }
+
+    private static FastTreeDataGridSortDirection GetNextSortDirection(FastTreeDataGridSortDirection current)
+    {
+        return current switch
+        {
+            FastTreeDataGridSortDirection.None => FastTreeDataGridSortDirection.Ascending,
+            FastTreeDataGridSortDirection.Ascending => FastTreeDataGridSortDirection.Descending,
+            _ => FastTreeDataGridSortDirection.None,
+        };
+    }
+
+    private void ApplySortVisualState(bool requestUpdate)
+    {
+        foreach (var column in _columns)
+        {
+            column.SortDirection = FastTreeDataGridSortDirection.None;
+            column.SortOrder = 0;
+        }
+
+        for (var i = 0; i < _sortDescriptions.Count; i++)
+        {
+            var description = _sortDescriptions[i];
+            var column = description.Column;
+            var order = i + 1;
+            column.SortDirection = description.Direction;
+            column.SortOrder = order;
+            _sortDescriptions[i] = new FastTreeDataGridSortDescription(column, description.Direction, order);
+        }
+
+        if (requestUpdate)
+        {
+            _columnsDirty = true;
+            RequestViewportUpdate();
+        }
+    }
+
+    private void RaiseSortRequested(int columnIndex, FastTreeDataGridSortDirection direction, KeyModifiers modifiers)
+    {
+        if (SortRequested is null || _columns.Count == 0 || columnIndex < 0 || columnIndex >= _columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        var descriptionsSnapshot = _sortDescriptions.Count == 0
+            ? Array.Empty<FastTreeDataGridSortDescription>()
+            : _sortDescriptions.ToArray();
+
+        var args = new FastTreeDataGridSortEventArgs(column, columnIndex, direction, modifiers, descriptionsSnapshot);
+        SortRequested?.Invoke(this, args);
+    }
+
+    private void OnColumnReorderRequested(int fromIndex, int insertIndex)
+    {
+        if (_columns.Count == 0 || (uint)fromIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var bounds = GetPinnedGroupBounds(_columns[fromIndex].PinnedPosition);
+        if (bounds is null)
+        {
+            return;
+        }
+
+        var target = Math.Clamp(insertIndex, bounds.Value.First, bounds.Value.Last + 1);
+
+        if (target > fromIndex)
+        {
+            target--;
+        }
+
+        target = Math.Clamp(target, bounds.Value.First, bounds.Value.Last);
+
+        MoveColumnTo(fromIndex, target);
+    }
+
+    private void OnColumnPinRequested(int columnIndex, FastTreeDataGridPinnedPosition position)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserPin || column.PinnedPosition == position)
+        {
+            return;
+        }
+
+        column.PinnedPosition = position;
+        NormalizeColumnOrderForPinning();
+        _columnsDirty = true;
+        RequestViewportUpdate();
+    }
+
+    private void OnColumnAutoSizeRequested(int columnIndex, bool includeAllRows)
+    {
+        AutoSizeColumn(columnIndex, includeAllRows);
+    }
+
+    private void OnAutoSizeAllRequested(bool includeAllRows)
+    {
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            AutoSizeColumn(i, includeAllRows);
+        }
+    }
+
+    private void AutoSizeColumn(int columnIndex, bool includeAllRows)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count || _itemsSource is null)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanAutoSize)
+        {
+            return;
+        }
+
+        var measuredWidth = MeasureColumnWidth(columnIndex, includeAllRows);
+        if (!double.IsFinite(measuredWidth) || measuredWidth <= 0)
+        {
+            return;
+        }
+
+        column.SizingMode = ColumnSizingMode.Pixel;
+        column.PixelWidth = measuredWidth;
+        column.CachedAutoWidth = measuredWidth;
+        column.ActualWidth = measuredWidth;
+
+        RecalculateColumns();
+        _columnsDirty = true;
+        _headerPresenter?.UpdateWidths(_columnWidths, _scrollViewer?.Offset.X ?? 0, GetViewportWidth());
+        RequestViewportUpdate();
+    }
+
+    private void OnColumnMoveLeftRequested(int columnIndex)
+    {
+        MoveColumn(columnIndex, -1);
+    }
+
+    private void OnColumnMoveRightRequested(int columnIndex)
+    {
+        MoveColumn(columnIndex, 1);
+    }
+
+    private void MoveColumn(int columnIndex, int delta)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count || delta == 0)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        var bounds = GetPinnedGroupBounds(column.PinnedPosition);
+        if (bounds is null)
+        {
+            return;
+        }
+
+        var targetIndex = Math.Clamp(columnIndex + delta, bounds.Value.First, bounds.Value.Last);
+        MoveColumnTo(columnIndex, targetIndex);
+    }
+
+    private void MoveColumnTo(int fromIndex, int targetIndex)
+    {
+        if (_columns.Count == 0 || (uint)fromIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        targetIndex = Math.Clamp(targetIndex, 0, _columns.Count - 1);
+        if (targetIndex == fromIndex)
+        {
+            return;
+        }
+
+        _columns.Move(fromIndex, targetIndex);
+
+        RecalculateColumns();
+        _headerPresenter?.BindColumns(_columns, _columnWidths, _scrollViewer?.Offset.X ?? 0, GetViewportWidth());
+        RequestViewportUpdate();
+    }
+
+    private void OnColumnHideRequested(int columnIndex)
+    {
+        if (_columns.Count == 0 || (uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        _columns.RemoveAt(columnIndex);
+        _columnsDirty = true;
+        RecalculateColumns();
+        _headerPresenter?.BindColumns(_columns, _columnWidths, _scrollViewer?.Offset.X ?? 0, GetViewportWidth());
+        RequestViewportUpdate();
+    }
+
+    private double MeasureColumnWidth(int columnIndex, bool includeAllRows)
+    {
+        if (_itemsSource is null || columnIndex < 0 || columnIndex >= _columns.Count)
+        {
+            return 0;
+        }
+
+        var column = _columns[columnIndex];
+        var culture = CultureInfo.CurrentCulture;
+        var typeface = Typeface.Default;
+        var emSize = CalculateCellFontSize(RowHeight);
+        var padding = 12d;
+        var textBrush = Foreground ?? new SolidColorBrush(Color.FromRgb(33, 33, 33));
+
+        double Measure(string? text)
+        {
+            var formatted = new FormattedText(text ?? string.Empty, culture, FlowDirection.LeftToRight, typeface, emSize, textBrush)
+            {
+                MaxTextWidth = double.PositiveInfinity,
+                Trimming = TextTrimming.None,
+            };
+
+            return formatted.Width;
+        }
+
+        var headerText = column.Header?.ToString() ?? string.Empty;
+        var max = Measure(headerText) + padding;
+        var totalRows = _itemsSource.RowCount;
+        if (totalRows == 0)
+        {
+            return Math.Max(max, column.MinWidth);
+        }
+
+        var limit = includeAllRows ? totalRows : Math.Min(totalRows, 200);
+        var hierarchyIndex = GetHierarchyColumnIndex();
+
+        for (var i = 0; i < limit; i++)
+        {
+            var row = _itemsSource.GetRow(i);
+            if (_itemsSource.IsPlaceholder(i))
+            {
+                continue;
+            }
+
+            var text = GetCellText(row, column);
+            var width = Measure(text) + padding;
+
+            if (columnIndex == hierarchyIndex)
+            {
+                width += row.Level * IndentWidth + 12;
+            }
+
+            if (width > max)
+            {
+                max = width;
+            }
+        }
+
+        var minWidth = Math.Max(column.MinWidth, 16);
+        var maxWidth = double.IsFinite(column.MaxWidth) && column.MaxWidth > 0 ? column.MaxWidth : double.PositiveInfinity;
+
+        return Math.Clamp(max, minWidth, maxWidth);
+    }
+
+    private (int First, int Last)? GetPinnedGroupBounds(FastTreeDataGridPinnedPosition position)
+    {
+        var first = -1;
+        var last = -1;
+
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            if (_columns[i].PinnedPosition != position)
+            {
+                continue;
+            }
+
+            if (first < 0)
+            {
+                first = i;
+            }
+
+            last = i;
+        }
+
+        if (first < 0)
+        {
+            return position == FastTreeDataGridPinnedPosition.None && _columns.Count > 0
+                ? (0, _columns.Count - 1)
+                : null;
+        }
+
+        return (first, last);
+    }
+
+    private static int CoerceInsertionIndex(int insertIndex, (int First, int Last) bounds)
+    {
+        if (insertIndex < bounds.First)
+        {
+            return bounds.First;
+        }
+
+        if (insertIndex > bounds.Last + 1)
+        {
+            return bounds.Last + 1;
+        }
+
+        return insertIndex;
+    }
+
+    private void NormalizeColumnOrderForPinning()
+    {
+        if (_columns.Count <= 1)
+        {
+            return;
+        }
+
+        var desired = new List<FastTreeDataGridColumn>(_columns.Count);
+        foreach (var column in _columns)
+        {
+            if (column.PinnedPosition == FastTreeDataGridPinnedPosition.Left)
+            {
+                desired.Add(column);
+            }
+        }
+
+        foreach (var column in _columns)
+        {
+            if (column.PinnedPosition == FastTreeDataGridPinnedPosition.None)
+            {
+                desired.Add(column);
+            }
+        }
+
+        foreach (var column in _columns)
+        {
+            if (column.PinnedPosition == FastTreeDataGridPinnedPosition.Right)
+            {
+                desired.Add(column);
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var column = desired[i];
+            var currentIndex = _columns.IndexOf(column);
+            if (currentIndex != i && currentIndex >= 0)
+            {
+                _columns.Move(currentIndex, i);
+            }
+        }
     }
 
     private void RequestViewportUpdate()
@@ -1121,13 +1564,88 @@ public class FastTreeDataGrid : TemplatedControl
         }
 
         var viewportHeight = viewport.Height > 0 ? viewport.Height : Bounds.Height;
-        var viewportWidth = viewport.Width > 0 ? viewport.Width : Bounds.Width;
+        var viewportWidth = GetViewportWidth();
         var totalHeight = layout.GetTotalHeight(viewportHeight, defaultRowHeight, totalRows);
-        var totalWidth = Math.Max(_columnWidths.Sum(), viewportWidth);
+
+        var leftIndices = new List<int>();
+        var rightIndices = new List<int>();
+        var bodyIndices = new List<int>();
+
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            var column = _columns[i];
+            switch (column.PinnedPosition)
+            {
+                case FastTreeDataGridPinnedPosition.Left:
+                    leftIndices.Add(i);
+                    break;
+                case FastTreeDataGridPinnedPosition.Right:
+                    rightIndices.Add(i);
+                    break;
+                default:
+                    bodyIndices.Add(i);
+                    break;
+            }
+        }
+
+        double SumWidths(List<int> indices)
+        {
+            var total = 0d;
+            foreach (var index in indices)
+            {
+                if (index < _columnWidths.Count && double.IsFinite(_columnWidths[index]))
+                {
+                    total += Math.Max(0, _columnWidths[index]);
+                }
+            }
+
+            return total;
+        }
+
+        var leftWidth = SumWidths(leftIndices);
+        var rightWidth = SumWidths(rightIndices);
+        var bodyWidth = SumWidths(bodyIndices);
+        var totalContentWidth = leftWidth + bodyWidth + rightWidth;
+        var totalWidth = Math.Max(totalContentWidth, viewportWidth);
+
+        var columnPositions = new double[_columns.Count];
+        var leftOffset = 0d;
+        foreach (var index in leftIndices)
+        {
+            columnPositions[index] = leftOffset + offset.X;
+            leftOffset += _columnWidths[index];
+        }
+
+        var bodyOffset = leftWidth;
+        foreach (var index in bodyIndices)
+        {
+            columnPositions[index] = bodyOffset;
+            bodyOffset += _columnWidths[index];
+        }
+
+        var viewportForRight = viewportWidth > 0 ? viewportWidth : totalContentWidth;
+        var baseRight = Math.Max(leftWidth, viewportForRight - rightWidth);
+        if (baseRight < leftWidth)
+        {
+            baseRight = leftWidth;
+        }
+
+        var rightOffset = 0d;
+        foreach (var index in rightIndices)
+        {
+            columnPositions[index] = baseRight + rightOffset + offset.X;
+            rightOffset += _columnWidths[index];
+        }
+
+        _columnOffsets.Clear();
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            _columnOffsets.Add(columnPositions[i] + _columnWidths[i]);
+        }
 
         if (_headerPresenter is not null)
         {
-            _headerPresenter.BindColumns(_columns, _columnWidths);
+            _headerPresenter.BindColumns(_columns, _columnWidths, offset.X, viewportWidth);
         }
 
         UpdateHeaderScroll(offset.X);
@@ -1157,9 +1675,9 @@ public class FastTreeDataGrid : TemplatedControl
         const double togglePadding = 4;
         const double cellPadding = 6;
         var hierarchyColumnIndex = GetHierarchyColumnIndex();
-        var toggleColumnStart = hierarchyColumnIndex <= 0 || hierarchyColumnIndex - 1 >= _columnOffsets.Count
-            ? 0
-            : _columnOffsets[hierarchyColumnIndex - 1];
+        var toggleColumnStart = hierarchyColumnIndex >= 0 && hierarchyColumnIndex < columnPositions.Length
+            ? columnPositions[hierarchyColumnIndex]
+            : 0;
         var autoWidthUpdated = false;
         var rowTop = range.FirstRowTop;
 
@@ -1186,11 +1704,11 @@ public class FastTreeDataGrid : TemplatedControl
                 isGroup,
                 isPlaceholder);
 
-            var x = 0d;
             for (var columnIndex = 0; columnIndex < _columns.Count; columnIndex++)
             {
                 var column = _columns[columnIndex];
                 var width = _columnWidths[columnIndex];
+                var x = columnPositions[columnIndex];
                 var bounds = new Rect(x, rowTop, width, rowHeight);
                 double indentOffset = 0d;
                 if (columnIndex == hierarchyColumnIndex)
@@ -1275,8 +1793,6 @@ public class FastTreeDataGrid : TemplatedControl
                         autoWidthUpdated = true;
                     }
                 }
-
-                x += width;
             }
 
             if (isPlaceholder)
