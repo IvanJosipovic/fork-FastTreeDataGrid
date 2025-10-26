@@ -31,7 +31,6 @@ public partial class CountriesTab : UserControl
             Header = "Country",
             SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyName,
-            MinWidth = 320,
             IsHierarchy = true,
             CanUserSort = true,
         });
@@ -39,9 +38,7 @@ public partial class CountriesTab : UserControl
         grid.Columns.Add(new FastTreeDataGridColumn
         {
             Header = "Region",
-            SizingMode = ColumnSizingMode.Pixel,
-            PixelWidth = 200,
-            MinWidth = 160,
+            SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyRegion,
             CanUserSort = true,
         });
@@ -59,9 +56,7 @@ public partial class CountriesTab : UserControl
         grid.Columns.Add(new FastTreeDataGridColumn
         {
             Header = "Area",
-            SizingMode = ColumnSizingMode.Pixel,
-            PixelWidth = 140,
-            MinWidth = 120,
+            SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyArea,
             CanUserSort = true,
         });
@@ -69,9 +64,7 @@ public partial class CountriesTab : UserControl
         grid.Columns.Add(new FastTreeDataGridColumn
         {
             Header = "GDP",
-            SizingMode = ColumnSizingMode.Pixel,
-            PixelWidth = 140,
-            MinWidth = 120,
+            SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyGdp,
             CanUserSort = true,
         });
