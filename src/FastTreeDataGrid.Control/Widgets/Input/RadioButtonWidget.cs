@@ -7,13 +7,12 @@ using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class RadioButtonWidget : TemplatedWidget
+public sealed class RadioButtonWidget : InteractiveTemplatedWidget
 {
     private const double InnerInset = 4;
     private static readonly EllipseGeometry CircleGeometry = new(new Rect(0, 0, 1, 1));
 
     private bool _isChecked;
-    private bool _isPointerPressed;
     private BorderWidget? _containerPart;
     private GeometryWidget? _outerCirclePart;
     private GeometryWidget? _innerCirclePart;
@@ -27,7 +26,7 @@ public sealed class RadioButtonWidget : TemplatedWidget
                 new WidgetStyleRule(
                     typeof(RadioButtonWidget),
                     state,
-                    widget =>
+                    (widget, _) =>
                     {
                         if (widget is RadioButtonWidget radio)
                         {
@@ -39,7 +38,6 @@ public sealed class RadioButtonWidget : TemplatedWidget
 
     public RadioButtonWidget()
     {
-        IsInteractive = true;
     }
 
     public event EventHandler<WidgetEventArgs>? Click;
@@ -107,6 +105,10 @@ public sealed class RadioButtonWidget : TemplatedWidget
                 case RadioButtonWidgetValue radioValue:
                     isChecked = radioValue.IsChecked;
                     enabled = radioValue.IsEnabled;
+                    if (radioValue.Interaction is { } interaction)
+                    {
+                        enabled = interaction.IsEnabled;
+                    }
                     break;
                 case bool boolean:
                     isChecked = boolean;
@@ -114,7 +116,6 @@ public sealed class RadioButtonWidget : TemplatedWidget
             }
         }
 
-        _isPointerPressed = false;
         SetChecked(isChecked, raise: false);
         IsEnabled = enabled;
     }
@@ -163,36 +164,6 @@ public sealed class RadioButtonWidget : TemplatedWidget
         }
     }
 
-    public override bool HandlePointerEvent(in WidgetPointerEvent e)
-    {
-        var handled = base.HandlePointerEvent(e);
-
-        if (!IsInteractive || !IsEnabled)
-        {
-            return handled;
-        }
-
-        switch (e.Kind)
-        {
-            case WidgetPointerEventKind.Pressed:
-                _isPointerPressed = true;
-                break;
-            case WidgetPointerEventKind.Released:
-                if (_isPointerPressed && IsWithinBounds(e.Position))
-                {
-                    OnClick();
-                }
-                _isPointerPressed = false;
-                break;
-            case WidgetPointerEventKind.Cancelled:
-            case WidgetPointerEventKind.CaptureLost:
-                _isPointerPressed = false;
-                break;
-        }
-
-        return true;
-    }
-
     public void SetChecked(bool value) => SetChecked(value, raise: true);
 
     private void SetChecked(bool value, bool raise)
@@ -217,7 +188,7 @@ public sealed class RadioButtonWidget : TemplatedWidget
         }
     }
 
-    private void OnClick()
+    protected override void OnClick()
     {
         if (!IsEnabled)
         {
@@ -293,12 +264,6 @@ public sealed class RadioButtonWidget : TemplatedWidget
                 _innerCirclePart.SetGeometry(null);
             }
         }
-    }
-
-    private bool IsWithinBounds(Point point)
-    {
-        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        return rect.Contains(point);
     }
 
     private static Rect Deflate(Rect rect, Thickness padding)

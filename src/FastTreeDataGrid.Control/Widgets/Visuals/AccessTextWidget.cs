@@ -74,7 +74,7 @@ public sealed class AccessTextWidget : FormattedTextWidget
         SetAccessText(resolved);
     }
 
-    private static string ParseAccessText(string text, out char? accessKey, out int accessKeyIndex)
+    internal static string ParseAccessText(string text, out char? accessKey, out int accessKeyIndex)
     {
         accessKey = null;
         accessKeyIndex = -1;

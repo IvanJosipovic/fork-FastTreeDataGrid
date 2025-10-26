@@ -8,7 +8,7 @@ namespace FastTreeDataGrid.Control.Widgets;
 /// <summary>
 /// Simple border widget that draws background and border while hosting a single child.
 /// </summary>
-public sealed class BorderWidget : SurfaceWidget
+public class BorderWidget : SurfaceWidget
 {
     private Widget? _child;
 

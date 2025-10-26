@@ -11,7 +11,7 @@ public sealed class DockLayoutWidget : SurfaceWidget
 
     public Thickness Padding { get; set; } = new Thickness(0);
 
-    public double Spacing { get; set; } = 4;
+    public double Spacing { get; set; }
 
     public double DefaultDockLength { get; set; } = 80;
 

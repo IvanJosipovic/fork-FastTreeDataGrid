@@ -1,9 +1,12 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Widgets;
+using AvaloniaControl = Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Widgets;
 
@@ -13,9 +16,9 @@ public sealed class WidgetBoard
 
     public string Description { get; }
 
-    public Avalonia.Controls.Control Board { get; }
+    public AvaloniaControl Board { get; }
 
-    private WidgetBoard(string title, string description, Avalonia.Controls.Control board)
+    private WidgetBoard(string title, string description, AvaloniaControl board)
     {
         Title = title;
         Description = description;
@@ -37,10 +40,75 @@ public sealed class WidgetBoard
     }
 }
 
+public sealed class WidgetBoardPresenter : ContentControl
+{
+    public static readonly StyledProperty<WidgetBoard?> BoardProperty =
+        AvaloniaProperty.Register<WidgetBoardPresenter, WidgetBoard?>(nameof(Board));
+
+    public WidgetBoard? Board
+    {
+        get => GetValue(BoardProperty);
+        set => SetValue(BoardProperty, value);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == BoardProperty)
+        {
+            UpdateSurface();
+        }
+    }
+
+    private void UpdateSurface()
+    {
+        var board = Board;
+        if (board is null)
+        {
+            Content = null;
+            return;
+        }
+
+        var control = board.Board;
+        if (ReferenceEquals(Content, control))
+        {
+            return;
+        }
+
+        if (control.Parent is { } parent)
+        {
+            DetachFromParent(control, parent);
+        }
+
+        Content = control;
+    }
+
+    private static void DetachFromParent(AvaloniaControl control, StyledElement parent)
+    {
+        switch (parent)
+        {
+            case ContentPresenter presenter when ReferenceEquals(presenter.Content, control):
+                presenter.Content = null;
+                break;
+            case ContentControl contentControl when ReferenceEquals(contentControl.Content, control):
+                contentControl.Content = null;
+                break;
+            case Decorator decorator when ReferenceEquals(decorator.Child, control):
+                decorator.Child = null;
+                break;
+            case Panel panel:
+                panel.Children.Remove(control);
+                break;
+        }
+    }
+}
+
 internal sealed class WidgetSurface : Avalonia.Controls.Control
 {
     private readonly Widget _root;
     private bool _pointerCaptured;
+    private IDisposable? _animationRegistration;
 
     public WidgetSurface(Widget root)
     {
@@ -51,9 +119,24 @@ internal sealed class WidgetSurface : Avalonia.Controls.Control
 
     public IBrush? Background { get; set; }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _animationRegistration = WidgetAnimationFrameScheduler.RegisterHost(this);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _animationRegistration?.Dispose();
+        _animationRegistration = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+
+        using var scope = WidgetAnimationFrameScheduler.PushCurrentHost(this);
 
         if (Background is not null)
         {

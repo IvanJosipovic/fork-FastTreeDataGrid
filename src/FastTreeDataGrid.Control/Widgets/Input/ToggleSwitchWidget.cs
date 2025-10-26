@@ -7,10 +7,9 @@ using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class ToggleSwitchWidget : TemplatedWidget
+public sealed class ToggleSwitchWidget : InteractiveTemplatedWidget
 {
     private bool _isOn;
-    private bool _isPointerPressed;
     private ImmutableSolidColorBrush? _onBrush;
     private ImmutableSolidColorBrush? _offBrush;
     private ImmutableSolidColorBrush? _thumbBrush;
@@ -27,7 +26,7 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
                 new WidgetStyleRule(
                     typeof(ToggleSwitchWidget),
                     state,
-                    widget =>
+                    (widget, _) =>
                     {
                         if (widget is ToggleSwitchWidget toggle)
                         {
@@ -39,7 +38,6 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
 
     public ToggleSwitchWidget()
     {
-        IsInteractive = true;
     }
 
     public event EventHandler<WidgetEventArgs>? Click;
@@ -100,6 +98,10 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
                     _onBrush = toggleValue.OnBrush;
                     _offBrush = toggleValue.OffBrush;
                     _thumbBrush = toggleValue.ThumbBrush;
+                    if (toggleValue.Interaction is { } interaction)
+                    {
+                        enabled = interaction.IsEnabled;
+                    }
                     break;
                 case bool boolean:
                     on = boolean;
@@ -107,7 +109,6 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
             }
         }
 
-        _isPointerPressed = false;
         SetState(on, raise: false);
         IsEnabled = enabled;
     }
@@ -137,36 +138,6 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
         thumb.Arrange(layout.thumbRect);
     }
 
-    public override bool HandlePointerEvent(in WidgetPointerEvent e)
-    {
-        var handled = base.HandlePointerEvent(e);
-
-        if (!IsInteractive || !IsEnabled)
-        {
-            return handled;
-        }
-
-        switch (e.Kind)
-        {
-            case WidgetPointerEventKind.Pressed:
-                _isPointerPressed = true;
-                break;
-            case WidgetPointerEventKind.Released:
-                if (_isPointerPressed && IsWithinBounds(e.Position))
-                {
-                    OnClick();
-                }
-                _isPointerPressed = false;
-                break;
-            case WidgetPointerEventKind.Cancelled:
-            case WidgetPointerEventKind.CaptureLost:
-                _isPointerPressed = false;
-                break;
-        }
-
-        return true;
-    }
-
     public void SetState(bool value) => SetState(value, raise: true);
 
     private void ToggleState()
@@ -191,7 +162,7 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
         }
     }
 
-    private void OnClick()
+    protected override void OnClick()
     {
         if (!IsEnabled)
         {
@@ -276,12 +247,6 @@ public sealed class ToggleSwitchWidget : TemplatedWidget
             _thumbPart.BorderBrush = null;
             _thumbPart.BorderThickness = 0;
         }
-    }
-
-    private bool IsWithinBounds(Point point)
-    {
-        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        return rect.Contains(point);
     }
 
 }

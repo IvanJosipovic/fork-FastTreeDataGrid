@@ -61,6 +61,8 @@ public abstract class Widget
 
     public string? Key { get; set; }
 
+    public WidgetAutomationProperties Automation { get; } = new();
+
     public double DesiredWidth { get; set; } = double.NaN;
 
     public double DesiredHeight { get; set; } = double.NaN;

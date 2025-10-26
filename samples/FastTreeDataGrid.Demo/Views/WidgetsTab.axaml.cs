@@ -141,6 +141,120 @@ public partial class WidgetsTab : UserControl
 
         grid.Columns.Add(new FastTreeDataGridColumn
         {
+            Header = "Numeric",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 110,
+            MinWidth = 100,
+            ValueKey = WidgetGalleryNode.KeyNumeric,
+            WidgetFactory = (_, _) => new NumericUpDownWidget
+            {
+                Key = WidgetGalleryNode.KeyNumeric,
+                DesiredWidth = 100,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "Calendar",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 220,
+            MinWidth = 200,
+            ValueKey = WidgetGalleryNode.KeyCalendar,
+            WidgetFactory = (_, _) => new CalendarWidget
+            {
+                Key = WidgetGalleryNode.KeyCalendar,
+                DesiredWidth = 220,
+                DesiredHeight = 220,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "DatePicker",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 200,
+            MinWidth = 180,
+            ValueKey = WidgetGalleryNode.KeyDatePicker,
+            WidgetFactory = (_, _) => new DatePickerWidget
+            {
+                Key = WidgetGalleryNode.KeyDatePicker,
+                DesiredWidth = 180,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "ScrollBar",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 90,
+            MinWidth = 80,
+            ValueKey = WidgetGalleryNode.KeyScrollBar,
+            WidgetFactory = (_, _) => new ScrollBarWidget
+            {
+                Key = WidgetGalleryNode.KeyScrollBar,
+                DesiredWidth = 22,
+                DesiredHeight = 140,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "CalendarDatePicker",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 200,
+            MinWidth = 180,
+            ValueKey = WidgetGalleryNode.KeyCalendarDatePicker,
+            WidgetFactory = (_, _) => new CalendarDatePickerWidget
+            {
+                Key = WidgetGalleryNode.KeyCalendarDatePicker,
+                DesiredWidth = 180,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "TimePicker",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 180,
+            MinWidth = 160,
+            ValueKey = WidgetGalleryNode.KeyTimePicker,
+            WidgetFactory = (_, _) => new TimePickerWidget
+            {
+                Key = WidgetGalleryNode.KeyTimePicker,
+                DesiredWidth = 160,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "AutoComplete",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 200,
+            MinWidth = 180,
+            ValueKey = WidgetGalleryNode.KeyAutoComplete,
+            WidgetFactory = (_, _) => new AutoCompleteBoxWidget
+            {
+                Key = WidgetGalleryNode.KeyAutoComplete,
+                DesiredWidth = 200,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
+            Header = "ComboBox",
+            SizingMode = ColumnSizingMode.Pixel,
+            PixelWidth = 200,
+            MinWidth = 180,
+            ValueKey = WidgetGalleryNode.KeyComboBox,
+            WidgetFactory = (_, _) => new ComboBoxWidget
+            {
+                Key = WidgetGalleryNode.KeyComboBox,
+                DesiredWidth = 200,
+            },
+        });
+
+        grid.Columns.Add(new FastTreeDataGridColumn
+        {
             Header = "Badge",
             SizingMode = ColumnSizingMode.Pixel,
             PixelWidth = 120,

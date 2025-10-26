@@ -38,10 +38,12 @@ public class GlyphRunWidget : TextWidget
         using var clip = PushClip(context);
 
         var emSize = GetEffectiveEmSize();
+        var typeface = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
 
         if (_glyphRun is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - emSize) > double.Epsilon)
         {
-            _glyphRun = CreateGlyphRun(Text, Typeface.Default, emSize);
+            _glyphRun = CreateGlyphRun(Text, typeface, emSize) ??
+                        CreateGlyphRun(Text, Typeface.Default, emSize);
             if (_glyphRun is null)
             {
                 return;

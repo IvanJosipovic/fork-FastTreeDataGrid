@@ -1,16 +1,42 @@
 using System;
 using Avalonia;
 using Avalonia.Layout;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
 public sealed class WrapLayoutWidget : SurfaceWidget
 {
+    static WrapLayoutWidget()
+    {
+        WidgetStyleManager.Register(string.Empty, new WidgetStyleRule(
+            typeof(WrapLayoutWidget),
+            WidgetVisualState.Normal,
+            static (widget, theme) =>
+            {
+                if (widget is not WrapLayoutWidget wrap)
+                {
+                    return;
+                }
+
+                var layout = theme.Palette.Layout;
+                if (wrap.Padding == default)
+                {
+                    wrap.Padding = layout.ContentPadding;
+                }
+
+                if (wrap.Spacing <= 0)
+                {
+                    wrap.Spacing = layout.DefaultSpacing;
+                }
+            }));
+    }
+
     public Orientation Orientation { get; set; } = Orientation.Horizontal;
 
     public Thickness Padding { get; set; } = new Thickness(0);
 
-    public double Spacing { get; set; } = 4;
+    public double Spacing { get; set; } = 0;
 
     public double DefaultItemWidth { get; set; } = 32;
 

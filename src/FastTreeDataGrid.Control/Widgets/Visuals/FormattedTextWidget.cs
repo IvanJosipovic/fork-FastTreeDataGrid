@@ -14,31 +14,16 @@ public class FormattedTextWidget : TextWidget
 
     public override void Draw(DrawingContext context)
     {
-        if (Text is null)
+        var formatted = EnsureFormattedText();
+        if (formatted is null)
         {
             return;
         }
 
         using var clip = PushClip(context);
-
-        var emSize = GetEffectiveEmSize();
-
-        if (_formattedText is null || !string.Equals(_cachedText, Text, StringComparison.Ordinal) || Math.Abs(_cachedEmSize - emSize) > double.Epsilon)
-        {
-            _formattedText = CreateFormattedText(emSize);
-        }
-        else
-        {
-            UpdateFormattedMetrics(_formattedText);
-        }
-
-        _cachedText = Text;
-        _cachedEmSize = emSize;
-
         using var transform = PushRenderTransform(context);
-        var textHeight = _formattedText.Height;
-        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - textHeight) / 2);
-        context.DrawText(_formattedText, new Point(Bounds.X, originY));
+        var origin = GetTextOrigin(formatted);
+        DrawFormattedText(context, formatted, origin);
     }
 
     public override void Invalidate()
@@ -49,21 +34,52 @@ public class FormattedTextWidget : TextWidget
         _cachedMaxWidth = double.NaN;
     }
 
-    private FormattedText CreateFormattedText(double emSize)
+    protected FormattedText? EnsureFormattedText()
     {
+        if (Text is null)
+        {
+            _formattedText = null;
+            _cachedText = null;
+            return null;
+        }
+
+        var emSize = GetEffectiveEmSize();
+        var requiresRebuild = _formattedText is null
+            || !string.Equals(_cachedText, Text, StringComparison.Ordinal)
+            || Math.Abs(_cachedEmSize - emSize) > double.Epsilon;
+
+        if (requiresRebuild)
+        {
+            _formattedText = CreateFormattedText(emSize);
+            _cachedText = Text;
+            _cachedEmSize = emSize;
+        }
+        else
+        {
+            UpdateFormattedMetrics(_formattedText!);
+        }
+
+        return _formattedText;
+    }
+
+    protected FormattedText CreateFormattedText(double emSize)
+    {
+        var typeface = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
+
         var formatted = new FormattedText(
             Text ?? string.Empty,
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
-            Typeface.Default,
+            typeface,
             emSize,
             Foreground);
 
         UpdateFormattedMetrics(formatted);
+        _cachedMaxWidth = formatted.MaxTextWidth;
         return formatted;
     }
 
-    private void UpdateFormattedMetrics(FormattedText formatted)
+    protected void UpdateFormattedMetrics(FormattedText formatted)
     {
         var availableWidth = Bounds.Width;
         var maxWidth = double.IsFinite(availableWidth) && availableWidth > 0
@@ -83,5 +99,17 @@ public class FormattedTextWidget : TextWidget
         formatted.TextAlignment = TextAlignment;
 
         _cachedMaxWidth = maxWidth;
+    }
+
+    protected virtual Point GetTextOrigin(FormattedText formatted)
+    {
+        var textHeight = formatted.Height;
+        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - textHeight) / 2);
+        return new Point(Bounds.X, originY);
+    }
+
+    protected virtual void DrawFormattedText(DrawingContext context, FormattedText formatted, Point origin)
+    {
+        context.DrawText(formatted, origin);
     }
 }

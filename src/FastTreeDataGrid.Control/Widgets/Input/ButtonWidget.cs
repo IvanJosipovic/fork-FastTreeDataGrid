@@ -4,31 +4,28 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Theming;
-using System.Windows.Input;
 using ButtonPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.ButtonPalette;
 using ButtonVariantPalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalette.ButtonVariantPalette;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class ButtonWidget : TemplatedWidget
+public class ButtonWidget : ButtonWidgetBase
 {
     private const double MinimumFontSize = 12;
 
     private static readonly Thickness DefaultPadding = new(8, 5, 8, 6);
 
     private string _text = string.Empty;
-    private bool _isPrimary;
+    private ButtonWidgetVariant _variant = ButtonWidgetVariant.Standard;
+    private ButtonWidgetVariant _appliedVariant = ButtonWidgetVariant.Standard;
+    private ButtonWidgetVariant? _dataVariant;
     private bool _isPressedSource;
-    private bool _isPointerPressed;
     private ImmutableSolidColorBrush? _background;
     private ImmutableSolidColorBrush? _borderBrush;
     private double? _fontSize;
-    private ICommand? _command;
-    private object? _commandParameter;
-    private bool _isEnabledSource = true;
-
     private BorderWidget? _borderPart;
     private AccessTextWidget? _contentPart;
+    private WidgetTypography? _typography;
 
     static ButtonWidget()
     {
@@ -39,7 +36,7 @@ public sealed class ButtonWidget : TemplatedWidget
                 new WidgetStyleRule(
                     typeof(ButtonWidget),
                     state,
-                    widget =>
+                    (widget, _) =>
                     {
                         if (widget is ButtonWidget button)
                         {
@@ -49,57 +46,27 @@ public sealed class ButtonWidget : TemplatedWidget
         }
     }
 
-    public ButtonWidget()
-    {
-        IsInteractive = true;
-    }
-
-    public event EventHandler<WidgetEventArgs>? Click;
-
     public ImmutableSolidColorBrush? Background { get; set; }
 
     public ImmutableSolidColorBrush? BorderBrush { get; set; }
 
     public double? FontSize { get; set; }
 
-    public ICommand? Command
+    public ButtonWidgetVariant Variant
     {
-        get => _command;
+        get => _variant;
         set
         {
-            if (ReferenceEquals(_command, value))
+            if (_variant == value)
             {
                 return;
             }
 
-            if (_command is not null)
+            _variant = value;
+            if (_dataVariant is null)
             {
-                _command.CanExecuteChanged -= OnCommandCanExecuteChanged;
+                SetAppliedVariant(_variant);
             }
-
-            _command = value;
-
-            if (_command is not null)
-            {
-                _command.CanExecuteChanged += OnCommandCanExecuteChanged;
-            }
-
-            UpdateIsEnabledFromCommand();
-        }
-    }
-
-    public object? CommandParameter
-    {
-        get => _commandParameter;
-        set
-        {
-            if (Equals(_commandParameter, value))
-            {
-                return;
-            }
-
-            _commandParameter = value;
-            UpdateIsEnabledFromCommand();
         }
     }
 
@@ -138,54 +105,88 @@ public sealed class ButtonWidget : TemplatedWidget
 
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
-        base.UpdateValue(provider, item);
-
-        var palette = WidgetFluentPalette.Current.Button;
-
-        _text = string.Empty;
-        _isPrimary = false;
-        _isPressedSource = false;
-        _isPointerPressed = false;
-        var enabled = true;
-        _background = Background;
-        _borderBrush = BorderBrush;
-        _fontSize = FontSize;
-        var command = Command;
-        var commandParameter = CommandParameter;
-        CornerRadius = default;
-
         if (provider is not null && Key is not null)
         {
             var value = provider.GetValue(item, Key);
             switch (value)
             {
                 case ButtonWidgetValue buttonValue:
-                    _text = buttonValue.Text;
-                    _isPrimary = buttonValue.IsPrimary;
-                    _isPressedSource = buttonValue.IsPressed;
-                    enabled = buttonValue.IsEnabled;
-                    _background = buttonValue.Background ?? Background;
-                    _borderBrush = buttonValue.BorderBrush ?? BorderBrush;
-                    _fontSize = buttonValue.FontSize ?? FontSize;
-                    command = buttonValue.Command ?? command;
-                    commandParameter = buttonValue.CommandParameter ?? commandParameter;
-                    if (buttonValue.CornerRadius.HasValue)
-                    {
-                        CornerRadius = new CornerRadius(buttonValue.CornerRadius.Value);
-                    }
-                    break;
-
-                case string text:
-                    _text = text;
-                    break;
+                    ApplyButtonValue(buttonValue);
+                    return;
+                case string textValue:
+                    ApplyTextValue(textValue);
+                    return;
             }
         }
 
+        switch (item)
+        {
+            case ButtonWidgetValue directValue:
+                ApplyButtonValue(directValue);
+                return;
+            case string textItem:
+                ApplyTextValue(textItem);
+                return;
+        }
+
+        base.UpdateValue(provider, item);
+    }
+
+    internal void ApplyButtonValue(ButtonWidgetValue value)
+    {
+        var palette = WidgetFluentPalette.Current.Button;
+
+        _text = value.Text ?? string.Empty;
+        _dataVariant = value.Variant ?? (value.IsPrimary ? ButtonWidgetVariant.Accent : null);
+        _isPressedSource = value.IsPressed;
+        _appliedVariant = _dataVariant ?? _variant;
+        SetAutomationSettings(value.Automation);
+        _background = Background;
+        _borderBrush = BorderBrush;
+        _fontSize = FontSize;
+        CornerRadius = default;
+        _typography = value.Typography;
+
+        var enabled = value.IsEnabled;
+        var command = value.Command ?? Command;
+        var commandParameter = value.CommandParameter ?? CommandParameter;
+
+        if (value.Background is not null)
+        {
+            _background = value.Background;
+        }
+
+        if (value.BorderBrush is not null)
+        {
+            _borderBrush = value.BorderBrush;
+        }
+
+        if (value.FontSize.HasValue)
+        {
+            _fontSize = value.FontSize.Value;
+        }
+
+        if (value.CornerRadius.HasValue)
+        {
+            CornerRadius = new CornerRadius(value.CornerRadius.Value);
+        }
+
+        if (value.CommandSettings is { } commandSettings)
+        {
+            enabled = commandSettings.IsEnabled;
+            command = commandSettings.Command ?? command;
+            commandParameter = commandSettings.CommandParameter ?? commandParameter;
+        }
+
+        if (_typography is not null && _typography.FontSize.HasValue)
+        {
+            _fontSize = _typography.FontSize.Value;
+        }
+
         var cornerRadius = CornerRadius == default ? palette.CornerRadius : CornerRadius;
-        _isEnabledSource = enabled;
         Command = command;
         CommandParameter = commandParameter;
-        UpdateIsEnabledFromCommand();
+        SetIsEnabledFromData(enabled);
         ApplyTemplateValues(palette, cornerRadius);
         SetText(_text);
 
@@ -193,6 +194,15 @@ public sealed class ButtonWidget : TemplatedWidget
         {
             UpdateDynamicFontSize();
         }
+    }
+
+    private void ApplyTextValue(string text)
+    {
+        _text = text ?? string.Empty;
+        SetAutomationSettings(null);
+        _dataVariant = null;
+        SetAppliedVariant(_variant);
+        SetText(_text);
     }
 
     public override void Arrange(Rect bounds)
@@ -211,37 +221,58 @@ public sealed class ButtonWidget : TemplatedWidget
         }
 
         _contentPart?.SetAccessText(_text);
+        UpdateAutomationFromText(_text ?? string.Empty, _contentPart);
     }
 
-    public override bool HandlePointerEvent(in WidgetPointerEvent e)
+    public void SetShowAccessKey(bool show)
     {
-        var handled = base.HandlePointerEvent(e);
-
-        switch (e.Kind)
+        if (_contentPart is null && !IsTemplateApplied)
         {
-            case WidgetPointerEventKind.Pressed:
-                _isPointerPressed = true;
-                break;
-            case WidgetPointerEventKind.Released:
-                if (_isPointerPressed && IsWithinBounds(e.Position))
-                {
-                    OnClick();
-                }
-                _isPointerPressed = false;
-                break;
-            case WidgetPointerEventKind.Cancelled:
-            case WidgetPointerEventKind.CaptureLost:
-                _isPointerPressed = false;
-                break;
+            ApplyTemplate();
         }
 
+        if (_contentPart is not null)
+        {
+            _contentPart.ShowAccessKey = show;
+        }
+    }
+
+    protected override void OnPointerPressed(in WidgetPointerEvent e)
+    {
+        base.OnPointerPressed(e);
         RefreshTemplateAppearance();
-        return handled || IsInteractive;
+    }
+
+    protected override void OnPointerReleased(bool executedClick, in WidgetPointerEvent e)
+    {
+        base.OnPointerReleased(executedClick, e);
+        RefreshTemplateAppearance();
+    }
+
+    protected override void OnPointerCancelled()
+    {
+        base.OnPointerCancelled();
+        RefreshTemplateAppearance();
+    }
+
+    private void SetAppliedVariant(ButtonWidgetVariant variant)
+    {
+        if (_appliedVariant == variant)
+        {
+            return;
+        }
+
+        _appliedVariant = variant;
+
+        if (IsTemplateApplied)
+        {
+            RefreshTemplateAppearance();
+        }
     }
 
     private void ApplyTemplateValues(ButtonPalette palette, CornerRadius cornerRadius)
     {
-        var variant = _isPrimary ? palette.Accent : palette.Standard;
+        var variant = palette.GetVariant(_appliedVariant);
         var border = _borderPart;
         if (border is not null)
         {
@@ -266,6 +297,7 @@ public sealed class ButtonWidget : TemplatedWidget
                     content.Invalidate();
                 }
             }
+            ApplyTypography(content);
         }
     }
 
@@ -280,6 +312,7 @@ public sealed class ButtonWidget : TemplatedWidget
         var cornerRadius = CornerRadius == default ? palette.CornerRadius : CornerRadius;
         ApplyTemplateValues(palette, cornerRadius);
         _contentPart?.SetAccessText(_text);
+        UpdateAutomationFromText(_text ?? string.Empty, _contentPart);
 
         if (!_fontSize.HasValue)
         {
@@ -316,26 +349,31 @@ public sealed class ButtonWidget : TemplatedWidget
             return Foreground;
         }
 
-        var brush = variant.Foreground.Get(VisualState)
-                    ?? variant.Foreground.Normal
-                    ?? variant.Foreground.Disabled;
-
+        var brush = variant.Foreground.Get(VisualState);
         if (brush is not null)
         {
             return brush;
         }
 
-        return _isPrimary
-            ? new ImmutableSolidColorBrush(Colors.White)
-            : new ImmutableSolidColorBrush(Color.FromRgb(40, 40, 40));
+        var fallback = ButtonVariantPalette.CreateFallback(_appliedVariant);
+        return fallback.Foreground.Get(VisualState) ?? fallback.Foreground.Normal!;
     }
 
     private ImmutableSolidColorBrush ResolveBackground(ButtonVariantPalette variant)
     {
+        ButtonVariantPalette? fallbackPalette = null;
+
         if (!IsEnabled)
         {
-            var disabled = variant.Background.Get(WidgetVisualState.Disabled) ?? variant.Background.Normal;
-            return disabled ?? new ImmutableSolidColorBrush(Color.FromRgb(230, 230, 230));
+            var disabled = variant.Background.Get(WidgetVisualState.Disabled);
+            if (disabled is not null)
+            {
+                return disabled;
+            }
+
+            fallbackPalette ??= ButtonVariantPalette.CreateFallback(_appliedVariant);
+            var fallbackBackground = fallbackPalette.Background;
+            return fallbackBackground.Get(WidgetVisualState.Disabled) ?? fallbackBackground.Normal!;
         }
 
         if (_background is not null)
@@ -343,22 +381,32 @@ public sealed class ButtonWidget : TemplatedWidget
             return AdjustForPressed(_background);
         }
 
-        var brush = variant.Background.Get(VisualState) ?? variant.Background.Normal;
+        var brush = variant.Background.Get(VisualState);
         if (brush is not null)
         {
             return brush;
         }
 
-        var baseColor = _isPrimary ? Color.FromRgb(49, 130, 206) : Color.FromRgb(242, 242, 242);
-        return new ImmutableSolidColorBrush(baseColor);
+        fallbackPalette ??= ButtonVariantPalette.CreateFallback(_appliedVariant);
+        var fallbackActive = fallbackPalette.Background;
+        return fallbackActive.Get(VisualState) ?? fallbackActive.Normal!;
     }
 
     private ImmutableSolidColorBrush ResolveBorder(ButtonVariantPalette variant)
     {
+        ButtonVariantPalette? fallbackPalette = null;
+
         if (!IsEnabled)
         {
-            return variant.Border.Get(WidgetVisualState.Disabled) ?? variant.Border.Normal
-                   ?? new ImmutableSolidColorBrush(Color.FromRgb(210, 210, 210));
+            var disabled = variant.Border.Get(WidgetVisualState.Disabled);
+            if (disabled is not null)
+            {
+                return disabled;
+            }
+
+            fallbackPalette ??= ButtonVariantPalette.CreateFallback(_appliedVariant);
+            var fallbackBorder = fallbackPalette.Border;
+            return fallbackBorder.Get(WidgetVisualState.Disabled) ?? fallbackBorder.Normal!;
         }
 
         if (_borderBrush is not null)
@@ -366,15 +414,15 @@ public sealed class ButtonWidget : TemplatedWidget
             return AdjustForPressed(_borderBrush);
         }
 
-        var brush = variant.Border.Get(VisualState) ?? variant.Border.Normal;
+        var brush = variant.Border.Get(VisualState);
         if (brush is not null)
         {
             return brush;
         }
 
-        return _isPrimary
-            ? new ImmutableSolidColorBrush(Color.FromRgb(36, 98, 156))
-            : new ImmutableSolidColorBrush(Color.FromRgb(205, 205, 205));
+        fallbackPalette ??= ButtonVariantPalette.CreateFallback(_appliedVariant);
+        var fallbackActive = fallbackPalette.Border;
+        return fallbackActive.Get(VisualState) ?? fallbackActive.Normal!;
     }
 
     private ImmutableSolidColorBrush AdjustForPressed(ImmutableSolidColorBrush brush)
@@ -396,35 +444,32 @@ public sealed class ButtonWidget : TemplatedWidget
 
     private bool IsPressedVisual => VisualState == WidgetVisualState.Pressed || _isPressedSource;
 
-    private bool IsWithinBounds(Point position)
+    private void ApplyTypography(AccessTextWidget content)
     {
-        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        return rect.Contains(position);
-    }
-
-    private void OnClick()
-    {
-        if (!IsEnabled)
+        if (_typography is null)
         {
             return;
         }
 
-        Click?.Invoke(this, new WidgetEventArgs(this));
-
-        if (_command?.CanExecute(_commandParameter) == true)
+        if (_typography.FontFamily is { } family && content.FontFamily != family)
         {
-            _command.Execute(_commandParameter);
+            content.FontFamily = family;
+        }
+
+        if (_typography.FontWeight.HasValue && content.FontWeight != _typography.FontWeight.Value)
+        {
+            content.FontWeight = _typography.FontWeight.Value;
+        }
+
+        if (_typography.FontStyle.HasValue && content.FontStyle != _typography.FontStyle.Value)
+        {
+            content.FontStyle = _typography.FontStyle.Value;
+        }
+
+        if (_typography.FontStretch.HasValue && content.FontStretch != _typography.FontStretch.Value)
+        {
+            content.FontStretch = _typography.FontStretch.Value;
         }
     }
 
-    private void OnCommandCanExecuteChanged(object? sender, EventArgs e)
-    {
-        UpdateIsEnabledFromCommand();
-    }
-
-    private void UpdateIsEnabledFromCommand()
-    {
-        var canExecute = _command?.CanExecute(_commandParameter) ?? true;
-        base.IsEnabled = _isEnabledSource && canExecute;
-    }
 }

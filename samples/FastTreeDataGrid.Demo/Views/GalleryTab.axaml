@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.Demo.Views.GalleryTab"
              x:DataType="vm:MainWindowViewModel">
@@ -15,7 +16,7 @@
               <StackPanel Spacing="12">
                 <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding Description}" Foreground="#666" />
-                <ContentPresenter Content="{Binding Board}" />
+                <widgets:WidgetBoardPresenter Board="{Binding}" />
               </StackPanel>
             </Border>
           </DataTemplate>

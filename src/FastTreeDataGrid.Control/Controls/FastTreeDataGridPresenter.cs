@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
@@ -11,7 +12,7 @@ using FastTreeDataGrid.Control.Widgets;
 
 namespace FastTreeDataGrid.Control.Controls;
 
-internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
+internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWidgetOverlayHost
 {
     private readonly List<RowRenderInfo> _rows = new();
     private FastTreeDataGrid? _owner;
@@ -21,6 +22,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     private Widget? _pointerCapturedWidget;
     private Widget? _pointerOverWidget;
     private Widget? _focusedWidget;
+    private readonly Dictionary<Widget, OverlayEntry> _overlayMap = new();
+    private readonly List<OverlayEntry> _overlayOrder = new();
 
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
     private readonly SolidColorBrush _placeholderBrush = new(Color.FromArgb(40, 200, 200, 200));
@@ -28,6 +31,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     private readonly Pen _gridPen = new(new SolidColorBrush(Color.FromRgb(210, 210, 210)), 1);
     private static readonly StreamGeometry s_collapsedGlyph = StreamGeometry.Parse("M 1,0 10,10 l -9,10 -1,-1 L 8,10 -0,1 Z");
     private static readonly StreamGeometry s_expandedGlyph = StreamGeometry.Parse("M0,1 L10,10 20,1 19,0 10,8 1,0 Z");
+    private IDisposable? _animationRegistration;
+    private IDisposable? _overlayRegistration;
 
     public FastTreeDataGridPresenter()
     {
@@ -35,6 +40,22 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         IsHitTestVisible = true;
         Focusable = true;
         AddHandler(InputElement.PointerExitedEvent, PresenterOnPointerLeave, RoutingStrategies.Tunnel | RoutingStrategies.Bubble | RoutingStrategies.Direct);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _animationRegistration = WidgetAnimationFrameScheduler.RegisterHost(this);
+        _overlayRegistration = WidgetOverlayManager.RegisterHost(this);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _animationRegistration?.Dispose();
+        _animationRegistration = null;
+        _overlayRegistration?.Dispose();
+        _overlayRegistration = null;
+        base.OnDetachedFromVisualTree(e);
     }
 
     public void SetOwner(FastTreeDataGrid? owner)
@@ -85,6 +106,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         _pointerCapturedWidget = null;
         _pointerOverWidget = null;
         _focusedWidget = null;
+        ClearOverlays();
     }
 
     public void UpdateSelection(int selectedIndex)
@@ -109,6 +131,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+
+        using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
+        using var animationScope = WidgetAnimationFrameScheduler.PushCurrentHost(this);
 
         foreach (var row in _rows)
         {
@@ -157,6 +182,11 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
             }
 
             context.DrawLine(_gridPen, new Point(offset, 0), new Point(offset, Height));
+        }
+
+        foreach (var overlay in _overlayOrder)
+        {
+            overlay.Widget.Draw(context);
         }
     }
 
@@ -276,6 +306,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
     {
         base.OnKeyDown(e);
 
+        using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
+
         if (_focusedWidget is not null)
         {
             var handled = _focusedWidget.HandleKeyboardEvent(new WidgetKeyboardEvent(WidgetKeyboardEventKind.KeyDown, e));
@@ -284,11 +316,18 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
                 e.Handled = true;
             }
         }
+
+        if (!e.Handled && e.Key == Key.Escape && TryDismissTopOverlay(escapeOnly: true))
+        {
+            e.Handled = true;
+        }
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
     {
         base.OnKeyUp(e);
+
+        using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
 
         if (_focusedWidget is not null)
         {
@@ -328,6 +367,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
     private Widget? HitTestWidget(Point point, out RowRenderInfo? rowInfo)
     {
+        if (HitTestOverlay(point) is { } overlayEntry)
+        {
+            rowInfo = null;
+            return overlayEntry.Widget;
+        }
+
         foreach (var row in _rows)
         {
             if (point.Y < row.Top || point.Y >= row.Top + row.Height)
@@ -358,6 +403,20 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         return null;
     }
 
+    private OverlayEntry? HitTestOverlay(Point point)
+    {
+        for (var i = _overlayOrder.Count - 1; i >= 0; i--)
+        {
+            var overlay = _overlayOrder[i];
+            if (overlay.Bounds.Contains(point))
+            {
+                return overlay;
+            }
+        }
+
+        return null;
+    }
+
     private bool RoutePointerEvent(Point point, PointerEventArgs args, WidgetPointerEventKind kind)
     {
         if (_pointerCapturedWidget is not null)
@@ -372,13 +431,20 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         }
 
         var widget = HitTestWidget(point, out var rowInfo);
-        if (rowInfo is { IsPlaceholder: true })
+        var isOverlay = widget is not null && _overlayMap.ContainsKey(widget);
+
+        if (!isOverlay && rowInfo is { IsPlaceholder: true })
         {
             return false;
         }
 
         if (widget is null)
         {
+            if (kind == WidgetPointerEventKind.Pressed)
+            {
+                DismissPointerDismissibleOverlays(point);
+            }
+
             return false;
         }
 
@@ -400,15 +466,62 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         if (kind == WidgetPointerEventKind.Pressed)
         {
             _pointerOverWidget = widget;
+
+            if (!isOverlay)
+            {
+                DismissPointerDismissibleOverlays(point);
+            }
         }
 
         return handled;
+    }
+
+    private void DismissPointerDismissibleOverlays(Point point)
+    {
+        if (_overlayOrder.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = _overlayOrder.Count - 1; i >= 0; i--)
+        {
+            var entry = _overlayOrder[i];
+            if (!entry.Options.CloseOnPointerDownOutside)
+            {
+                continue;
+            }
+
+            if (entry.Bounds.Contains(point))
+            {
+                continue;
+            }
+
+            RemoveOverlay(entry);
+        }
+    }
+
+    private bool TryDismissTopOverlay(bool escapeOnly)
+    {
+        for (var i = _overlayOrder.Count - 1; i >= 0; i--)
+        {
+            var entry = _overlayOrder[i];
+            if (escapeOnly && !entry.Options.CloseOnEscape)
+            {
+                continue;
+            }
+
+            RemoveOverlay(entry);
+            return true;
+        }
+
+        return false;
     }
 
     private bool RoutePointerToWidget(Widget widget, Point point, PointerEventArgs? args, WidgetPointerEventKind kind)
     {
         var local = new Point(point.X - widget.Bounds.X, point.Y - widget.Bounds.Y);
         var evt = new WidgetPointerEvent(kind, local, args);
+        using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
         var handled = widget.HandlePointerEvent(evt);
         if (handled && kind != WidgetPointerEventKind.Moved)
         {
@@ -416,6 +529,26 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
         }
 
         return handled;
+    }
+
+    bool IWidgetOverlayHost.ShowOverlay(Widget widget, Rect anchor, WidgetOverlayPlacement placement, WidgetOverlayOptions options)
+    {
+        return ShowOverlayInternal(widget, anchor, placement, options ?? new WidgetOverlayOptions());
+    }
+
+    bool IWidgetOverlayHost.HideOverlay(Widget widget)
+    {
+        return HideOverlayInternal(widget);
+    }
+
+    void IWidgetOverlayHost.HideOwnedOverlays(Widget owner)
+    {
+        if (owner is null)
+        {
+            return;
+        }
+
+        RemoveOwnedOverlaysExcept(owner, preserve: null);
     }
 
     private static bool HitTestToggle(RowRenderInfo row, Point point)
@@ -461,6 +594,339 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control
 
         using var glyphTransform = context.PushTransform(transform);
         context.DrawGeometry(_toggleGlyphBrush, null, glyph);
+    }
+
+    private bool ShowOverlayInternal(Widget widget, Rect anchor, WidgetOverlayPlacement placement, WidgetOverlayOptions options)
+    {
+        if (options.Owner is { } owner)
+        {
+            RemoveOwnedOverlaysExcept(owner, widget);
+        }
+
+        if (!_overlayMap.TryGetValue(widget, out var entry))
+        {
+            entry = new OverlayEntry(widget);
+            _overlayMap[widget] = entry;
+            _overlayOrder.Add(entry);
+        }
+
+        entry.Anchor = anchor;
+        entry.Placement = placement;
+        entry.Options = options;
+
+        ArrangeOverlay(entry);
+
+        var wasOpen = entry.IsOpen;
+        entry.IsOpen = true;
+
+        if (!wasOpen)
+        {
+            entry.Options.OnOpened?.Invoke(widget);
+        }
+
+        InvalidateVisual();
+        return true;
+    }
+
+    private bool HideOverlayInternal(Widget widget)
+    {
+        if (!_overlayMap.TryGetValue(widget, out var entry))
+        {
+            return false;
+        }
+
+        RemoveOverlay(entry);
+        return true;
+    }
+
+    private void ClearOverlays()
+    {
+        if (_overlayOrder.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = _overlayOrder.Count - 1; i >= 0; i--)
+        {
+            RemoveOverlay(_overlayOrder[i]);
+        }
+    }
+
+    private void RemoveOverlay(OverlayEntry entry)
+    {
+        _overlayMap.Remove(entry.Widget);
+        _overlayOrder.Remove(entry);
+
+        if (ReferenceEquals(_pointerCapturedWidget, entry.Widget))
+        {
+            _pointerCapturedWidget = null;
+        }
+
+        if (ReferenceEquals(_pointerOverWidget, entry.Widget))
+        {
+            _pointerOverWidget = null;
+        }
+
+        if (ReferenceEquals(_focusedWidget, entry.Widget))
+        {
+            _focusedWidget = null;
+        }
+
+        entry.IsOpen = false;
+        entry.Options.OnClosed?.Invoke(entry.Widget);
+        InvalidateVisual();
+    }
+
+    private void RemoveOwnedOverlaysExcept(Widget owner, Widget? preserve)
+    {
+        for (var i = _overlayOrder.Count - 1; i >= 0; i--)
+        {
+            var entry = _overlayOrder[i];
+            if (!ReferenceEquals(entry.Options.Owner, owner))
+            {
+                continue;
+            }
+
+            if (preserve is not null && ReferenceEquals(entry.Widget, preserve))
+            {
+                continue;
+            }
+
+            RemoveOverlay(entry);
+        }
+    }
+
+    private void ArrangeOverlay(OverlayEntry entry)
+    {
+        var hostSize = GetHostSize();
+        var size = EstimateOverlaySize(entry, hostSize);
+        var offset = entry.Options.Offset;
+
+        var left = entry.Placement switch
+        {
+            WidgetOverlayPlacement.RightStart => entry.Anchor.Right + offset.Left,
+            _ => entry.Anchor.X + offset.Left
+        };
+
+        var top = entry.Placement switch
+        {
+            WidgetOverlayPlacement.RightStart => entry.Anchor.Y + offset.Top,
+            _ => entry.Anchor.Bottom + offset.Top
+        };
+
+        if (left + size.Width > hostSize.Width)
+        {
+            left = Math.Max(0, hostSize.Width - size.Width);
+        }
+
+        if (top + size.Height > hostSize.Height)
+        {
+            top = Math.Max(0, hostSize.Height - size.Height);
+        }
+
+        left = Math.Max(0, left);
+        top = Math.Max(0, top);
+
+        var rect = new Rect(left, top, size.Width, size.Height);
+        entry.Bounds = rect;
+
+        entry.Widget.Arrange(rect);
+
+        if (entry.Widget is IVirtualizingWidgetHost virtualizing)
+        {
+            virtualizing.UpdateViewport(new VirtualizingWidgetViewport(rect.Size, new Point(0, 0)));
+        }
+    }
+
+    private Size EstimateOverlaySize(OverlayEntry entry, Size hostSize)
+    {
+        var widget = entry.Widget;
+        var width = widget.DesiredWidth;
+        var height = widget.DesiredHeight;
+
+        if (entry.Options.MatchWidthToAnchor)
+        {
+            width = entry.Anchor.Width;
+        }
+
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Math.Max(entry.Anchor.Width, 220);
+        }
+
+        if (double.IsNaN(height) || height <= 0)
+        {
+            var estimated = EstimateWidgetSize(widget);
+            width = Math.Max(width, estimated.Width);
+            height = estimated.Height;
+        }
+
+        if (entry.Options.MaxWidth.HasValue)
+        {
+            width = Math.Min(width, entry.Options.MaxWidth.Value);
+        }
+
+        if (entry.Options.MaxHeight.HasValue)
+        {
+            height = Math.Min(height, entry.Options.MaxHeight.Value);
+        }
+
+        width = Math.Min(width, hostSize.Width);
+        height = Math.Min(height, hostSize.Height);
+
+        return new Size(Math.Max(1, width), Math.Max(1, height));
+    }
+
+    private Size EstimateWidgetSize(Widget widget, int depth = 0)
+    {
+        if (depth > 6)
+        {
+            return new Size(200, 200);
+        }
+
+        var width = widget.DesiredWidth;
+        var height = widget.DesiredHeight;
+
+        switch (widget)
+        {
+            case MenuWidget menu:
+                var menuSize = EstimateMenuSize(menu);
+                if (double.IsNaN(width) || width <= 0)
+                {
+                    width = menuSize.Width;
+                }
+
+                if (double.IsNaN(height) || height <= 0)
+                {
+                    height = menuSize.Height;
+                }
+
+                break;
+            case BorderWidget border:
+                var childSize = border.Child is Widget child
+                    ? EstimateWidgetSize(child, depth + 1)
+                    : new Size(0, 0);
+
+                var horizontalPadding = border.Padding.Left + border.Padding.Right
+                                        + border.BorderThickness.Left + border.BorderThickness.Right;
+                var verticalPadding = border.Padding.Top + border.Padding.Bottom
+                                      + border.BorderThickness.Top + border.BorderThickness.Bottom;
+
+                if (double.IsNaN(width) || width <= 0)
+                {
+                    width = childSize.Width + horizontalPadding;
+                }
+
+                if (double.IsNaN(height) || height <= 0)
+                {
+                    height = childSize.Height + verticalPadding;
+                }
+
+                break;
+            case SurfaceWidget surface:
+                double maxWidth = 0;
+                double maxHeight = 0;
+                foreach (var surfaceChild in surface.Children)
+                {
+                    if (surfaceChild is not Widget childWidget)
+                    {
+                        continue;
+                    }
+
+                    var surfaceChildSize = EstimateWidgetSize(childWidget, depth + 1);
+                    maxWidth = Math.Max(maxWidth, surfaceChildSize.Width);
+                    maxHeight = Math.Max(maxHeight, surfaceChildSize.Height);
+                }
+
+                if (double.IsNaN(width) || width <= 0)
+                {
+                    width = maxWidth;
+                }
+
+                if (double.IsNaN(height) || height <= 0)
+                {
+                    height = maxHeight;
+                }
+
+                break;
+        }
+
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Math.Max(180, widget.Bounds.Width > 0 ? widget.Bounds.Width : 220);
+        }
+
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = Math.Max(48, widget.Bounds.Height > 0 ? widget.Bounds.Height : 180);
+        }
+
+        return new Size(width, height);
+    }
+
+    private Size EstimateMenuSize(MenuWidget menu)
+    {
+        var itemCount = menu.VisibleItemCount;
+        var extent = menu.ItemExtent;
+        var spacing = menu.Spacing;
+        var padding = menu.Padding;
+
+        if (itemCount <= 0)
+        {
+            itemCount = 1;
+        }
+
+        var height = padding.Top + padding.Bottom + itemCount * extent + Math.Max(0, itemCount - 1) * spacing;
+        var width = menu.DesiredWidth;
+
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Math.Max(menu.Bounds.Width, 220);
+        }
+
+        return new Size(width, height);
+    }
+
+    private Size GetHostSize()
+    {
+        var width = Bounds.Width;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Width;
+        }
+
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = 1;
+        }
+
+        var height = Bounds.Height;
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = Height;
+        }
+
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = 1;
+        }
+
+        return new Size(width, height);
+    }
+
+    private sealed class OverlayEntry
+    {
+        public OverlayEntry(Widget widget)
+        {
+            Widget = widget ?? throw new ArgumentNullException(nameof(widget));
+        }
+
+        public Widget Widget { get; }
+        public Rect Anchor { get; set; }
+        public Rect Bounds { get; set; }
+        public WidgetOverlayPlacement Placement { get; set; }
+        public WidgetOverlayOptions Options { get; set; } = new();
+        public bool IsOpen { get; set; }
     }
 
     internal sealed class RowRenderInfo

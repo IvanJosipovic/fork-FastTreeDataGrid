@@ -28,7 +28,7 @@ public sealed class SliderWidget : TemplatedWidget
                 new WidgetStyleRule(
                     typeof(SliderWidget),
                     state,
-                    widget =>
+                    (widget, _) =>
                     {
                         if (widget is SliderWidget slider)
                         {
@@ -154,6 +154,10 @@ public sealed class SliderWidget : TemplatedWidget
                     _trackBrush = sliderValue.TrackBrush ?? TrackBrush;
                     _fillBrush = sliderValue.FillBrush ?? FillBrush;
                     _thumbBrush = sliderValue.ThumbBrush ?? ThumbBrush;
+                    if (sliderValue.Interaction is { } interaction)
+                    {
+                        enabled = interaction.IsEnabled;
+                    }
                     break;
                 case double numeric:
                     value = numeric;
@@ -244,7 +248,7 @@ public sealed class SliderWidget : TemplatedWidget
             return;
         }
 
-        var palette = WidgetFluentPalette.Current.Slider;
+        var palette = WidgetFluentPalette.Current.Slider.Range;
         var percent = GetValuePercent();
 
         if (_trackPart is not null)

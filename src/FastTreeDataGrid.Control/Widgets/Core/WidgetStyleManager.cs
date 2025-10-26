@@ -1,15 +1,17 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using FastTreeDataGrid.Control.Theming;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
 internal readonly record struct WidgetStyleKey(Type WidgetType, string? StyleKey, WidgetVisualState State);
 
-public delegate void WidgetStyleApplicator(Widget widget);
+internal readonly record struct WidgetTheme(string Name, WidgetFluentPalette.PaletteData Palette);
 
-public sealed class WidgetStyleRule
+internal delegate void WidgetStyleApplicator(Widget widget, WidgetTheme theme);
+
+internal sealed class WidgetStyleRule
 {
     public WidgetStyleRule(Type widgetType, WidgetVisualState state, WidgetStyleApplicator apply, string? styleKey = null)
     {
@@ -93,7 +95,7 @@ public static class WidgetStyleManager
         ThemeChanged?.Invoke(_currentTheme);
     }
 
-    public static void Register(string themeName, WidgetStyleRule rule)
+    internal static void Register(string themeName, WidgetStyleRule rule)
     {
         if (rule is null)
         {
@@ -126,17 +128,20 @@ public static class WidgetStyleManager
     internal static void Apply(Widget widget, WidgetVisualState state)
     {
         WidgetStyleApplicator? applicator = null;
+        var resolvedThemeName = DefaultThemeName;
         ThemeLock.EnterReadLock();
         try
         {
             if (Themes.TryGetValue(_currentTheme, out var theme))
             {
                 applicator = ResolveApplicator(theme, widget, state);
+                resolvedThemeName = _currentTheme;
             }
 
             if (applicator is null && Themes.TryGetValue(DefaultThemeName, out var defaultTheme))
             {
                 applicator = ResolveApplicator(defaultTheme, widget, state);
+                resolvedThemeName = DefaultThemeName;
             }
         }
         finally
@@ -144,7 +149,11 @@ public static class WidgetStyleManager
             ThemeLock.ExitReadLock();
         }
 
-        applicator?.Invoke(widget);
+        if (applicator is not null)
+        {
+            var theme = new WidgetTheme(resolvedThemeName, WidgetFluentPalette.Current);
+            applicator(widget, theme);
+        }
     }
 
     public static void RefreshCurrentTheme()

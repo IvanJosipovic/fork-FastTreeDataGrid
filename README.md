@@ -6,6 +6,8 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 - Canvas-backed virtualization reuses a compact pool of presenters to cover the viewport without allocating per-row controls.
 - FlatTreeDataGrid engine handles expansion, filtering, sorting, and fast rebuilds of the visible slice without touching the visual tree.
 - Immediate-mode widgets render text, icons, gauges, and input affordances without Avalonia layout passes, templated controls, or data bindings.
+- ItemsControlWidget, ListBoxWidget, and TreeViewWidget mirror Avalonia's items/navigation surfaces with pooled widgets, preserving item templates, selection, and hierarchical expansion on the canvas pipeline.
+- Text widgets support wrapped labels, selectable text, and rich document spans rendered directly on the canvas.
 - Flexible columns support pixel, star, and auto sizing, hierarchical indentation, custom cell templates, and selection hooks.
 - Pluggable row layouts and data sources adapt to uniform, adaptive, or variable row heights and to static, async, or streaming data feeds.
 - Provider-agnostic virtualization lets you plug in ModelFlow, REST-backed, or custom engines via `FastTreeDataGridVirtualizationProviderRegistry`.
@@ -23,6 +25,39 @@ Cells render `Widget` instances described by `WidgetTemplate`. Widgets are immed
 
 ### Layout pipeline
 Row positioning is delegated to implementations of `IFastTreeDataGridRowLayout`. Layouts compute visible ranges, per-row heights, and cumulative offsets so the presenter can place rows precisely. Layouts plug into the control, bind to the current `IFastTreeDataGridSource`, and can invalidate ranges when data changes.
+
+## Items & Navigation Widgets
+
+The widget layer now mirrors Avalonia's items-controls so you can migrate views without leaving the pooled canvas surface.
+
+- `ItemsControlWidget` accepts an `ItemsSource`, optional `ItemChildrenSelector`, and any `WidgetTemplate` or factory for content generation. It virtualizes items through the existing `FastTreeDataGrid` sources, so mutations (`INotifyCollectionChanged`, resets, async feeds) flow through the same pipeline.
+- `ListBoxWidget` builds on that shim with single-selection visuals and pointer-driven selection changes that follow Fluent brushes.
+- `TreeViewWidget` adds hierarchical indentation, expander glyphs, and convenience helpers like `ExpandToLevel` while reusing the same value providers.
+
+```csharp
+var tree = new TreeViewWidget
+{
+    ItemsSource = viewModel.RootNodes,
+    ItemChildrenSelector = item => item is ProjectNode node ? node.Children : Array.Empty<ProjectNode>(),
+    ItemTemplate = new FuncWidgetTemplate(() => new FormattedTextWidget { EmSize = 13, Trimming = TextTrimming.CharacterEllipsis }),
+    DesiredWidth = 260,
+    DesiredHeight = 200,
+};
+
+tree.ExpandToLevel(1);
+```
+
+The sample gallery (`Widgets` tab) now includes boards that showcase these shims, including a hierarchical navigation tree, demonstrating how existing Avalonia `ListBox` or `TreeView` screens can move onto the widget renderer without sacrificing virtualization.
+
+### Wrapper selection quick guide
+
+- `ItemsControlWidget` – reach for this when you need a pooled, read-only list and plan to handle selection upstream.
+- `ListBoxWidget` – keeps Avalonia's single-selection gestures and Fluent brushes while staying on the widget renderer.
+- `TreeViewWidget` – handles hierarchical data with pooled expander glyphs, indentation, and lazy loading helpers.
+- `TabControlWidget` + `TabStripWidget` – delivers tab navigation with Alt/arrow/Home/End keys and indicator styling sourced from the widget palette.
+- `MenuBarWidget` + `MenuWidget` – builds command surfaces with access keys, accelerators, and overlay hosting without templated controls.
+
+The demo's new **Widgets Gallery** tab stitches these wrappers together with explanatory boards so you can compare their APIs, palette bindings, and recommended usage at a glance.
 
 ## Pluggable layout and item sources
 
@@ -151,10 +186,15 @@ FastTreeDataGrid prioritises frame time predictability:
 
 ## Documentation
 
+- [Layout & Virtualizing Widgets](docs/widgets/layout-widgets.md)
+- [Text Widgets](docs/widgets/text-widgets.md)
+- [Media & Icon Widgets](docs/widgets/media-widgets.md)
+- [Menu Widgets](docs/widgets/menu-widgets.md)
 - [Providers & Virtualization Integration](docs/virtualization/providers.md)
 - [Metrics & Diagnostics](docs/virtualization/metrics.md)
 - [Benchmarks](docs/virtualization/benchmarks.md)
 - [Virtualization Migration Guide](docs/virtualization/migration.md)
+- [Changelog](docs/changelog.md)
 
 ## Virtualization Integration Best Practices
 
@@ -179,7 +219,7 @@ FastTreeDataGrid prioritises frame time predictability:
    dotnet run --project samples/FastTreeDataGrid.Demo
    ```
 
-3. Explore the sample tabs to see flat tree rendering, streaming updates, widget gallery, and variable-height rows in action.
+3. Explore the sample tabs—including the new **Widgets Gallery** scenario explorer—to see flat tree rendering, streaming updates, widget boards, and variable-height rows in action.
 
 ## Samples
 
@@ -187,8 +227,14 @@ FastTreeDataGrid prioritises frame time predictability:
 - File-system and country browsers backed by `FastTreeDataGridFlatSource<T>`.
 - Live dashboards using `FastTreeDataGridStreamingSource<T>` and `FastTreeDataGridHybridSource<T>`.
 - A widget gallery highlighting text, icon, badge, checkbox, slider, and custom draw widgets.
+- A Widgets Gallery scenario explorer that maps each widget family to sample boards, palette notes, and migration tips.
 - Variable-height and adaptive row layouts alongside uniform grids.
 - Virtualization tab featuring a 1B-row pseudo-random provider and a REST-backed Hacker News provider that showcase the virtualization stack.
+
+## Validation
+
+- Run `dotnet test tests/FastTreeDataGrid.Control.Tests/FastTreeDataGrid.Control.Tests.csproj` to exercise widget layout regressions (expander toggles, scroll viewer viewport notifications, and existing picker coverage).
+- Run `dotnet run --project benchmarks/FastTreeDataGrid.Benchmarks -c Release` to execute the BenchmarkDotNet suite, including the new `WidgetInteractionBenchmarks` that stress tab switching, menu refreshes, expander toggles, and scroll viewport updates.
 
 ## Next steps
 

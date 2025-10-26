@@ -46,6 +46,12 @@
       <TabItem Header="Widgets">
         <views:WidgetsTab />
       </TabItem>
+      <TabItem Header="Layouts (Widgets)">
+        <views:VirtualizingLayoutsTab />
+      </TabItem>
+      <TabItem Header="Widgets Gallery">
+        <views:WidgetsGalleryTab />
+      </TabItem>
       <TabItem Header="Gallery">
         <views:GalleryTab />
       </TabItem>

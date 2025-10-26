@@ -12,6 +12,8 @@ Benchmarks exercise sequential paging and random access scenarios using `FastTre
 
 BenchmarkDotNet emits reports to `benchmarks/FastTreeDataGrid.Benchmarks/bin/Release/net8.0/BenchmarkDotNet.Artifacts`. Inspect the `*.md` results for allocation and latency data.
 
+The suite also includes `WidgetInteractionBenchmarks`, which toggles `ExpanderWidget`, scrolls `ScrollViewerWidget`, refreshes `MenuWidget`, and switches `TabControlWidget` tabs to track interaction allocations against the pooled widget infrastructure.
+
 ## Adding Custom Scenarios
 
 1. Create a new benchmark class under `benchmarks/FastTreeDataGrid.Benchmarks`.

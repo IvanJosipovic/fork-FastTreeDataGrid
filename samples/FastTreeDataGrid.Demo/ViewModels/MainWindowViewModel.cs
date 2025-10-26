@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
@@ -33,7 +34,11 @@ public sealed class MainWindowViewModel : IDisposable
         ExpandAllNodes(widgetsSource);
         WidgetsSource = widgetsSource;
 
-        WidgetBoards = new AvaloniaList<WidgetBoard>(WidgetBoardFactory.CreateBoards(widgetNodes));
+        var boards = WidgetBoardFactory.CreateBoards(widgetNodes);
+        WidgetBoards = new AvaloniaList<WidgetBoard>(boards);
+        VirtualizingLayoutBoard = WidgetBoards.FirstOrDefault(b =>
+            string.Equals(b.Title, WidgetBoardFactory.VirtualizingBoardTitle, StringComparison.Ordinal));
+        WidgetsGalleryScenarios = new AvaloniaList<WidgetsGalleryScenario>(WidgetsGalleryScenarioFactory.Create());
         DataSources = new DataSourceSamplesViewModel();
         DynamicDataSources = new DynamicDataSourcesViewModel();
         LiveMutations = new LiveMutationDataSourcesViewModel();
@@ -55,6 +60,10 @@ public sealed class MainWindowViewModel : IDisposable
     public IFastTreeDataGridSource WidgetsSource { get; }
 
     public AvaloniaList<WidgetBoard> WidgetBoards { get; }
+
+    public WidgetBoard? VirtualizingLayoutBoard { get; }
+
+    public AvaloniaList<WidgetsGalleryScenario> WidgetsGalleryScenarios { get; }
 
     public DataSourceSamplesViewModel DataSources { get; }
 

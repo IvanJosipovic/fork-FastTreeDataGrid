@@ -9,7 +9,7 @@ using CheckBoxValuePalette = FastTreeDataGrid.Control.Theming.WidgetFluentPalett
 
 namespace FastTreeDataGrid.Control.Widgets;
 
-public sealed class CheckBoxWidget : TemplatedWidget
+public sealed class CheckBoxWidget : InteractiveTemplatedWidget
 {
     private bool? _value;
     private bool? _sourceValue;
@@ -26,7 +26,7 @@ public sealed class CheckBoxWidget : TemplatedWidget
                 new WidgetStyleRule(
                     typeof(CheckBoxWidget),
                     state,
-                    widget =>
+                    (widget, _) =>
                     {
                         if (widget is CheckBoxWidget checkBox)
                         {
@@ -38,7 +38,6 @@ public sealed class CheckBoxWidget : TemplatedWidget
 
     public CheckBoxWidget()
     {
-        IsInteractive = true;
     }
 
     public event EventHandler<WidgetEventArgs>? Click;
@@ -116,6 +115,10 @@ public sealed class CheckBoxWidget : TemplatedWidget
                     _value = checkBoxValue.IsChecked;
                     _sourceValue = _value;
                     enabled = checkBoxValue.IsEnabled;
+                    if (checkBoxValue.Interaction is { } interaction)
+                    {
+                        enabled = interaction.IsEnabled;
+                    }
                     break;
                 case bool boolean:
                     _value = boolean;
@@ -165,34 +168,13 @@ public sealed class CheckBoxWidget : TemplatedWidget
         _boxPart.Arrange(boxRect);
     }
 
-    public override bool HandlePointerEvent(in WidgetPointerEvent e)
+    protected override void OnPointerCancelled()
     {
-        var handled = base.HandlePointerEvent(e);
-
-        if (!IsEnabled)
-        {
-            return handled;
-        }
-
-        switch (e.Kind)
-        {
-            case WidgetPointerEventKind.Released:
-                if (IsWithinBounds(e.Position))
-                {
-                    OnClick();
-                }
-                break;
-            case WidgetPointerEventKind.Cancelled:
-            case WidgetPointerEventKind.CaptureLost:
-                _value = _sourceValue;
-                RefreshStyle();
-                break;
-        }
-
-        return true;
+        _value = _sourceValue;
+        RefreshStyle();
     }
 
-    private void OnClick()
+    protected override void OnClick()
     {
         if (!IsEnabled)
         {
@@ -337,12 +319,6 @@ public sealed class CheckBoxWidget : TemplatedWidget
         var width = Math.Max(0, rect.Width - left - right);
         var height = Math.Max(0, rect.Height - top - bottom);
         return new Rect(rect.X + left, rect.Y + top, width, height);
-    }
-
-    private bool IsWithinBounds(Point position)
-    {
-        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        return rect.Contains(position);
     }
 
 }

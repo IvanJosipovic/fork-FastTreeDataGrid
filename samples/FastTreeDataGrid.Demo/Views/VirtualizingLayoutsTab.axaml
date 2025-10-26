@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.Demo.Views.VirtualizingLayoutsTab"
+             x:DataType="vm:MainWindowViewModel">
+  <Grid RowDefinitions="Auto,*"
+        Margin="16">
+    <StackPanel Orientation="Vertical"
+                Spacing="6">
+      <TextBlock Text="Virtualizing Layout Widgets"
+                 FontSize="18"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="Use the slider inside the widget surface to scroll through hundreds of pooled cards rendered by VirtualizingStackPanelWidget."
+                 Foreground="#666" />
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Margin="0,12,0,0"
+            Padding="16"
+            BorderBrush="#D0D7E6"
+            BorderThickness="1"
+            CornerRadius="10"
+            Background="#FAFBFF">
+      <widgets:WidgetBoardPresenter Board="{Binding VirtualizingLayoutBoard}"
+                                    HorizontalAlignment="Center" />
+    </Border>
+  </Grid>
+</UserControl>
