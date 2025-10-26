@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
@@ -22,6 +23,11 @@ public sealed class FastTreeDataGridRow
         {
             IsGroup = group.IsGroup;
         }
+
+        if (item is INotifyDataErrorInfo notify)
+        {
+            notify.ErrorsChanged += OnErrorsChanged;
+        }
     }
 
     private readonly Action? _requestMeasureCallback;
@@ -44,6 +50,11 @@ public sealed class FastTreeDataGridRow
     }
 
     private void OnValueInvalidated(object? sender, ValueInvalidatedEventArgs e)
+    {
+        _requestMeasureCallback?.Invoke();
+    }
+
+    private void OnErrorsChanged(object? sender, DataErrorsChangedEventArgs e)
     {
         _requestMeasureCallback?.Invoke();
     }

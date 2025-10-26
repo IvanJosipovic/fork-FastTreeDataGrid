@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
+using Avalonia.Headless.XUnit;
 using FastTreeDataGrid.Control.Widgets;
 using Xunit;
 
 namespace FastTreeDataGrid.Control.Tests;
 
-[Collection("Avalonia")]
 public class PickerWidgetTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void NumericUpDown_ClampsAndRaisesEvent()
     {
         var widget = new NumericUpDownWidget
@@ -35,7 +35,7 @@ public class PickerWidgetTests
         Assert.Equal(10, newValue);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TimePicker_RespectsMinimumAndMaximum()
     {
         var picker = new TimePickerWidget
@@ -54,7 +54,7 @@ public class PickerWidgetTests
         Assert.Equal(TimeSpan.FromHours(18), observed);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CalendarWidget_ClampsSelectionToRange()
     {
         var calendar = new CalendarWidget
@@ -73,7 +73,7 @@ public class PickerWidgetTests
         Assert.Equal(new DateTime(2024, 1, 31), selected);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ComboBoxWidget_RaisesSelectionChanged()
     {
         var combo = new ComboBoxWidget
@@ -98,7 +98,7 @@ public class PickerWidgetTests
         Assert.Equal("Gamma", observedNew);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DatePickerWidget_SelectionRaisesEvent()
     {
         var picker = new DatePickerWidget
@@ -117,7 +117,7 @@ public class PickerWidgetTests
         Assert.Equal(new DateTime(2024, 12, 31), observed);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CalendarDatePickerWidget_DefaultsToLongFormat()
     {
         var picker = new CalendarDatePickerWidget
@@ -131,7 +131,7 @@ public class PickerWidgetTests
         Assert.Equal(new DateTime(2024, 6, 15), picker.SelectedDate);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ScrollBarWidget_ClampsToMaximum()
     {
         var scrollBar = new ScrollBarWidget
@@ -147,7 +147,7 @@ public class PickerWidgetTests
         Assert.Equal(100, scrollBar.Value);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void AutoCompleteBoxWidget_FiltersSuggestions()
     {
         var auto = new AutoCompleteBoxWidget

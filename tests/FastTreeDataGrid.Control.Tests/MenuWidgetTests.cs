@@ -1,13 +1,13 @@
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using FastTreeDataGrid.Control.Widgets;
 using Xunit;
 
 namespace FastTreeDataGrid.Control.Tests;
 
-[Collection("Avalonia")]
 public class MenuWidgetTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void MenuItemWidget_SetsAutomationAccessKey()
     {
         var widget = new MenuItemWidget();
@@ -18,7 +18,7 @@ public class MenuWidgetTests
         Assert.Equal("O", widget.Automation.AccessKey);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ContextMenuWidget_ShowAt_TogglesIsOpen()
     {
         var contextMenu = new ContextMenuWidget();

@@ -1,19 +1,19 @@
 using System;
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Widgets;
 using Xunit;
 
 namespace FastTreeDataGrid.Control.Tests;
 
-[Collection("Avalonia")]
 public class WidgetLayoutTests
 {
-[Fact]
-public void ExpanderWidget_TogglesOnPointerRelease()
-{
-    var expander = new ExpanderWidget();
-    expander.Arrange(new Rect(0, 0, 180, 120));
+    [AvaloniaFact]
+    public void ExpanderWidget_TogglesOnPointerRelease()
+    {
+        var expander = new ExpanderWidget();
+        expander.Arrange(new Rect(0, 0, 180, 120));
 
         Assert.True(expander.IsExpanded);
 
@@ -24,7 +24,7 @@ public void ExpanderWidget_TogglesOnPointerRelease()
         Assert.True(expander.IsExpanded);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ScrollViewerWidget_NotifiesVirtualizingHost()
     {
         var scrollViewer = new ScrollViewerWidget
@@ -57,8 +57,8 @@ public void ExpanderWidget_TogglesOnPointerRelease()
         }
 
         public void UpdateViewport(in VirtualizingWidgetViewport viewport)
-    {
-        LastViewport = viewport;
+        {
+            LastViewport = viewport;
+        }
     }
-}
 }

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia.Metadata;
 
 [assembly: XmlnsDefinition("https://github.com/avaloniaui", "FastTreeDataGrid.Control")]
@@ -7,3 +8,4 @@ using Avalonia.Metadata;
 [assembly: XmlnsDefinition("https://github.com/avaloniaui", "FastTreeDataGrid.Control.Themes")]
 [assembly: XmlnsDefinition("https://github.com/avaloniaui", "FastTreeDataGrid.Control.Theming")]
 [assembly: XmlnsDefinition("https://github.com/avaloniaui", "FastTreeDataGrid.Control.Widgets")]
+[assembly: InternalsVisibleTo("FastTreeDataGrid.Control.Tests")]

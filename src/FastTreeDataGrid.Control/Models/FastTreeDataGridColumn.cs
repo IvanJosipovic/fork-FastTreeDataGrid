@@ -64,6 +64,18 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<IDataTemplate?> CellControlTemplateProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(CellControlTemplate));
 
+    public static readonly StyledProperty<IDataTemplate?> EditTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(EditTemplate));
+
+    public static readonly StyledProperty<IFastTreeDataGridEditTemplateSelector?> EditTemplateSelectorProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IFastTreeDataGridEditTemplateSelector?>(nameof(EditTemplateSelector));
+
+    public static readonly StyledProperty<bool> IsReadOnlyProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(IsReadOnly));
+
+    public static readonly StyledProperty<string?> ValidationKeyProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, string?>(nameof(ValidationKey));
+
     public static readonly StyledProperty<Comparison<FastTreeDataGridRow>?> SortComparisonProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, Comparison<FastTreeDataGridRow>?>(nameof(SortComparison));
 
@@ -133,10 +145,28 @@ public class FastTreeDataGridColumn : AvaloniaObject
         set => SetValue(CellControlTemplateProperty, value);
     }
 
+    public IDataTemplate? EditTemplate
+    {
+        get => GetValue(EditTemplateProperty);
+        set => SetValue(EditTemplateProperty, value);
+    }
+
+    public IFastTreeDataGridEditTemplateSelector? EditTemplateSelector
+    {
+        get => GetValue(EditTemplateSelectorProperty);
+        set => SetValue(EditTemplateSelectorProperty, value);
+    }
+
     public bool IsHierarchy
     {
         get => GetValue(IsHierarchyProperty);
         set => SetValue(IsHierarchyProperty, value);
+    }
+
+    public bool IsReadOnly
+    {
+        get => GetValue(IsReadOnlyProperty);
+        set => SetValue(IsReadOnlyProperty, value);
     }
 
     public bool CanUserResize
@@ -179,6 +209,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => GetValue(PinnedPositionProperty);
         set => SetValue(PinnedPositionProperty, value);
+    }
+
+    public string? ValidationKey
+    {
+        get => GetValue(ValidationKeyProperty);
+        set => SetValue(ValidationKeyProperty, value);
     }
 
     public int SortOrder
