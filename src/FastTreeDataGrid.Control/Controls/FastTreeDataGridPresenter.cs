@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
 using AvaloniaControl = Avalonia.Controls.Control;
 
@@ -29,6 +30,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private readonly List<OverlayEntry> _overlayOrder = new();
     private readonly Dictionary<AvaloniaControl, Rect> _controlLayouts = new();
     private readonly List<AvaloniaControl> _controlChildren = new();
+    private readonly Dictionary<AvaloniaControl, FastTreeDataGridColumn> _controlColumnMap = new();
 
     private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
     private readonly SolidColorBrush _placeholderBrush = new(Color.FromArgb(40, 200, 200, 200));
@@ -178,13 +180,13 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             {
                 if (cell.Control is { } control)
                 {
-                    AttachControl(control, cell.ContentBounds, row.IsSelected);
+                    AttachControl(control, cell.ContentBounds, row.IsSelected, cell.Column);
                 }
             }
         }
     }
 
-    private void AttachControl(AvaloniaControl control, Rect bounds, bool isSelected)
+    private void AttachControl(AvaloniaControl control, Rect bounds, bool isSelected, FastTreeDataGridColumn column)
     {
         if (control is null)
         {
@@ -207,6 +209,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
             _controlChildren.Add(control);
         }
+
+        _controlColumnMap[control] = column;
     }
 
     private void ClearControlChildren()
@@ -226,10 +230,20 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             {
                 LogicalChildren.Remove(logical);
             }
+
+            if (_controlColumnMap.TryGetValue(control, out var column))
+            {
+                _controlColumnMap.Remove(control);
+                column.ReturnControl(control);
+            }
         }
 
         _controlChildren.Clear();
         _controlLayouts.Clear();
+        if (_controlColumnMap.Count > 0)
+        {
+            _controlColumnMap.Clear();
+        }
     }
 
     private void ControlOnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1125,8 +1139,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
     internal sealed class CellRenderInfo
     {
-        public CellRenderInfo(Rect bounds, Rect contentBounds, Widget? widget, FormattedText? formattedText, Point textOrigin, AvaloniaControl? control)
+        public CellRenderInfo(FastTreeDataGridColumn column, Rect bounds, Rect contentBounds, Widget? widget, FormattedText? formattedText, Point textOrigin, AvaloniaControl? control)
         {
+            Column = column;
             Bounds = bounds;
             ContentBounds = contentBounds;
             Widget = widget;
@@ -1135,6 +1150,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             Control = control;
         }
 
+        public FastTreeDataGridColumn Column { get; }
         public Rect Bounds { get; }
         public Rect ContentBounds { get; }
         public Widget? Widget { get; }

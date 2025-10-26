@@ -1733,7 +1733,7 @@ public class FastTreeDataGrid : TemplatedControl
                 {
                     if (column.CellControlTemplate is { } controlTemplate)
                     {
-                        control = controlTemplate.Build(row.Item);
+                        control = column.RentControl() ?? controlTemplate.Build(row.Item);
                         if (control is not null)
                         {
                             if (row.Item is not null)
@@ -1741,7 +1741,11 @@ public class FastTreeDataGrid : TemplatedControl
                                 control.DataContext = row.Item;
                             }
 
-                            control.Measure(new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height)));
+                            if (column.SizingMode == ColumnSizingMode.Auto)
+                            {
+                                var measureSize = new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height));
+                                control.Measure(measureSize);
+                            }
                         }
                     }
 
@@ -1801,7 +1805,7 @@ public class FastTreeDataGrid : TemplatedControl
                     widget.Arrange(contentBounds);
                 }
 
-                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(bounds, contentBounds, widget, formatted, textOrigin, control));
+                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(column, bounds, contentBounds, widget, formatted, textOrigin, control));
 
                 if (column.SizingMode == ColumnSizingMode.Auto)
                 {

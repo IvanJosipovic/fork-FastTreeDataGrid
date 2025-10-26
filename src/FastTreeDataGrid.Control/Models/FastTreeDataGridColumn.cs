@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls.Templates;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
+using AvaloniaControl = Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Models;
 
@@ -70,6 +71,7 @@ public class FastTreeDataGridColumn : AvaloniaObject
         AvaloniaProperty.RegisterDirect<FastTreeDataGridColumn, int>(nameof(SortOrder), o => o.SortOrder, (o, v) => o.SortOrder = v);
 
     private int _sortOrder;
+    private readonly Stack<AvaloniaControl> _controlPool = new();
 
     public object? Header
     {
@@ -194,4 +196,20 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public double ActualWidth { get; internal set; }
 
     internal double CachedAutoWidth { get; set; } = 120d;
+
+    internal AvaloniaControl? RentControl()
+    {
+        return _controlPool.Count > 0 ? _controlPool.Pop() : null;
+    }
+
+    internal void ReturnControl(AvaloniaControl control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.DataContext = null;
+        _controlPool.Push(control);
+    }
 }
