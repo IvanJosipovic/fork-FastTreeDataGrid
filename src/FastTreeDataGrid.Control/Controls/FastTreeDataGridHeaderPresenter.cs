@@ -286,7 +286,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         }
 
         var column = _columns[index];
-        var desiredWidth = state.OriginWidth + e.Vector.X;
+        var desiredWidth = state.LastVisualWidth + e.Vector.X;
         if (double.IsNaN(desiredWidth) || double.IsInfinity(desiredWidth))
         {
             return;
