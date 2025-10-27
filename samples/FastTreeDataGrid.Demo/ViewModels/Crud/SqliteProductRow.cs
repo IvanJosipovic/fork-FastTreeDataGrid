@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crud;
 
-public sealed class SqliteProductRow : IFastTreeDataGridValueProvider
+public sealed class SqliteProductRow : IFastTreeDataGridValueProvider, IEditableObject, INotifyPropertyChanged
 {
     public const string KeyId = "SqliteProduct.Id";
     public const string KeyName = "SqliteProduct.Name";
@@ -14,6 +16,7 @@ public sealed class SqliteProductRow : IFastTreeDataGridValueProvider
     private string _name;
     private string _categoryName;
     private decimal _price;
+    private EditSnapshot? _snapshot;
 
     public SqliteProductRow(int id, int categoryId, string name, string categoryName, decimal price)
     {
@@ -26,6 +29,8 @@ public sealed class SqliteProductRow : IFastTreeDataGridValueProvider
 
     public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Id { get; }
 
     public int CategoryId { get; private set; }
@@ -33,40 +38,19 @@ public sealed class SqliteProductRow : IFastTreeDataGridValueProvider
     public string Name
     {
         get => _name;
-        private set
-        {
-            if (!string.Equals(_name, value, StringComparison.CurrentCulture))
-            {
-                _name = value;
-                NotifyValueChanged(KeyName);
-            }
-        }
+        set => SetProperty(ref _name, value ?? string.Empty, KeyName, nameof(Name));
     }
 
     public string CategoryName
     {
         get => _categoryName;
-        private set
-        {
-            if (!string.Equals(_categoryName, value, StringComparison.CurrentCulture))
-            {
-                _categoryName = value;
-                NotifyValueChanged(KeyCategory);
-            }
-        }
+        private set => SetProperty(ref _categoryName, value, KeyCategory, nameof(CategoryName));
     }
 
     public decimal Price
     {
         get => _price;
-        private set
-        {
-            if (_price != value)
-            {
-                _price = value;
-                NotifyValueChanged(KeyPrice);
-            }
-        }
+        set => SetProperty(ref _price, value, KeyPrice, nameof(Price));
     }
 
     public void Update(SqliteCategoryRecord category, string name, decimal price)
@@ -92,5 +76,53 @@ public sealed class SqliteProductRow : IFastTreeDataGridValueProvider
     public void NotifyValueChanged(string? key = null)
     {
         ValueInvalidated?.Invoke(this, new ValueInvalidatedEventArgs(this, key));
+    }
+
+    public void BeginEdit()
+    {
+        _snapshot ??= new EditSnapshot(_name, _price);
+    }
+
+    public void EndEdit()
+    {
+        _snapshot = null;
+    }
+
+    public void CancelEdit()
+    {
+        if (_snapshot is not { } snapshot)
+        {
+            return;
+        }
+
+        SetProperty(ref _name, snapshot.Name, KeyName, nameof(Name));
+        SetProperty(ref _price, snapshot.Price, KeyPrice, nameof(Price));
+        _snapshot = null;
+    }
+
+    private bool SetProperty<T>(ref T storage, T value, string key, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(storage, value))
+        {
+            return false;
+        }
+
+        storage = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        NotifyValueChanged(key);
+        return true;
+    }
+
+    private readonly struct EditSnapshot
+    {
+        public EditSnapshot(string name, decimal price)
+        {
+            Name = name;
+            Price = price;
+        }
+
+        public string Name { get; }
+
+        public decimal Price { get; }
     }
 }

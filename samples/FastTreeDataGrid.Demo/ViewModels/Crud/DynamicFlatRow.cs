@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crud;
 
-public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider
+public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider, IEditableObject, INotifyPropertyChanged
 {
     public const string KeyOrder = "DynamicFlat.Order";
     public const string KeyCustomer = "DynamicFlat.Customer";
@@ -16,6 +18,7 @@ public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider
     private string _status;
     private decimal _total;
     private DateTimeOffset _lastUpdated;
+    private EditSnapshot? _snapshot;
 
     public DynamicFlatRow(int id, string orderNumber, string customer, string status, decimal total, DateTimeOffset lastUpdated)
     {
@@ -29,6 +32,8 @@ public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider
 
     public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Id { get; }
 
     public string OrderNumber { get; }
@@ -36,53 +41,25 @@ public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider
     public string Customer
     {
         get => _customer;
-        private set
-        {
-            if (!string.Equals(_customer, value, StringComparison.CurrentCulture))
-            {
-                _customer = value;
-                NotifyValueChanged(KeyCustomer);
-            }
-        }
+        set => SetProperty(ref _customer, value ?? string.Empty, KeyCustomer, nameof(Customer));
     }
 
     public string StatusText
     {
         get => _status;
-        private set
-        {
-            if (!string.Equals(_status, value, StringComparison.CurrentCulture))
-            {
-                _status = value;
-                NotifyValueChanged(KeyStatus);
-            }
-        }
+        set => SetProperty(ref _status, value ?? string.Empty, KeyStatus, nameof(StatusText));
     }
 
     public decimal Total
     {
         get => _total;
-        private set
-        {
-            if (_total != value)
-            {
-                _total = value;
-                NotifyValueChanged(KeyTotal);
-            }
-        }
+        set => SetProperty(ref _total, value, KeyTotal, nameof(Total));
     }
 
     public DateTimeOffset LastUpdated
     {
         get => _lastUpdated;
-        private set
-        {
-            if (_lastUpdated != value)
-            {
-                _lastUpdated = value;
-                NotifyValueChanged(KeyUpdated);
-            }
-        }
+        set => SetProperty(ref _lastUpdated, value, KeyUpdated, nameof(LastUpdated));
     }
 
     public void Update(string customer, string status, decimal total, DateTimeOffset timestamp)
@@ -109,5 +86,57 @@ public sealed class DynamicFlatRow : IFastTreeDataGridValueProvider
     public void NotifyValueChanged(string? key = null)
     {
         ValueInvalidated?.Invoke(this, new ValueInvalidatedEventArgs(this, key));
+    }
+
+    public void BeginEdit()
+    {
+        _snapshot ??= new EditSnapshot(_customer, _status, _total);
+    }
+
+    public void EndEdit()
+    {
+        _snapshot = null;
+    }
+
+    public void CancelEdit()
+    {
+        if (_snapshot is not { } snapshot)
+        {
+            return;
+        }
+
+        SetProperty(ref _customer, snapshot.Customer, KeyCustomer, nameof(Customer));
+        SetProperty(ref _status, snapshot.Status, KeyStatus, nameof(StatusText));
+        SetProperty(ref _total, snapshot.Total, KeyTotal, nameof(Total));
+        _snapshot = null;
+    }
+
+    private bool SetProperty<T>(ref T storage, T value, string key, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(storage, value))
+        {
+            return false;
+        }
+
+        storage = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        NotifyValueChanged(key);
+        return true;
+    }
+
+    private readonly struct EditSnapshot
+    {
+        public EditSnapshot(string customer, string status, decimal total)
+        {
+            Customer = customer;
+            Status = status;
+            Total = total;
+        }
+
+        public string Customer { get; }
+
+        public string Status { get; }
+
+        public decimal Total { get; }
     }
 }

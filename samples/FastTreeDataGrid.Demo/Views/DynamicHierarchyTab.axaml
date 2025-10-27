@@ -5,19 +5,22 @@
              xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
              xmlns:crud="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Crud"
              xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:i="clr-namespace:Avalonia.Input;assembly=Avalonia.Base"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.Demo.Views.DynamicHierarchyTab"
              x:DataType="vm:MainWindowViewModel">
   <Grid RowDefinitions="Auto,*"
         RowSpacing="12">
+    <Grid.DataContext>
+      <Binding Path="DynamicHierarchy" />
+    </Grid.DataContext>
     <Border Grid.Row="0"
             Padding="12"
             Background="#FFF8F4"
             BorderBrush="#F0C2A8"
             BorderThickness="1"
             CornerRadius="6">
-      <StackPanel Spacing="8"
-                  DataContext="{Binding DynamicHierarchy}">
+      <StackPanel Spacing="8">
         <TextBlock Text="Dynamic in-memory projects with live task updates."
                    FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal"
@@ -100,22 +103,41 @@
             BorderThickness="1"
             CornerRadius="6"
             Padding="0">
-      <controls:FastTreeDataGrid ItemsSource="{Binding DynamicHierarchy.Source}"
-                                 SelectedIndices="{Binding DynamicHierarchy.SelectedIndices, Mode=TwoWay}"
+      <controls:FastTreeDataGrid x:Name="DynamicHierarchyGrid"
+                                 ItemsSource="{Binding Source}"
+                                 SelectedIndices="{Binding SelectedIndices, Mode=TwoWay}"
                                  RowHeight="30"
                                  IndentWidth="20"
                                  HeaderHeight="34"
-                                 IsFilterRowVisible="False">
+                                 IsFilterRowVisible="False"
+                                 CellEditCommitted="OnDynamicHierarchyCellEditCommitted">
+        <controls:FastTreeDataGrid.KeyBindings>
+          <i:KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
+        </controls:FastTreeDataGrid.KeyBindings>
         <controls:FastTreeDataGrid.Columns>
           <FastTreeDataGridColumn Header="Name"
                                   ValueKey="{x:Static crud:DynamicCrudNode.KeyName}"
                                   SizingMode="Star"
                                   IsHierarchy="True"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicCrudNode">
+                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="160" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Owner"
                                   ValueKey="{x:Static crud:DynamicCrudNode.KeyOwner}"
                                   SizingMode="Star"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicCrudNode">
+                <TextBox Text="{Binding Owner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="140" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Type"
                                   ValueKey="{x:Static crud:DynamicCrudNode.KeyType}"
                                   SizingMode="Pixel"
@@ -125,7 +147,17 @@
                                   ValueKey="{x:Static crud:DynamicCrudNode.KeyProgress}"
                                   SizingMode="Pixel"
                                   PixelWidth="140"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicCrudNode">
+                <NumericUpDown Minimum="0"
+                               Maximum="100"
+                               Increment="1"
+                               Value="{Binding Progress, Mode=TwoWay}"
+                               Width="120" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
         </controls:FastTreeDataGrid.Columns>
       </controls:FastTreeDataGrid>
     </Border>

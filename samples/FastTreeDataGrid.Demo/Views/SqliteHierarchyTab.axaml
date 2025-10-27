@@ -5,19 +5,22 @@
              xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
              xmlns:crud="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Crud"
              xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:i="clr-namespace:Avalonia.Input;assembly=Avalonia.Base"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.Demo.Views.SqliteHierarchyTab"
              x:DataType="vm:MainWindowViewModel">
   <Grid RowDefinitions="Auto,*"
         RowSpacing="12">
+    <Grid.DataContext>
+      <Binding Path="SqliteHierarchy" />
+    </Grid.DataContext>
     <Border Grid.Row="0"
             Padding="12"
             Background="#F8F9FF"
             BorderBrush="#CED3EA"
             BorderThickness="1"
             CornerRadius="6">
-      <StackPanel Spacing="8"
-                  DataContext="{Binding SqliteHierarchy}">
+      <StackPanel Spacing="8">
         <TextBlock Text="SQLite-backed CRUD with category → product hierarchy."
                    FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal"
@@ -79,18 +82,30 @@
             BorderThickness="1"
             CornerRadius="6"
             Padding="0">
-      <controls:FastTreeDataGrid ItemsSource="{Binding SqliteHierarchy.Source}"
-                                 SelectedIndices="{Binding SqliteHierarchy.SelectedIndices, Mode=TwoWay}"
+      <controls:FastTreeDataGrid x:Name="HierarchyGrid"
+                                 ItemsSource="{Binding Source}"
+                                 SelectedIndices="{Binding SelectedIndices, Mode=TwoWay}"
                                  RowHeight="30"
                                  IndentWidth="20"
                                  HeaderHeight="34"
-                                 IsFilterRowVisible="True">
+                                 IsFilterRowVisible="True"
+                                 CellEditCommitted="OnHierarchyCellEditCommitted">
+        <controls:FastTreeDataGrid.KeyBindings>
+          <i:KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
+        </controls:FastTreeDataGrid.KeyBindings>
         <controls:FastTreeDataGrid.Columns>
           <FastTreeDataGridColumn Header="Name"
                                   ValueKey="{x:Static crud:SqliteCrudNode.KeyName}"
                                   SizingMode="Star"
                                   IsHierarchy="True"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:SqliteCrudNode">
+                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="160" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Type"
                                   ValueKey="{x:Static crud:SqliteCrudNode.KeyType}"
                                   SizingMode="Pixel"
@@ -100,7 +115,15 @@
                                   ValueKey="{x:Static crud:SqliteCrudNode.KeyPrice}"
                                   SizingMode="Pixel"
                                   PixelWidth="140"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:SqliteCrudNode">
+                <TextBox Text="{Binding Price, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         HorizontalContentAlignment="Right"
+                         MinWidth="100" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Id"
                                   ValueKey="{x:Static crud:SqliteCrudNode.KeyId}"
                                   SizingMode="Pixel"

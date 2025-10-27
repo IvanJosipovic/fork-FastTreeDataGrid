@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using FastTreeDataGrid.Control.Infrastructure;
@@ -332,6 +333,41 @@ public sealed class DynamicHierarchyCrudViewModel : INotifyPropertyChanged, IDis
         SelectedIndices = Array.Empty<int>();
         _source.Reset(_nodes, preserveExpansion: true);
         _source.ExpandAllGroups();
+        return Task.CompletedTask;
+    }
+
+    public Task CommitEditAsync(DynamicCrudNode node, CancellationToken cancellationToken)
+    {
+        if (node is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var name = string.IsNullOrWhiteSpace(node.Name) ? "Untitled" : node.Name.Trim();
+        if (!string.Equals(node.Name, name, StringComparison.CurrentCulture))
+        {
+            node.Name = name;
+        }
+
+        var owner = string.IsNullOrWhiteSpace(node.Owner) ? "Unassigned" : node.Owner.Trim();
+        if (!string.Equals(node.Owner, owner, StringComparison.CurrentCulture))
+        {
+            node.Owner = owner;
+        }
+
+        if (node.Kind == DynamicCrudNodeKind.Task)
+        {
+            var progress = Math.Clamp(node.Progress, 0.0, 100.0);
+            if (Math.Abs(node.Progress - progress) > 0.001)
+            {
+                node.Progress = progress;
+            }
+        }
+
+        Status = node.Kind == DynamicCrudNodeKind.Project
+            ? $"Updated project \"{node.Name}\"."
+            : $"Updated task \"{node.Name}\".";
+
         return Task.CompletedTask;
     }
 

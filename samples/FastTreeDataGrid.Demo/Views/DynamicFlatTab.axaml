@@ -5,19 +5,23 @@
              xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
              xmlns:crud="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Crud"
              xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:i="clr-namespace:Avalonia.Input;assembly=Avalonia.Base"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.Demo.Views.DynamicFlatTab"
+             x:Name="Root"
              x:DataType="vm:MainWindowViewModel">
   <Grid RowDefinitions="Auto,*"
         RowSpacing="12">
+    <Grid.DataContext>
+      <Binding Path="DynamicFlat" />
+    </Grid.DataContext>
     <Border Grid.Row="0"
             Padding="12"
             Background="#F4FBFF"
             BorderBrush="#B9DFF3"
             BorderThickness="1"
             CornerRadius="6">
-      <StackPanel Spacing="8"
-                  DataContext="{Binding DynamicFlat}">
+      <StackPanel Spacing="8">
         <TextBlock Text="Dynamic orders with periodic status and total updates."
                    FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal"
@@ -71,36 +75,66 @@
             BorderThickness="1"
             CornerRadius="6"
             Padding="0">
-      <controls:FastTreeDataGrid ItemsSource="{Binding DynamicFlat.Source}"
-                                 SelectedIndices="{Binding DynamicFlat.SelectedIndices, Mode=TwoWay}"
+      <controls:FastTreeDataGrid x:Name="DynamicFlatGrid"
+                                 ItemsSource="{Binding Source}"
+                                 SelectedIndices="{Binding SelectedIndices, Mode=TwoWay}"
                                  RowHeight="30"
                                  HeaderHeight="34"
-                                 IsFilterRowVisible="False">
+                                 IsFilterRowVisible="False"
+                                 CellEditCommitted="OnDynamicFlatCellEditCommitted">
+        <controls:FastTreeDataGrid.KeyBindings>
+          <i:KeyBinding Gesture="Delete" Command="{Binding DeleteOrderCommand}" />
+        </controls:FastTreeDataGrid.KeyBindings>
         <controls:FastTreeDataGrid.Columns>
           <FastTreeDataGridColumn Header="Order #"
                                   ValueKey="{x:Static crud:DynamicFlatRow.KeyOrder}"
                                   SizingMode="Pixel"
                                   PixelWidth="120"
-                                  CanUserSort="False" />
+                                  CanUserSort="False"
+                                  IsReadOnly="True" />
           <FastTreeDataGridColumn Header="Customer"
                                   ValueKey="{x:Static crud:DynamicFlatRow.KeyCustomer}"
                                   SizingMode="Star"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicFlatRow">
+                <TextBox Text="{Binding Customer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="160" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Status"
                                   ValueKey="{x:Static crud:DynamicFlatRow.KeyStatus}"
                                   SizingMode="Pixel"
                                   PixelWidth="150"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicFlatRow">
+                <ComboBox ItemsSource="{Binding ElementName=Root, Path=DataContext.DynamicFlat.Statuses}"
+                          SelectedItem="{Binding StatusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          MinWidth="140" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Total"
                                   ValueKey="{x:Static crud:DynamicFlatRow.KeyTotal}"
                                   SizingMode="Pixel"
                                   PixelWidth="120"
-                                  CanUserSort="False" />
+                                  CanUserSort="False">
+            <FastTreeDataGridColumn.EditTemplate>
+              <DataTemplate x:DataType="crud:DynamicFlatRow">
+                <TextBox Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         HorizontalContentAlignment="Right"
+                         MinWidth="100" />
+              </DataTemplate>
+            </FastTreeDataGridColumn.EditTemplate>
+          </FastTreeDataGridColumn>
           <FastTreeDataGridColumn Header="Last Updated"
                                   ValueKey="{x:Static crud:DynamicFlatRow.KeyUpdated}"
                                   SizingMode="Pixel"
                                   PixelWidth="160"
-                                  CanUserSort="False" />
+                                  CanUserSort="False"
+                                  IsReadOnly="True" />
         </controls:FastTreeDataGrid.Columns>
       </controls:FastTreeDataGrid>
     </Border>

@@ -307,6 +307,37 @@ public sealed class SqliteFlatCrudViewModel : INotifyPropertyChanged, IDisposabl
         await RefreshAsync().ConfigureAwait(false);
     }
 
+    public async Task CommitEditAsync(SqliteProductRow row, CancellationToken cancellationToken)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        var name = string.IsNullOrWhiteSpace(row.Name) ? "Untitled" : row.Name.Trim();
+        if (!string.Equals(row.Name, name, StringComparison.CurrentCulture))
+        {
+            row.Name = name;
+        }
+
+        var price = row.Price < 0 ? 0m : decimal.Round(row.Price, 2);
+        if (row.Price != price)
+        {
+            row.Price = price;
+        }
+
+        var category = Categories.FirstOrDefault(c => c.Id == row.CategoryId);
+        if (category.Id == 0)
+        {
+            Status = "Assign the product to a valid category before saving.";
+            return;
+        }
+
+        await _service.UpdateProductAsync(row.Id, category.Id, name, price, cancellationToken).ConfigureAwait(false);
+        row.Update(category, name, price);
+        Status = $"Saved product \"{name}\".";
+    }
+
     private bool CanAddProduct()
     {
         if (NewProductCategory is null)

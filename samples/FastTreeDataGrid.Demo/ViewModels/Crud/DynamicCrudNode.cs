@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crud;
 
-public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup
+public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup, IEditableObject, INotifyPropertyChanged
 {
     public const string KeyName = "DynamicCrud.Name";
     public const string KeyType = "DynamicCrud.Type";
@@ -17,6 +18,7 @@ public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeD
     private string _name;
     private string _owner;
     private double _progress;
+    private EditSnapshot? _snapshot;
 
     private DynamicCrudNode(int id, DynamicCrudNodeKind kind, string name, string owner, double progress)
     {
@@ -28,6 +30,8 @@ public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeD
     }
 
     public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public int Id { get; }
 
@@ -44,39 +48,23 @@ public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeD
     public string Name
     {
         get => _name;
-        private set
-        {
-            if (!string.Equals(_name, value, StringComparison.CurrentCulture))
-            {
-                _name = value;
-                NotifyValueChanged(KeyName);
-            }
-        }
+        set => SetProperty(ref _name, value ?? string.Empty, KeyName, nameof(Name));
     }
 
     public string Owner
     {
         get => _owner;
-        private set
-        {
-            if (!string.Equals(_owner, value, StringComparison.CurrentCulture))
-            {
-                _owner = value;
-                NotifyValueChanged(KeyOwner);
-            }
-        }
+        set => SetProperty(ref _owner, value ?? string.Empty, KeyOwner, nameof(Owner));
     }
 
     public double Progress
     {
         get => _progress;
-        private set
+        set
         {
             var clamped = Math.Clamp(value, 0.0, 100.0);
-            if (Math.Abs(_progress - clamped) > 0.001)
+            if (SetProperty(ref _progress, clamped, KeyProgress, nameof(Progress)))
             {
-                _progress = clamped;
-                NotifyValueChanged(KeyProgress);
                 Parent?.NotifyValueChanged(KeyProgress);
             }
         }
@@ -178,6 +166,59 @@ public sealed class DynamicCrudNode : IFastTreeDataGridValueProvider, IFastTreeD
     public void NotifyValueChanged(string? key = null)
     {
         ValueInvalidated?.Invoke(this, new ValueInvalidatedEventArgs(this, key));
+    }
+
+    public void BeginEdit()
+    {
+        _snapshot ??= new EditSnapshot(_name, _owner, _progress);
+    }
+
+    public void EndEdit()
+    {
+        _snapshot = null;
+    }
+
+    public void CancelEdit()
+    {
+        if (_snapshot is not { } snapshot)
+        {
+            return;
+        }
+
+        SetProperty(ref _name, snapshot.Name, KeyName, nameof(Name));
+        SetProperty(ref _owner, snapshot.Owner, KeyOwner, nameof(Owner));
+        SetProperty(ref _progress, snapshot.Progress, KeyProgress, nameof(Progress));
+        Parent?.NotifyValueChanged(KeyProgress);
+        _snapshot = null;
+    }
+
+    private bool SetProperty<T>(ref T storage, T value, string key, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(storage, value))
+        {
+            return false;
+        }
+
+        storage = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        NotifyValueChanged(key);
+        return true;
+    }
+
+    private readonly struct EditSnapshot
+    {
+        public EditSnapshot(string name, string owner, double progress)
+        {
+            Name = name;
+            Owner = owner;
+            Progress = progress;
+        }
+
+        public string Name { get; }
+
+        public string Owner { get; }
+
+        public double Progress { get; }
     }
 }
 

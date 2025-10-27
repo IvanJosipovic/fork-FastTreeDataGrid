@@ -311,6 +311,42 @@ public sealed class SqliteHierarchicalCrudViewModel : INotifyPropertyChanged, ID
         await RefreshAsync().ConfigureAwait(false);
     }
 
+    public async Task CommitEditAsync(SqliteCrudNode node, CancellationToken cancellationToken)
+    {
+        if (node is null)
+        {
+            return;
+        }
+
+        var normalizedName = string.IsNullOrWhiteSpace(node.Name) ? "Untitled" : node.Name.Trim();
+        if (!string.Equals(node.Name, normalizedName, StringComparison.CurrentCulture))
+        {
+            node.Name = normalizedName;
+        }
+
+        if (node.Kind == SqliteCrudNodeKind.Category)
+        {
+            await _service.UpdateCategoryAsync(node.Id, normalizedName, cancellationToken).ConfigureAwait(false);
+            Status = $"Saved category \"{normalizedName}\".";
+            return;
+        }
+
+        if (node.CategoryId is not { } categoryId)
+        {
+            Status = "Cannot update product without a category.";
+            return;
+        }
+
+        var price = node.Price < 0 ? 0m : decimal.Round(node.Price, 2);
+        if (node.Price != price)
+        {
+            node.Price = price;
+        }
+
+        await _service.UpdateProductAsync(node.Id, categoryId, normalizedName, price, cancellationToken).ConfigureAwait(false);
+        Status = $"Saved product \"{normalizedName}\".";
+    }
+
     private void UpdateSelection()
     {
         SqliteCrudNode? selected = null;

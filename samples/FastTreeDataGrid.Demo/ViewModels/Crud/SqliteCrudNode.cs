@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crud;
 
-public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup
+public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup, IEditableObject, INotifyPropertyChanged
 {
     public const string KeyId = "SqliteCrud.Id";
     public const string KeyName = "SqliteCrud.Name";
@@ -15,6 +16,7 @@ public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDa
     private readonly List<SqliteCrudNode> _children;
     private decimal _price;
     private string _name;
+    private EditSnapshot? _snapshot;
 
     private SqliteCrudNode(
         int id,
@@ -34,19 +36,14 @@ public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDa
 
     public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Id { get; }
 
     public string Name
     {
         get => _name;
-        private set
-        {
-            if (!string.Equals(_name, value, StringComparison.CurrentCulture))
-            {
-                _name = value;
-                NotifyValueChanged(KeyName);
-            }
-        }
+        set => SetProperty(ref _name, value ?? string.Empty, KeyName, nameof(Name));
     }
 
     public SqliteCrudNodeKind Kind { get; }
@@ -60,14 +57,7 @@ public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDa
     public decimal Price
     {
         get => _price;
-        private set
-        {
-            if (_price != value)
-            {
-                _price = value;
-                NotifyValueChanged(KeyPrice);
-            }
-        }
+        set => SetProperty(ref _price, value, KeyPrice, nameof(Price));
     }
 
     public static SqliteCrudNode CreateCategory(int id, string name, IReadOnlyList<SqliteCrudNode> children) =>
@@ -97,9 +87,62 @@ public sealed class SqliteCrudNode : IFastTreeDataGridValueProvider, IFastTreeDa
         };
     }
 
+    public void BeginEdit()
+    {
+        _snapshot ??= new EditSnapshot(_name, _price);
+    }
+
+    public void EndEdit()
+    {
+        _snapshot = null;
+    }
+
+    public void CancelEdit()
+    {
+        if (_snapshot is not { } snapshot)
+        {
+            return;
+        }
+
+        SetProperty(ref _name, snapshot.Name, KeyName, nameof(Name));
+        SetProperty(ref _price, snapshot.Price, KeyPrice, nameof(Price));
+        _snapshot = null;
+    }
+
     public void NotifyValueChanged(string? key = null)
     {
         ValueInvalidated?.Invoke(this, new ValueInvalidatedEventArgs(this, key));
+    }
+
+    private bool SetProperty<T>(ref T storage, T value, string key, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(storage, value))
+        {
+            return false;
+        }
+
+        storage = value;
+        NotifyPropertyChanged(propertyName);
+        NotifyValueChanged(key);
+        return true;
+    }
+
+    private void NotifyPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private readonly struct EditSnapshot
+    {
+        public EditSnapshot(string name, decimal price)
+        {
+            Name = name;
+            Price = price;
+        }
+
+        public string Name { get; }
+
+        public decimal Price { get; }
     }
 }
 

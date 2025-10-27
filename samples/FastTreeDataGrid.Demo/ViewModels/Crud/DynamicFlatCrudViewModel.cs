@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.Threading;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -248,6 +249,36 @@ public sealed class DynamicFlatCrudViewModel : INotifyPropertyChanged, IDisposab
         _source.Reset(_rows, preserveExpansion: false);
         Status = $"Deleted order {row.OrderNumber}.";
         SelectedIndices = Array.Empty<int>();
+        return Task.CompletedTask;
+    }
+
+    public Task CommitEditAsync(DynamicFlatRow row, CancellationToken cancellationToken)
+    {
+        if (row is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var customer = string.IsNullOrWhiteSpace(row.Customer) ? "Guest" : row.Customer.Trim();
+        if (!string.Equals(row.Customer, customer, StringComparison.CurrentCulture))
+        {
+            row.Customer = customer;
+        }
+
+        var status = string.IsNullOrWhiteSpace(row.StatusText) ? "Pending" : row.StatusText.Trim();
+        if (!string.Equals(row.StatusText, status, StringComparison.CurrentCulture))
+        {
+            row.StatusText = status;
+        }
+
+        var total = row.Total < 0 ? 0m : decimal.Round(row.Total, 2);
+        if (row.Total != total)
+        {
+            row.Total = total;
+        }
+
+        row.LastUpdated = DateTimeOffset.UtcNow;
+        Status = $"Updated order {row.OrderNumber}.";
         return Task.CompletedTask;
     }
 
