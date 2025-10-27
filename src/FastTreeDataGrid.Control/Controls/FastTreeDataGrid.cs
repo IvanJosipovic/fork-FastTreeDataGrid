@@ -1130,6 +1130,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.ColumnMoveLeftRequested += OnColumnMoveLeftRequested;
             _headerPresenter.ColumnMoveRightRequested += OnColumnMoveRightRequested;
             _headerPresenter.ColumnHideRequested += OnColumnHideRequested;
+            _headerPresenter.ExpandAllRequested += OnExpandAllRequested;
+            _headerPresenter.CollapseAllRequested += OnCollapseAllRequested;
             _headerPresenter.ColumnFilterRequested += OnColumnFilterRequested;
             _headerPresenter.ColumnFilterCleared += OnColumnFilterCleared;
         }
@@ -1167,6 +1169,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.ColumnMoveLeftRequested -= OnColumnMoveLeftRequested;
             _headerPresenter.ColumnMoveRightRequested -= OnColumnMoveRightRequested;
             _headerPresenter.ColumnHideRequested -= OnColumnHideRequested;
+            _headerPresenter.ExpandAllRequested -= OnExpandAllRequested;
+            _headerPresenter.CollapseAllRequested -= OnCollapseAllRequested;
             _headerPresenter.ColumnFilterRequested -= OnColumnFilterRequested;
             _headerPresenter.ColumnFilterCleared -= OnColumnFilterCleared;
         }
@@ -1950,6 +1954,16 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             AutoSizeColumn(i, includeAllRows);
         }
+    }
+
+    private void OnExpandAllRequested()
+    {
+        ExpandAllGroups();
+    }
+
+    private void OnCollapseAllRequested()
+    {
+        CollapseAllGroups();
     }
 
     private void AutoSizeColumn(int columnIndex, bool includeAllRows)

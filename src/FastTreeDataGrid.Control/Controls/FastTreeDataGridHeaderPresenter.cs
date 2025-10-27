@@ -65,6 +65,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     public event Action<int>? ColumnMoveLeftRequested;
     public event Action<int>? ColumnMoveRightRequested;
     public event Action<int>? ColumnHideRequested;
+    public event Action? ExpandAllRequested;
+    public event Action? CollapseAllRequested;
     public event Action<bool>? AutoSizeAllRequested;
     public event Action<int, ContentControl>? ColumnFilterRequested;
     public event Action<int>? ColumnFilterCleared;
@@ -422,6 +424,10 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         AddMenuItem("Sort Ascending", ColumnMenuAction.SortAscending, column.CanUserSort);
         AddMenuItem("Sort Descending", ColumnMenuAction.SortDescending, column.CanUserSort);
         AddMenuItem("Clear Sort", ColumnMenuAction.ClearSort, column.SortDirection != FastTreeDataGridSortDirection.None || column.SortOrder > 0);
+        menuItems.Add(new Separator());
+
+        AddMenuItem("Expand All", ColumnMenuAction.ExpandAll);
+        AddMenuItem("Collapse All", ColumnMenuAction.CollapseAll);
         menuItems.Add(new Separator());
 
         AddMenuItem("Auto-size Column", ColumnMenuAction.AutoSizeColumn, column.CanAutoSize);
@@ -919,6 +925,12 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             case ColumnMenuAction.AutoSizeColumn:
                 ColumnAutoSizeRequested?.Invoke(command.ColumnIndex, false);
                 break;
+            case ColumnMenuAction.ExpandAll:
+                ExpandAllRequested?.Invoke();
+                break;
+            case ColumnMenuAction.CollapseAll:
+                CollapseAllRequested?.Invoke();
+                break;
             case ColumnMenuAction.AutoSizeColumnAll:
                 ColumnAutoSizeRequested?.Invoke(command.ColumnIndex, true);
                 break;
@@ -960,6 +972,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         AutoSizeColumnAll,
         AutoSizeAllColumns,
         AutoSizeAllColumnsAll,
+        ExpandAll,
+        CollapseAll,
         PinLeft,
         PinRight,
         Unpin,

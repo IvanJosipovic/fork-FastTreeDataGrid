@@ -246,15 +246,17 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         var shouldNotify = false;
         lock (_dataLock)
         {
-            if (_groupDescriptors.Count == 0)
+            if (_groupDescriptors.Count > 0)
             {
-                return;
+                _defaultGroupExpansionState = true;
+                _groupExpansionStates.Clear();
+                RebuildVisible();
+                shouldNotify = true;
             }
-
-            _defaultGroupExpansionState = true;
-            _groupExpansionStates.Clear();
-            RebuildVisible();
-            shouldNotify = true;
+            else
+            {
+                shouldNotify = SetHierarchyExpansionState(expanded: true);
+            }
         }
 
         if (shouldNotify)
@@ -268,15 +270,17 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         var shouldNotify = false;
         lock (_dataLock)
         {
-            if (_groupDescriptors.Count == 0)
+            if (_groupDescriptors.Count > 0)
             {
-                return;
+                _defaultGroupExpansionState = false;
+                _groupExpansionStates.Clear();
+                RebuildVisible();
+                shouldNotify = true;
             }
-
-            _defaultGroupExpansionState = false;
-            _groupExpansionStates.Clear();
-            RebuildVisible();
-            shouldNotify = true;
+            else
+            {
+                shouldNotify = SetHierarchyExpansionState(expanded: false);
+            }
         }
 
         if (shouldNotify)
@@ -403,6 +407,41 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         cancellationToken.ThrowIfCancellationRequested();
         ScheduleWork(() => ApplySortFilterCore(request));
         return Task.CompletedTask;
+    }
+
+    private bool SetHierarchyExpansionState(bool expanded)
+    {
+        var changed = false;
+
+        foreach (var node in _flatNodes)
+        {
+            if (!node.HasChildren)
+            {
+                continue;
+            }
+
+            if (_rowFilter is not null && !node.HasVisibleChildren)
+            {
+                continue;
+            }
+
+            if (node.IsExpanded == expanded)
+            {
+                continue;
+            }
+
+            node.IsExpanded = expanded;
+            node.Row.IsExpanded = expanded;
+            node.StoredExpansionState = expanded;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            RebuildVisible();
+        }
+
+        return changed;
     }
 
     private void ApplySortFilterCore(FastTreeDataGridSortFilterRequest request)
