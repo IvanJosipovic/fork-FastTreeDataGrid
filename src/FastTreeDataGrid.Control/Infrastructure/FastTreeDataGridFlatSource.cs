@@ -578,8 +578,6 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
                 return false;
             }
 
-            var allowGroupReorder = request.Context is FastTreeDataGridRowReorderSettings settings && settings.AllowGroupReorder;
-
             var sortedIndices = request.SourceIndices
                 .Where(index => index >= 0)
                 .Distinct()
@@ -607,7 +605,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
                 }
 
                 var entry = _visibleEntries[index];
-                if (!IsReorderableEntry(entry, allowGroupReorder))
+                if (!IsReorderableEntry(entry))
                 {
                     return false;
                 }
@@ -673,7 +671,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
             else if (request.InsertIndex < workingEntries.Count)
             {
                 var targetEntry = workingEntries[request.InsertIndex];
-                if (!IsReorderableEntry(targetEntry, allowGroupReorder) || !ReferenceEquals(targetEntry.Node!.Parent, parent))
+                if (!IsReorderableEntry(targetEntry) || !ReferenceEquals(targetEntry.Node!.Parent, parent))
                 {
                     return false;
                 }
@@ -715,8 +713,8 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         }
     }
 
-    private static bool IsReorderableEntry(VisibleEntry entry, bool allowGroupReorder) =>
-        entry.Node is not null && !entry.IsSummary && (allowGroupReorder || !entry.IsGroup);
+    private static bool IsReorderableEntry(VisibleEntry entry) =>
+        entry.Node is not null && !entry.IsGroup && !entry.IsSummary;
 
     private static void RemoveEntriesForNodes(IReadOnlyList<int> indices, List<VisibleEntry> workingEntries)
     {

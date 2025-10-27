@@ -62,7 +62,6 @@
                                  HeaderHeight="34"
                                  IsFilterRowVisible="True"
                                  RowReorderSettings="{Binding Countries.RowReorderSettings}"
-                                 RowReorderHandler="{Binding Countries.RowReorderHandler}"
                                  RowReordering="CountriesGrid_OnRowReordering"
                                  RowReordered="CountriesGrid_OnRowReordered"
                                  TypeSearchSelector="{x:Static vm:CountriesViewModel.CountryNameSelector}" />

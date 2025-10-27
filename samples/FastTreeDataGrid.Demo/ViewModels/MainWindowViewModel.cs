@@ -16,7 +16,7 @@ public sealed class MainWindowViewModel : IDisposable
             Files.Source.ToggleExpansion(0);
         }
 
-        Countries = new CountriesViewModel();
+        Countries = new CountriesViewModel(DemoDataFactory.CreateCountries());
 
         Crypto = new CryptoTickersViewModel();
         Charts = new ChartSamplesViewModel();

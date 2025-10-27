@@ -89,7 +89,7 @@ public partial class CountriesControlsTab : UserControl
         }
 
         var countries = vm.Countries;
-        if (countries.HasMixedSelection(e.Request.SourceIndices))
+        if (countries.ContainsGroups(e.Request.SourceIndices))
         {
             e.Cancel = true;
             countries.NotifyReorderCancelled();

@@ -68,7 +68,6 @@
                                  HeaderHeight="34"
                                  IsFilterRowVisible="True"
                                  RowReorderSettings="{Binding Countries.RowReorderSettings}"
-                                 RowReorderHandler="{Binding Countries.RowReorderHandler}"
                                  RowReordering="OnCountriesRowReordering"
                                  RowReordered="OnCountriesRowReordered"
                                  SortRequested="OnCountriesSortRequested"
