@@ -1,4 +1,5 @@
 using System;
+using FastTreeDataGrid.Demo.ViewModels.Crud;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
 using FastTreeDataGrid.Demo.ViewModels.Charts;
@@ -18,6 +19,13 @@ public sealed class MainWindowViewModel : IDisposable
 
         Countries = new CountriesViewModel(DemoDataFactory.CreateCountries());
 
+        var sqliteService = new SqliteCrudService();
+        SqliteHierarchy = new SqliteHierarchicalCrudViewModel(sqliteService);
+        SqliteFlat = new SqliteFlatCrudViewModel(sqliteService);
+
+        DynamicHierarchy = new DynamicHierarchyCrudViewModel();
+        DynamicFlat = new DynamicFlatCrudViewModel();
+
         Crypto = new CryptoTickersViewModel();
         Charts = new ChartSamplesViewModel();
     }
@@ -26,12 +34,24 @@ public sealed class MainWindowViewModel : IDisposable
 
     public CountriesViewModel Countries { get; }
 
+    public SqliteHierarchicalCrudViewModel SqliteHierarchy { get; }
+
+    public SqliteFlatCrudViewModel SqliteFlat { get; }
+
+    public DynamicHierarchyCrudViewModel DynamicHierarchy { get; }
+
+    public DynamicFlatCrudViewModel DynamicFlat { get; }
+
     public CryptoTickersViewModel Crypto { get; }
 
     public ChartSamplesViewModel Charts { get; }
 
     public void Dispose()
     {
+        DynamicHierarchy.Dispose();
+        DynamicFlat.Dispose();
+        SqliteHierarchy.Dispose();
+        SqliteFlat.Dispose();
         Crypto.Dispose();
         Files.Dispose();
     }

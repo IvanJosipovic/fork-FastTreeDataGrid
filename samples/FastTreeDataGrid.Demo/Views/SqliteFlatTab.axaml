@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
+             xmlns:crud="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Crud"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.Demo.Views.SqliteFlatTab"
+             x:DataType="vm:MainWindowViewModel">
+  <Grid RowDefinitions="Auto,*"
+        RowSpacing="12">
+    <Border Grid.Row="0"
+            Padding="12"
+            Background="#F8FBF8"
+            BorderBrush="#CDE0D2"
+            BorderThickness="1"
+            CornerRadius="6">
+      <StackPanel Spacing="8"
+                  DataContext="{Binding SqliteFlat}">
+        <TextBlock Text="SQLite CRUD with products shown as a flat list."
+                   FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="6"
+                    VerticalAlignment="Center">
+          <TextBlock Text="New category:"
+                     VerticalAlignment="Center" />
+          <TextBox Width="200"
+                   Watermark="Category name"
+                   Text="{Binding AddCategoryName, UpdateSourceTrigger=PropertyChanged}" />
+          <Button Content="Add"
+                  Command="{Binding AddCategoryCommand}" />
+          <Button Content="Refresh"
+                  Command="{Binding RefreshCommand}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal"
+                    Spacing="6"
+                    VerticalAlignment="Center">
+          <TextBlock Text="New product:"
+                     VerticalAlignment="Center" />
+          <TextBox Width="180"
+                   Watermark="Product name"
+                   Text="{Binding NewProductName, UpdateSourceTrigger=PropertyChanged}" />
+          <ComboBox Width="180"
+                    ItemsSource="{Binding Categories}"
+                    SelectedItem="{Binding NewProductCategory, Mode=TwoWay}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBox Width="100"
+                   Watermark="Price"
+                   Text="{Binding NewProductPriceText, UpdateSourceTrigger=PropertyChanged}" />
+          <Button Content="Add"
+                  Command="{Binding AddProductCommand}" />
+        </StackPanel>
+        <Border Padding="8"
+                Background="#FFFFFF"
+                BorderBrush="#D6E4D8"
+                BorderThickness="1"
+                CornerRadius="4">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Edit selected product:" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <TextBox Width="180"
+                       Watermark="Product name"
+                       Text="{Binding EditProductName, UpdateSourceTrigger=PropertyChanged}" />
+              <ComboBox Width="180"
+                        ItemsSource="{Binding Categories}"
+                        SelectedItem="{Binding EditProductCategory, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBox Width="100"
+                       Watermark="Price"
+                       Text="{Binding EditProductPriceText, UpdateSourceTrigger=PropertyChanged}" />
+              <Button Content="Save changes"
+                      Command="{Binding SaveProductCommand}" />
+              <Button Content="Delete"
+                      Command="{Binding DeleteProductCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <TextBlock Text="{Binding Status}"
+                   Foreground="#216C48" />
+      </StackPanel>
+    </Border>
+    <Border Grid.Row="1"
+            BorderBrush="#B7C8BC"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="0">
+      <controls:FastTreeDataGrid ItemsSource="{Binding SqliteFlat.Source}"
+                                 SelectedIndices="{Binding SqliteFlat.SelectedIndices, Mode=TwoWay}"
+                                 RowHeight="30"
+                                 HeaderHeight="34"
+                                 IsFilterRowVisible="True">
+        <controls:FastTreeDataGrid.Columns>
+          <FastTreeDataGridColumn Header="Product"
+                                  ValueKey="{x:Static crud:SqliteProductRow.KeyName}"
+                                  SizingMode="Star"
+                                  CanUserSort="False" />
+          <FastTreeDataGridColumn Header="Category"
+                                  ValueKey="{x:Static crud:SqliteProductRow.KeyCategory}"
+                                  SizingMode="Star"
+                                  CanUserSort="False" />
+          <FastTreeDataGridColumn Header="Price"
+                                  ValueKey="{x:Static crud:SqliteProductRow.KeyPrice}"
+                                  SizingMode="Pixel"
+                                  PixelWidth="140"
+                                  CanUserSort="False" />
+          <FastTreeDataGridColumn Header="Id"
+                                  ValueKey="{x:Static crud:SqliteProductRow.KeyId}"
+                                  SizingMode="Pixel"
+                                  PixelWidth="80"
+                                  CanUserSort="False" />
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>

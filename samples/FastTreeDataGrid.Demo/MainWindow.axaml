@@ -35,6 +35,18 @@
       <TabItem Header="Charts">
         <views:ChartsTab />
       </TabItem>
+      <TabItem Header="SQLite (Hierarchy)">
+        <views:SqliteHierarchyTab />
+      </TabItem>
+      <TabItem Header="SQLite (Flat)">
+        <views:SqliteFlatTab />
+      </TabItem>
+      <TabItem Header="Dynamic (Hierarchy)">
+        <views:DynamicHierarchyTab />
+      </TabItem>
+      <TabItem Header="Dynamic (Flat)">
+        <views:DynamicFlatTab />
+      </TabItem>
     </TabControl>
   </Grid>
 </Window>
