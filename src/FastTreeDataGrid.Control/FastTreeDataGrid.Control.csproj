@@ -13,4 +13,10 @@
   <ItemGroup>
     <AvaloniaResource Include="Themes\**\*.xaml" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\FastTreeDataGrid.Analyzers\\FastTreeDataGrid.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

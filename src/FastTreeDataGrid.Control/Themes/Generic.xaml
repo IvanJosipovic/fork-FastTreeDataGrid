@@ -1,8 +1,20 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls">
   <Styles.Resources>
     <SolidColorBrush x:Key="FastTreeDataGrid.HeaderBackground" Color="#FFE2E2E2" />
     <SolidColorBrush x:Key="FastTreeDataGrid.HeaderBorder" Color="#FFB8B8B8" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.SelectionBrush" Color="#283182CE" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.PlaceholderBrush" Color="#14C8C8C8" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.ToggleGlyphBrush" Color="#FF606060" />
+    <Pen x:Key="FastTreeDataGrid.GridLinePen" Brush="#FFD2D2D2" Thickness="1" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.SkeletonBrush" Color="#FFD6DBE1" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.SummaryBrush" Color="#FFECEFF4" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.ValidationErrorBrush" Color="#FFD53F3F" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.ValidationWarningBrush" Color="#FFD58D26" />
+    <Pen x:Key="FastTreeDataGrid.FocusBorderPen" Brush="#FF3182CE" Thickness="1.5" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.FilterFlyoutBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.FilterFlyoutBorder" Color="#FFE0E0E0" />
   </Styles.Resources>
 
   <Style Selector="FastTreeDataGrid">
@@ -19,14 +31,41 @@
                           VerticalAlignment="Top"
                           Focusable="False">
               <Border x:Name="PART_HeaderHost" Classes="HeaderHost">
-                <FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
+                <StackPanel Spacing="0">
+                  <FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
+                  <controls:FastTreeDataGridFilterPresenter x:Name="PART_FilterPresenter" />
+                </StackPanel>
               </Border>
             </ScrollViewer>
             <ScrollViewer Grid.Row="1"
                           x:Name="PART_ScrollViewer"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
-              <FastTreeDataGridPresenter x:Name="PART_Presenter" />
+              <Grid>
+                <FastTreeDataGridPresenter x:Name="PART_Presenter" />
+                <Border x:Name="PART_LoadingOverlay"
+                        Background="#10000000"
+                        IsVisible="False"
+                        IsHitTestVisible="False">
+                  <Border Background="#F9FFFFFF"
+                          Padding="12"
+                          CornerRadius="6"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                    <StackPanel Spacing="8">
+                      <ProgressBar x:Name="PART_LoadingProgress"
+                                   Width="160"
+                                   Height="4"
+                                   IsIndeterminate="True" />
+                      <TextBlock x:Name="PART_LoadingText"
+                                 Text="Loading…"
+                                 Foreground="#444"
+                                 FontSize="12"
+                                 HorizontalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                </Border>
+              </Grid>
             </ScrollViewer>
           </Grid>
         </ControlTemplate>
@@ -66,5 +105,11 @@
 
   <Style Selector="FastTreeDataGridHeaderPresenter > Thumb:pointerover">
     <Setter Property="Background" Value="#22000000" />
+  </Style>
+
+  <Style Selector="Border.fast-tree-data-grid-filter-flyout">
+    <Setter Property="Background" Value="{DynamicResource FastTreeDataGrid.FilterFlyoutBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FastTreeDataGrid.FilterFlyoutBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
   </Style>
 </Styles>

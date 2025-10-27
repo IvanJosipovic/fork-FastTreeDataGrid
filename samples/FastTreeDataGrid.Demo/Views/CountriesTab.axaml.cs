@@ -1,5 +1,7 @@
+using System.Globalization;
 using Avalonia.Controls;
 using FastTreeDataGrid.Control.Controls;
+using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Demo.ViewModels;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
@@ -23,8 +25,19 @@ public partial class CountriesTab : UserControl
         grid.Columns.Clear();
         grid.IndentWidth = 16;
         grid.RowHeight = 28;
+        grid.IsFilterRowVisible = true;
         grid.SortRequested -= OnCountriesSortRequested;
         grid.SortRequested += OnCountriesSortRequested;
+
+        grid.AggregateDescriptors.Clear();
+        grid.AggregateDescriptors.Add(new FastTreeDataGridAggregateDescriptor
+        {
+            Label = "Total",
+            Placement = FastTreeDataGridAggregatePlacement.GroupAndGrid,
+        });
+        grid.AggregateDescriptors.Add(CreateSumDescriptor(CountryNode.KeyPopulation));
+        grid.AggregateDescriptors.Add(CreateSumDescriptor(CountryNode.KeyArea));
+        grid.AggregateDescriptors.Add(CreateSumDescriptor(CountryNode.KeyGdp));
 
         grid.Columns.Add(new FastTreeDataGridColumn
         {
@@ -33,6 +46,7 @@ public partial class CountriesTab : UserControl
             ValueKey = CountryNode.KeyName,
             IsHierarchy = true,
             CanUserSort = true,
+            FilterPlaceholder = "Filter country",
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -41,6 +55,7 @@ public partial class CountriesTab : UserControl
             SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyRegion,
             CanUserSort = true,
+            FilterPlaceholder = "Filter region",
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -51,6 +66,7 @@ public partial class CountriesTab : UserControl
             MinWidth = 120,
             ValueKey = CountryNode.KeyPopulation,
             CanUserSort = true,
+            FilterPlaceholder = "Filter population",
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -59,6 +75,7 @@ public partial class CountriesTab : UserControl
             SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyArea,
             CanUserSort = true,
+            FilterPlaceholder = "Filter area",
         });
 
         grid.Columns.Add(new FastTreeDataGridColumn
@@ -67,6 +84,7 @@ public partial class CountriesTab : UserControl
             SizingMode = ColumnSizingMode.Star,
             ValueKey = CountryNode.KeyGdp,
             CanUserSort = true,
+            FilterPlaceholder = "Filter GDP",
         });
     }
 
@@ -90,5 +108,36 @@ public partial class CountriesTab : UserControl
                 grid.SetSortState(e.Descriptions);
             }
         }
+    }
+
+    private static FastTreeDataGridAggregateDescriptor CreateSumDescriptor(string columnKey)
+    {
+        return new FastTreeDataGridAggregateDescriptor
+        {
+            ColumnKey = columnKey,
+            Placement = FastTreeDataGridAggregatePlacement.GroupAndGrid,
+            Aggregator = rows =>
+            {
+                long sum = 0;
+                foreach (var row in rows)
+                {
+                    if (row.Item is not CountryNode node || node.IsGroup)
+                    {
+                        continue;
+                    }
+
+                    sum += columnKey switch
+                    {
+                        CountryNode.KeyPopulation => node.Population ?? 0,
+                        CountryNode.KeyArea => node.Area ?? 0,
+                        CountryNode.KeyGdp => node.Gdp ?? 0,
+                        _ => 0,
+                    };
+                }
+
+                return sum;
+            },
+            Formatter = value => value is long l ? l.ToString("N0", CultureInfo.CurrentCulture) : value?.ToString(),
+        };
     }
 }

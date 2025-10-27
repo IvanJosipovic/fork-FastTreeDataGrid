@@ -52,6 +52,15 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<bool> CanAutoSizeProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanAutoSize), true);
 
+    public static readonly StyledProperty<bool> CanUserFilterProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanUserFilter), true);
+
+    public static readonly StyledProperty<string?> FilterPlaceholderProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, string?>(nameof(FilterPlaceholder), "Filter");
+
+    public static readonly StyledProperty<Func<string?, FastTreeDataGridFilterDescriptor?>?> FilterFactoryProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, Func<string?, FastTreeDataGridFilterDescriptor?>?>(nameof(FilterFactory));
+
     public static readonly StyledProperty<FastTreeDataGridPinnedPosition> PinnedPositionProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, FastTreeDataGridPinnedPosition>(nameof(PinnedPosition), FastTreeDataGridPinnedPosition.None);
 
@@ -82,8 +91,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly DirectProperty<FastTreeDataGridColumn, int> SortOrderProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGridColumn, int>(nameof(SortOrder), o => o.SortOrder, (o, v) => o.SortOrder = v);
 
+    public static readonly StyledProperty<bool> IsFilterActiveProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(IsFilterActive));
+
     private int _sortOrder;
     private readonly Stack<AvaloniaControl> _controlPool = new();
+    private readonly Stack<FormattedTextWidget> _textWidgetPool = new();
 
     public object? Header
     {
@@ -205,6 +218,24 @@ public class FastTreeDataGridColumn : AvaloniaObject
         set => SetValue(CanAutoSizeProperty, value);
     }
 
+    public bool CanUserFilter
+    {
+        get => GetValue(CanUserFilterProperty);
+        set => SetValue(CanUserFilterProperty, value);
+    }
+
+    public string? FilterPlaceholder
+    {
+        get => GetValue(FilterPlaceholderProperty);
+        set => SetValue(FilterPlaceholderProperty, value);
+    }
+
+    public Func<string?, FastTreeDataGridFilterDescriptor?>? FilterFactory
+    {
+        get => GetValue(FilterFactoryProperty);
+        set => SetValue(FilterFactoryProperty, value);
+    }
+
     public FastTreeDataGridPinnedPosition PinnedPosition
     {
         get => GetValue(PinnedPositionProperty);
@@ -221,6 +252,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
     {
         get => _sortOrder;
         set => SetAndRaise(SortOrderProperty, ref _sortOrder, value);
+    }
+
+    public bool IsFilterActive
+    {
+        get => GetValue(IsFilterActiveProperty);
+        internal set => SetValue(IsFilterActiveProperty, value);
     }
 
     public Comparison<FastTreeDataGridRow>? SortComparison
@@ -247,5 +284,26 @@ public class FastTreeDataGridColumn : AvaloniaObject
 
         control.DataContext = null;
         _controlPool.Push(control);
+    }
+
+    internal FormattedTextWidget RentTextWidget()
+    {
+        return _textWidgetPool.Count > 0 ? _textWidgetPool.Pop() : new FormattedTextWidget();
+    }
+
+    internal void ReturnTextWidget(FormattedTextWidget? widget)
+    {
+        if (widget is null)
+        {
+            return;
+        }
+
+        widget.SetText(string.Empty);
+        widget.Key = null;
+        widget.Foreground = null;
+        widget.StyleKey = null;
+        widget.Margin = default;
+        widget.CornerRadius = default;
+        _textWidgetPool.Push(widget);
     }
 }

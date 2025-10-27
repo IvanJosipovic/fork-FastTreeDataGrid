@@ -66,6 +66,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     public event Action<int>? ColumnMoveRightRequested;
     public event Action<int>? ColumnHideRequested;
     public event Action<bool>? AutoSizeAllRequested;
+    public event Action<int, ContentControl>? ColumnFilterRequested;
+    public event Action<int>? ColumnFilterCleared;
 
     public void BindColumns(
         IReadOnlyList<FastTreeDataGridColumn> columns,
@@ -404,10 +406,17 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             {
                 Header = header,
                 IsEnabled = isEnabled,
-                Tag = new ColumnMenuCommand(columnIndex, action),
+                Tag = new ColumnMenuCommand(columnIndex, action, cell),
             };
             item.Click += OnMenuItemClick;
             menuItems.Add(item);
+        }
+
+        if (column.CanUserFilter)
+        {
+            AddMenuItem("Filter...", ColumnMenuAction.ShowFilter, column.CanUserFilter);
+            AddMenuItem("Clear Filter", ColumnMenuAction.ClearFilter, column.CanUserFilter && column.IsFilterActive);
+            menuItems.Add(new Separator());
         }
 
         AddMenuItem("Sort Ascending", ColumnMenuAction.SortAscending, column.CanUserSort);
@@ -889,6 +898,15 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 
         switch (command.Action)
         {
+            case ColumnMenuAction.ShowFilter:
+                if (command.Cell is not null)
+                {
+                    ColumnFilterRequested?.Invoke(command.ColumnIndex, command.Cell);
+                }
+                break;
+            case ColumnMenuAction.ClearFilter:
+                ColumnFilterCleared?.Invoke(command.ColumnIndex);
+                break;
             case ColumnMenuAction.SortAscending:
                 ColumnSortRequested?.Invoke(command.ColumnIndex, FastTreeDataGridSortDirection.Ascending, KeyModifiers.None);
                 break;
@@ -933,6 +951,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 
     private enum ColumnMenuAction
     {
+        ShowFilter,
+        ClearFilter,
         SortAscending,
         SortDescending,
         ClearSort,
@@ -948,7 +968,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         Hide,
     }
 
-    private readonly record struct ColumnMenuCommand(int ColumnIndex, ColumnMenuAction Action);
+    private readonly record struct ColumnMenuCommand(int ColumnIndex, ColumnMenuAction Action, ContentControl Cell);
 
     private sealed class ColumnResizeState
     {

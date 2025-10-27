@@ -58,11 +58,17 @@
       <TabItem Header="Gallery">
         <views:GalleryTab />
       </TabItem>
+      <TabItem Header="Adapters">
+        <views:AdaptersTab />
+      </TabItem>
       <TabItem Header="Data Sources">
         <views:DataSourcesTab />
       </TabItem>
       <TabItem Header="Virtualization">
         <views:VirtualizationTab />
+      </TabItem>
+      <TabItem Header="Extensibility">
+        <views:ExtensibilityTab />
       </TabItem>
     </TabControl>
   </Grid>

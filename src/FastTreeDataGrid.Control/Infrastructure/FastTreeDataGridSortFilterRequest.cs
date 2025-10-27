@@ -3,8 +3,6 @@ using System.Collections.Generic;
 
 using FastTreeDataGrid.Control.Models;
 
-using FastTreeDataGrid.Control.Infrastructure;
-
 namespace FastTreeDataGrid.Control.Infrastructure;
 
 public sealed class FastTreeDataGridSortDescriptor
@@ -20,7 +18,7 @@ public sealed class FastTreeDataGridFilterDescriptor
 {
     public string? ColumnKey { get; set; }
 
-    public Func<object?, bool>? Predicate { get; set; }
+    public Func<FastTreeDataGridRow, bool>? Predicate { get; set; }
 }
 
 public sealed class FastTreeDataGridSortFilterRequest
@@ -28,4 +26,8 @@ public sealed class FastTreeDataGridSortFilterRequest
     public IReadOnlyList<FastTreeDataGridSortDescriptor> SortDescriptors { get; init; } = Array.Empty<FastTreeDataGridSortDescriptor>();
 
     public IReadOnlyList<FastTreeDataGridFilterDescriptor> FilterDescriptors { get; init; } = Array.Empty<FastTreeDataGridFilterDescriptor>();
+
+    public IReadOnlyList<FastTreeDataGridGroupDescriptor> GroupDescriptors { get; init; } = Array.Empty<FastTreeDataGridGroupDescriptor>();
+
+    public IReadOnlyList<FastTreeDataGridAggregateDescriptor> AggregateDescriptors { get; init; } = Array.Empty<FastTreeDataGridAggregateDescriptor>();
 }

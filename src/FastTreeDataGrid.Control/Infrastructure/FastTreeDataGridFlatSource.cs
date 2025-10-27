@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,20 +10,25 @@ using Avalonia.Threading;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFastTreeDataGridSortFilterHandler
+public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFastTreeDataGridSortFilterHandler, IFastTreeDataGridGroupingController
 {
     private readonly Func<T, IEnumerable<T>> _childrenSelector;
     private readonly Func<T, string>? _keySelector;
     private readonly IEqualityComparer<string>? _keyComparer;
     private readonly List<TreeNode> _rootNodes = new();
     private readonly List<TreeNode> _flatNodes = new();
-    private readonly List<TreeNode> _visibleNodes = new();
+    private readonly List<VisibleEntry> _visibleEntries = new();
     private readonly Dictionary<string, TreeNode>? _nodeLookup;
     private Predicate<FastTreeDataGridRow>? _rowFilter;
     private bool _autoExpandFilteredMatches = true;
     private int _nextOriginalIndex;
     private readonly object _dataLock = new();
     private readonly SemaphoreSlim _operationSemaphore = new(1, 1);
+    private IReadOnlyList<FastTreeDataGridGroupDescriptor> _groupDescriptors = Array.Empty<FastTreeDataGridGroupDescriptor>();
+    private IReadOnlyList<FastTreeDataGridAggregateDescriptor> _aggregateDescriptors = Array.Empty<FastTreeDataGridAggregateDescriptor>();
+    private readonly Dictionary<string, bool> _groupExpansionStates = new(StringComparer.Ordinal);
+    private bool _defaultGroupExpansionState = true;
+    private readonly List<FastTreeDataGridRow> _aggregationBuffer = new();
 
     public FastTreeDataGridFlatSource(
         IEnumerable<T> rootItems,
@@ -57,7 +63,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         {
             lock (_dataLock)
             {
-                return _visibleNodes.Count;
+                return _visibleEntries.Count;
             }
         }
     }
@@ -83,20 +89,20 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         List<FastTreeDataGridRow> rows;
         lock (_dataLock)
         {
-            if (_visibleNodes.Count == 0 || request.Count == 0 || request.StartIndex >= _visibleNodes.Count)
+            if (_visibleEntries.Count == 0 || request.Count == 0 || request.StartIndex >= _visibleEntries.Count)
             {
                 rows = new List<FastTreeDataGridRow>();
             }
             else
             {
                 startIndex = Math.Max(0, request.StartIndex);
-                var endExclusive = Math.Min(_visibleNodes.Count, startIndex + request.Count);
+                var endExclusive = Math.Min(_visibleEntries.Count, startIndex + request.Count);
                 var capacity = Math.Max(0, endExclusive - startIndex);
                 rows = new List<FastTreeDataGridRow>(capacity);
 
                 for (var i = startIndex; i < endExclusive; i++)
                 {
-                    rows.Add(_visibleNodes[i].Row);
+                    rows.Add(_visibleEntries[i].Row);
                 }
             }
         }
@@ -146,9 +152,9 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
     {
         lock (_dataLock)
         {
-            if ((uint)index < (uint)_visibleNodes.Count)
+            if ((uint)index < (uint)_visibleEntries.Count)
             {
-                row = _visibleNodes[index].Row;
+                row = _visibleEntries[index].Row;
                 return true;
             }
         }
@@ -167,12 +173,12 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
     {
         lock (_dataLock)
         {
-            if ((uint)index >= (uint)_visibleNodes.Count)
+            if ((uint)index >= (uint)_visibleEntries.Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            return _visibleNodes[index].Row;
+            return _visibleEntries[index].Row;
         }
     }
 
@@ -182,22 +188,34 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
 
         lock (_dataLock)
         {
-            if ((uint)index >= (uint)_visibleNodes.Count)
+            if ((uint)index >= (uint)_visibleEntries.Count)
             {
                 return;
             }
 
-            var node = _visibleNodes[index];
-            if (!node.HasChildren || (_rowFilter is not null && !node.HasVisibleChildren))
+            var entry = _visibleEntries[index];
+            if (entry.IsGroup && entry.GroupPath is { } groupPath)
             {
-                return;
+                var newState = !entry.IsExpanded;
+                entry.IsExpanded = newState;
+                entry.Row.IsExpanded = newState;
+                _groupExpansionStates[groupPath] = newState;
+                RebuildVisible();
+                shouldNotify = true;
             }
+            else if (entry.Node is { } node)
+            {
+                if (!entry.HasChildren || (_rowFilter is not null && !node.HasVisibleChildren))
+                {
+                    return;
+                }
 
-            node.IsExpanded = !node.IsExpanded;
-            node.Row.IsExpanded = node.IsExpanded;
+                node.IsExpanded = !node.IsExpanded;
+                node.Row.IsExpanded = node.IsExpanded;
 
-            RebuildVisible();
-            shouldNotify = true;
+                RebuildVisible();
+                shouldNotify = true;
+            }
         }
 
         if (shouldNotify)
@@ -221,6 +239,50 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
 
         var snapshot = rootItems as IList<T> ?? rootItems.ToList();
         ScheduleWork(() => ResetCore(snapshot, preserveExpansion));
+    }
+
+    public void ExpandAllGroups()
+    {
+        var shouldNotify = false;
+        lock (_dataLock)
+        {
+            if (_groupDescriptors.Count == 0)
+            {
+                return;
+            }
+
+            _defaultGroupExpansionState = true;
+            _groupExpansionStates.Clear();
+            RebuildVisible();
+            shouldNotify = true;
+        }
+
+        if (shouldNotify)
+        {
+            RaiseResetRequested();
+        }
+    }
+
+    public void CollapseAllGroups()
+    {
+        var shouldNotify = false;
+        lock (_dataLock)
+        {
+            if (_groupDescriptors.Count == 0)
+            {
+                return;
+            }
+
+            _defaultGroupExpansionState = false;
+            _groupExpansionStates.Clear();
+            RebuildVisible();
+            shouldNotify = true;
+        }
+
+        if (shouldNotify)
+        {
+            RaiseResetRequested();
+        }
     }
 
     private void SortCore(Comparison<FastTreeDataGridRow>? comparison)
@@ -272,9 +334,11 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
 
         _rootNodes.Clear();
         _flatNodes.Clear();
-        _visibleNodes.Clear();
+        _visibleEntries.Clear();
         _nodeLookup?.Clear();
         _nextOriginalIndex = 0;
+        _groupExpansionStates.Clear();
+        _defaultGroupExpansionState = true;
 
         BuildNodes(null, rootItems, level: 0);
         FlattenNodes();
@@ -313,34 +377,51 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
 
     public Task ApplySortFilterAsync(FastTreeDataGridSortFilterRequest request, CancellationToken cancellationToken)
     {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
+        ScheduleWork(() => ApplySortFilterCore(request));
+        return Task.CompletedTask;
+    }
 
-        if (request.FilterDescriptors.Count == 0)
+    private void ApplySortFilterCore(FastTreeDataGridSortFilterRequest request)
+    {
+        if (request.GroupDescriptors.Count == 0)
         {
-            SetFilter(null);
-        }
-        else
-        {
-            SetFilter(row => EvaluateFilters(row, request.FilterDescriptors));
+            _groupExpansionStates.Clear();
+            _defaultGroupExpansionState = true;
         }
 
-        if (request.SortDescriptors.Count == 0)
-        {
-            Sort(null);
-        }
-        else
+        _groupDescriptors = request.GroupDescriptors.Count == 0
+            ? Array.Empty<FastTreeDataGridGroupDescriptor>()
+            : request.GroupDescriptors.ToArray();
+
+        _aggregateDescriptors = request.AggregateDescriptors.Count == 0
+            ? Array.Empty<FastTreeDataGridAggregateDescriptor>()
+            : request.AggregateDescriptors.ToArray();
+
+        Predicate<FastTreeDataGridRow>? filter = request.FilterDescriptors.Count == 0
+            ? null
+            : row => EvaluateFilters(row, request.FilterDescriptors);
+
+        SetFilterCore(filter, _autoExpandFilteredMatches);
+
+        Comparison<FastTreeDataGridRow>? comparison = null;
+        if (request.SortDescriptors.Count > 0)
         {
             var descriptor = request.SortDescriptors[0];
             if (descriptor.RowComparison is not null)
             {
-                var comparison = descriptor.Direction == FastTreeDataGridSortDirection.Descending
+                comparison = descriptor.Direction == FastTreeDataGridSortDirection.Descending
                     ? new Comparison<FastTreeDataGridRow>((a, b) => descriptor.RowComparison!(b, a))
                     : descriptor.RowComparison;
-                Sort(comparison);
             }
         }
 
-        return Task.CompletedTask;
+        SortCore(comparison);
     }
 
     private static bool EvaluateFilters(FastTreeDataGridRow row, IReadOnlyList<FastTreeDataGridFilterDescriptor> filters)
@@ -348,7 +429,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         for (var i = 0; i < filters.Count; i++)
         {
             var descriptor = filters[i];
-            if (descriptor.Predicate is not null && !descriptor.Predicate(row.Item))
+            if (descriptor.Predicate is not null && !descriptor.Predicate(row))
             {
                 return false;
             }
@@ -579,8 +660,19 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
 
     private void RebuildVisible()
     {
-        _visibleNodes.Clear();
+        _visibleEntries.Clear();
 
+        if (_groupDescriptors.Count == 0)
+        {
+            RebuildVisibleWithoutGrouping();
+            return;
+        }
+
+        RebuildVisibleWithGrouping();
+    }
+
+    private void RebuildVisibleWithoutGrouping()
+    {
         foreach (var node in _flatNodes)
         {
             if (!node.IsFilterIncluded || !IsVisible(node))
@@ -591,7 +683,52 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
             node.Row.Level = node.Level;
             node.Row.HasChildren = node.HasChildren && (_rowFilter is null || node.HasVisibleChildren);
             node.Row.IsExpanded = node.IsExpanded;
-            _visibleNodes.Add(node);
+
+            _visibleEntries.Add(VisibleEntry.ForNode(node));
+        }
+
+        var summaryEntry = CreateSummaryEntry(
+            _visibleEntries.Where(static e => !e.IsGroup && !e.IsSummary).Select(static e => e.Row),
+            level: 0,
+            groupPath: null,
+            FastTreeDataGridAggregatePlacement.GridFooter);
+
+        if (summaryEntry is not null)
+        {
+            _visibleEntries.Add(summaryEntry);
+        }
+    }
+
+    private void RebuildVisibleWithGrouping()
+    {
+        var groupsRoot = new GroupView("root", -1, null, null, null);
+
+        foreach (var node in _flatNodes)
+        {
+            if (!node.IsFilterIncluded || !IsVisible(node))
+            {
+                continue;
+            }
+
+            AddNodeToGroup(groupsRoot, node, 0);
+        }
+
+        if (groupsRoot.Children.Count == 0 && groupsRoot.Items.Count == 0)
+        {
+            return;
+        }
+
+        FlattenGroupView(groupsRoot);
+
+        var footer = CreateSummaryEntry(
+            _visibleEntries.Where(static e => e.Node is not null).Select(static e => e.Row),
+            level: 0,
+            groupPath: null,
+            FastTreeDataGridAggregatePlacement.GridFooter);
+
+        if (footer is not null)
+        {
+            _visibleEntries.Add(footer);
         }
     }
 
@@ -609,6 +746,257 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         }
 
         return true;
+    }
+
+    private void AddNodeToGroup(GroupView parent, TreeNode node, int descriptorIndex)
+    {
+        if (descriptorIndex >= _groupDescriptors.Count)
+        {
+            parent.Items.Add(node);
+            return;
+        }
+
+        var descriptor = _groupDescriptors[descriptorIndex];
+        var key = GetGroupKey(node.Row, descriptor);
+        var path = BuildGroupPath(parent.Path, descriptorIndex, key);
+
+        var child = parent.Children.FirstOrDefault(c => c.Path == path);
+        if (child is null)
+        {
+            child = new GroupView(path, descriptorIndex, descriptor, key, parent);
+            if (_groupExpansionStates.TryGetValue(path, out var expanded))
+            {
+                child.IsExpanded = expanded;
+            }
+            else
+            {
+                child.IsExpanded = _defaultGroupExpansionState;
+            }
+
+            parent.Children.Add(child);
+        }
+
+        AddNodeToGroup(child, node, descriptorIndex + 1);
+    }
+
+    private static string BuildGroupPath(string parentPath, int descriptorIndex, object? key) =>
+        $"{parentPath}|{descriptorIndex}:{NormalizeKey(key)}";
+
+    private static string NormalizeKey(object? key) =>
+        key switch
+        {
+            null => "<null>",
+            string s => s,
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => key?.ToString() ?? "<null>"
+        };
+
+    private object? GetGroupKey(FastTreeDataGridRow row, FastTreeDataGridGroupDescriptor descriptor)
+    {
+        if (descriptor.KeySelector is not null)
+        {
+            return descriptor.KeySelector(row);
+        }
+
+        if (!string.IsNullOrEmpty(descriptor.ColumnKey) && row.ValueProvider is { } provider)
+        {
+            return provider.GetValue(row.Item, descriptor.ColumnKey);
+        }
+
+        return row.Item;
+    }
+
+    private void FlattenGroupView(GroupView root)
+    {
+        foreach (var child in root.Children)
+        {
+            FlattenGroup(child);
+        }
+
+        if (root.Level < 0 && root.Items.Count > 0)
+        {
+            foreach (var node in root.Items)
+            {
+                node.Row.Level = node.Level;
+                node.Row.HasChildren = node.HasChildren && (_rowFilter is null || node.HasVisibleChildren);
+                node.Row.IsExpanded = node.IsExpanded;
+                _visibleEntries.Add(VisibleEntry.ForNode(node));
+            }
+        }
+    }
+
+    private void FlattenGroup(GroupView view)
+    {
+        var itemCount = CountGroupItems(view);
+        var headerText = BuildGroupHeader(view, itemCount);
+        var provider = new FastTreeDataGridGeneratedGroupRow(
+            view.Descriptor?.ColumnKey,
+            headerText,
+            view.Key,
+            itemCount,
+            view.Level);
+
+        var hasChildren = view.Children.Count > 0 || view.Items.Count > 0;
+        var row = new FastTreeDataGridRow(provider, view.Level, hasChildren, view.IsExpanded, OnNodeRequestMeasure)
+        {
+            HasChildren = hasChildren
+        };
+        row.Level = view.Level;
+        row.IsExpanded = view.IsExpanded;
+
+        _visibleEntries.Add(VisibleEntry.ForGroup(row, view.Path, view.IsExpanded, hasChildren, view.Level));
+
+        if (!view.IsExpanded)
+        {
+            return;
+        }
+
+        foreach (var child in view.Children)
+        {
+            FlattenGroup(child);
+        }
+
+        foreach (var node in view.Items)
+        {
+            var level = view.Level + 1 + Math.Max(0, node.OriginalLevel);
+            node.Row.Level = level;
+            node.Row.HasChildren = node.HasChildren && (_rowFilter is null || node.HasVisibleChildren);
+            node.Row.IsExpanded = node.IsExpanded;
+            _visibleEntries.Add(VisibleEntry.ForNode(node));
+        }
+
+        var summaryEntry = CreateSummaryEntryForGroup(view);
+        if (summaryEntry is not null)
+        {
+            _visibleEntries.Add(summaryEntry);
+        }
+    }
+
+    private VisibleEntry? CreateSummaryEntryForGroup(GroupView view)
+    {
+        if (_aggregateDescriptors.Count == 0)
+        {
+            return null;
+        }
+
+        if (!_aggregateDescriptors.Any(d => (d.Placement & FastTreeDataGridAggregatePlacement.GroupFooter) != 0))
+        {
+            return null;
+        }
+
+        _aggregationBuffer.Clear();
+        CollectGroupRows(view, _aggregationBuffer);
+        if (_aggregationBuffer.Count == 0)
+        {
+            return null;
+        }
+
+        var entry = CreateSummaryEntry(_aggregationBuffer, view.Level + 1, view.Path, FastTreeDataGridAggregatePlacement.GroupFooter);
+        _aggregationBuffer.Clear();
+        return entry;
+    }
+
+    private VisibleEntry? CreateSummaryEntry(IEnumerable<FastTreeDataGridRow> sourceRows, int level, string? groupPath, FastTreeDataGridAggregatePlacement placement)
+    {
+        if (_aggregateDescriptors.Count == 0)
+        {
+            return null;
+        }
+
+        List<FastTreeDataGridAggregateDescriptor>? descriptors = null;
+        foreach (var descriptor in _aggregateDescriptors)
+        {
+            if ((descriptor.Placement & placement) == 0)
+            {
+                continue;
+            }
+
+            descriptors ??= new List<FastTreeDataGridAggregateDescriptor>();
+            descriptors.Add(descriptor);
+        }
+
+        if (descriptors is null || descriptors.Count == 0)
+        {
+            return null;
+        }
+
+        var rows = sourceRows as IReadOnlyList<FastTreeDataGridRow> ?? sourceRows.ToList();
+        if (rows.Count == 0)
+        {
+            return null;
+        }
+
+        FastTreeDataGridAggregateDescriptor? labelDescriptor = descriptors.FirstOrDefault(d => string.IsNullOrEmpty(d.ColumnKey) && d.Label is not null);
+        var labelKey = labelDescriptor?.ColumnKey ?? string.Empty;
+        var labelText = labelDescriptor?.Label ?? (placement == FastTreeDataGridAggregatePlacement.GroupFooter ? "Group Total" : "Total");
+
+        var summaryProvider = new FastTreeDataGridGeneratedSummaryRow(level, labelKey, labelText);
+
+        foreach (var descriptor in descriptors)
+        {
+            if (descriptor.Aggregator is null)
+            {
+                if (descriptor.ColumnKey is null && descriptor.Label is not null)
+                {
+                    summaryProvider.SetValue(descriptor.ColumnKey, descriptor.Label, descriptor.Formatter);
+                }
+
+                continue;
+            }
+
+            var result = descriptor.Aggregator(rows);
+            summaryProvider.SetValue(descriptor.ColumnKey, result, descriptor.Formatter);
+        }
+
+        var summaryRow = new FastTreeDataGridRow(summaryProvider, level, hasChildren: false, isExpanded: false, OnNodeRequestMeasure)
+        {
+            HasChildren = false
+        };
+        summaryRow.Level = level;
+
+        return VisibleEntry.ForSummary(summaryRow, groupPath, level);
+    }
+
+    private static void CollectGroupRows(GroupView view, List<FastTreeDataGridRow> buffer)
+    {
+        foreach (var node in view.Items)
+        {
+            buffer.Add(node.Row);
+        }
+
+        foreach (var child in view.Children)
+        {
+            CollectGroupRows(child, buffer);
+        }
+    }
+
+    private static int CountGroupItems(GroupView view)
+    {
+        var count = view.Items.Count;
+        foreach (var child in view.Children)
+        {
+            count += CountGroupItems(child);
+        }
+
+        return count;
+    }
+
+    private static string BuildGroupHeader(GroupView view, int itemCount)
+    {
+        if (view.Descriptor?.HeaderFormatter is { } formatter)
+        {
+            return formatter(new FastTreeDataGridGroupHeaderContext(view.Key, itemCount, view.Level));
+        }
+
+        var keyText = view.Key switch
+        {
+            null => "None",
+            string s => s,
+            IFormattable formattable => formattable.ToString(null, CultureInfo.CurrentCulture),
+            _ => view.Key?.ToString() ?? string.Empty
+        };
+
+        return string.Format(CultureInfo.CurrentCulture, "{0} ({1:N0})", keyText, itemCount);
     }
 
     private void OnNodeRequestMeasure() => RaiseResetRequested();
@@ -686,6 +1074,99 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         public bool? StoredExpansionState { get; }
     }
 
+    private sealed class GroupView
+    {
+        public GroupView(string path, int level, FastTreeDataGridGroupDescriptor? descriptor, object? key, GroupView? parent)
+        {
+            Path = path;
+            Level = level;
+            Descriptor = descriptor;
+            Key = key;
+            Parent = parent;
+        }
+
+        public string Path { get; }
+
+        public int Level { get; }
+
+        public FastTreeDataGridGroupDescriptor? Descriptor { get; }
+
+        public object? Key { get; }
+
+        public GroupView? Parent { get; }
+
+        public List<GroupView> Children { get; } = new();
+
+        public List<TreeNode> Items { get; } = new();
+
+        public bool IsExpanded { get; set; } = true;
+    }
+
+    private sealed class VisibleEntry
+    {
+        private VisibleEntry(FastTreeDataGridRow row, TreeNode? node, string? groupPath, bool isGroup, bool isSummary)
+        {
+            Row = row;
+            Node = node;
+            GroupPath = groupPath;
+            IsGroup = isGroup;
+            IsSummary = isSummary;
+        }
+
+        public static VisibleEntry ForNode(TreeNode node)
+        {
+            var entry = new VisibleEntry(node.Row, node, null, isGroup: false, isSummary: false)
+            {
+                HasChildren = node.HasChildren,
+                IsExpanded = node.IsExpanded,
+            };
+            entry.Level = node.Row.Level;
+            return entry;
+        }
+
+        public static VisibleEntry ForGroup(FastTreeDataGridRow row, string groupPath, bool isExpanded, bool hasChildren, int level)
+        {
+            var entry = new VisibleEntry(row, null, groupPath, isGroup: true, isSummary: false)
+            {
+                HasChildren = hasChildren,
+                IsExpanded = isExpanded,
+            };
+            entry.Level = level;
+            return entry;
+        }
+
+        public static VisibleEntry ForSummary(FastTreeDataGridRow row, string? groupPath, int level)
+        {
+            var entry = new VisibleEntry(row, null, groupPath, isGroup: false, isSummary: true)
+            {
+                HasChildren = false,
+                IsExpanded = false,
+            };
+            entry.Level = level;
+            return entry;
+        }
+
+        public FastTreeDataGridRow Row { get; }
+
+        public TreeNode? Node { get; }
+
+        public string? GroupPath { get; }
+
+        public bool IsGroup { get; }
+
+        public bool IsSummary { get; }
+
+        public bool HasChildren { get; set; }
+
+        public bool IsExpanded { get; set; }
+
+        public int Level
+        {
+            get => Row.Level;
+            set => Row.Level = value;
+        }
+    }
+
     private sealed class TreeNode
     {
         public TreeNode(T item, TreeNode? parent, int level, int originalIndex, string? key, Action requestMeasure)
@@ -693,6 +1174,7 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
             Item = item;
             Parent = parent;
             Level = level;
+            OriginalLevel = level;
             OriginalIndex = originalIndex;
             Key = key;
             Row = new FastTreeDataGridRow(item, level, hasChildren: false, isExpanded: false, requestMeasure);
@@ -703,6 +1185,8 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         public TreeNode? Parent { get; }
 
         public int Level { get; set; }
+
+        public int OriginalLevel { get; }
 
         public bool HasChildren { get; set; }
 

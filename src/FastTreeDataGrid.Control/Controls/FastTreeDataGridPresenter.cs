@@ -9,6 +9,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
+using Avalonia.Styling;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
@@ -34,17 +35,22 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private AvaloniaControl? _editingControl;
     private Rect _editingControlBounds;
 
-    private readonly SolidColorBrush _selectionBrush = new(Color.FromArgb(40, 49, 130, 206));
-    private readonly SolidColorBrush _placeholderBrush = new(Color.FromArgb(40, 200, 200, 200));
-    private readonly ImmutableSolidColorBrush _toggleGlyphBrush = new(Color.FromRgb(96, 96, 96));
-    private readonly Pen _gridPen = new(new SolidColorBrush(Color.FromRgb(210, 210, 210)), 1);
-    private readonly SolidColorBrush _validationErrorBrush = new(Color.FromRgb(213, 63, 63));
-    private readonly SolidColorBrush _validationWarningBrush = new(Color.FromRgb(213, 141, 38));
+    private IBrush _selectionBrush = new SolidColorBrush(Color.FromArgb(40, 49, 130, 206));
+    private IBrush _placeholderBrush = new SolidColorBrush(Color.FromArgb(40, 200, 200, 200));
+    private IBrush _toggleGlyphBrush = new SolidColorBrush(Color.FromRgb(96, 96, 96));
+    private IPen _gridPen = new Pen(new SolidColorBrush(Color.FromRgb(210, 210, 210)), 1);
+    private IBrush _skeletonBarBrush = new SolidColorBrush(Color.FromRgb(214, 219, 225));
+    private IBrush _summaryBrush = new SolidColorBrush(Color.FromRgb(236, 242, 248));
+    private IBrush _validationErrorBrush = new SolidColorBrush(Color.FromRgb(213, 63, 63));
+    private IBrush _validationWarningBrush = new SolidColorBrush(Color.FromRgb(213, 141, 38));
+    private IPen? _focusPen = new Pen(new SolidColorBrush(Color.FromRgb(49, 130, 206)), 1.5);
     private static readonly StreamGeometry s_collapsedGlyph = StreamGeometry.Parse("M 1,0 10,10 l -9,10 -1,-1 L 8,10 -0,1 Z");
     private static readonly StreamGeometry s_expandedGlyph = StreamGeometry.Parse("M0,1 L10,10 20,1 19,0 10,8 1,0 Z");
     private IDisposable? _animationRegistration;
     private IDisposable? _overlayRegistration;
     private const double ValidationBadgeSize = 8;
+
+    private bool ShouldRenderSkeletons => _owner?.VirtualizationSettings.ShowPlaceholderSkeletons ?? true;
 
     public FastTreeDataGridPresenter()
     {
@@ -59,6 +65,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         base.OnAttachedToVisualTree(e);
         _animationRegistration = WidgetAnimationFrameScheduler.RegisterHost(this);
         _overlayRegistration = WidgetOverlayManager.RegisterHost(this);
+        ApplyThemeResources();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -78,7 +85,18 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             return;
         }
 
+        if (_owner is not null)
+        {
+            _owner.ResourcesChanged -= OnOwnerResourcesChanged;
+        }
+
         _owner = owner;
+        if (_owner is not null)
+        {
+            _owner.ResourcesChanged += OnOwnerResourcesChanged;
+            ApplyThemeResources();
+        }
+
         SetVirtualizationProvider(_owner?.VirtualizationProvider);
     }
 
@@ -106,6 +124,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
     public void UpdateContent(IReadOnlyList<RowRenderInfo> rows, double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
     {
+        ReturnRowWidgets(_rows);
         ClearControlChildren();
         _rows.Clear();
         _rows.AddRange(rows);
@@ -260,6 +279,25 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
+    private static void ReturnRowWidgets(IEnumerable<RowRenderInfo> rows)
+    {
+        if (rows is null)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Widget is FormattedTextWidget textWidget)
+                {
+                    cell.Column.ReturnTextWidget(textWidget);
+                }
+            }
+        }
+    }
+
     internal bool TryGetCell(int rowIndex, FastTreeDataGridColumn column, out RowRenderInfo? rowInfo, out CellRenderInfo? cellInfo)
     {
         rowInfo = null;
@@ -388,11 +426,26 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             if (row.IsPlaceholder)
             {
                 context.FillRectangle(_placeholderBrush, rowRect);
+                if (ShouldRenderSkeletons)
+                {
+                    DrawSkeletonRow(context, row);
+                }
+            }
+
+            if (row.IsSummary)
+            {
+                context.FillRectangle(_summaryBrush, rowRect);
             }
 
             if (row.IsSelected)
             {
                 context.FillRectangle(_selectionBrush, rowRect);
+            }
+
+            if (_owner?.IsKeyboardFocusWithin == true && row.IsSelected && _focusPen is not null)
+            {
+                var focusRect = rowRect.Deflate(0.5);
+                context.DrawRectangle(_focusPen, focusRect);
             }
 
             if (row.HasChildren)
@@ -836,6 +889,64 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         return row.ToggleRect.Contains(point);
     }
 
+    private void OnOwnerResourcesChanged(object? sender, ResourcesChangedEventArgs e) =>
+        ApplyThemeResources();
+
+    private void ApplyThemeResources()
+    {
+        if (_owner is null)
+        {
+            return;
+        }
+
+        _selectionBrush = ResolveBrush(_owner, "FastTreeDataGrid.SelectionBrush", _selectionBrush);
+        _placeholderBrush = ResolveBrush(_owner, "FastTreeDataGrid.PlaceholderBrush", _placeholderBrush);
+        _toggleGlyphBrush = ResolveBrush(_owner, "FastTreeDataGrid.ToggleGlyphBrush", _toggleGlyphBrush);
+
+        var gridPen = ResolvePen(_owner, "FastTreeDataGrid.GridLinePen", _gridPen);
+        if (gridPen is not null)
+        {
+            _gridPen = gridPen;
+        }
+
+        _skeletonBarBrush = ResolveBrush(_owner, "FastTreeDataGrid.SkeletonBrush", _skeletonBarBrush);
+        _summaryBrush = ResolveBrush(_owner, "FastTreeDataGrid.SummaryBrush", _summaryBrush);
+        _validationErrorBrush = ResolveBrush(_owner, "FastTreeDataGrid.ValidationErrorBrush", _validationErrorBrush);
+        _validationWarningBrush = ResolveBrush(_owner, "FastTreeDataGrid.ValidationWarningBrush", _validationWarningBrush);
+        _focusPen = ResolvePen(_owner, "FastTreeDataGrid.FocusBorderPen", _focusPen);
+    }
+
+    private static IBrush ResolveBrush(StyledElement element, string resourceKey, IBrush current)
+    {
+        if (element.TryFindResource(resourceKey, out var resource))
+        {
+            return resource switch
+            {
+                IBrush brush => brush,
+                Color color => new SolidColorBrush(color),
+                _ => current,
+            };
+        }
+
+        return current;
+    }
+
+    private static IPen? ResolvePen(StyledElement element, string resourceKey, IPen? current)
+    {
+        if (element.TryFindResource(resourceKey, out var resource))
+        {
+            return resource switch
+            {
+                IPen pen => pen,
+                IBrush brush => new Pen(brush, current?.Thickness ?? 1),
+                Color color => new Pen(new SolidColorBrush(color), current?.Thickness ?? 1),
+                _ => current,
+            };
+        }
+
+        return current;
+    }
+
     private void DrawToggle(DrawingContext context, Rect rect, bool isExpanded)
     {
         if (rect == default)
@@ -1040,6 +1151,43 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
         var badgeRect = new Rect(bounds.Right - size - 2, bounds.Top + 2, size, size);
         context.FillRectangle(brush, badgeRect);
+    }
+
+    private void DrawSkeletonRow(DrawingContext context, RowRenderInfo row)
+    {
+        if (row.Cells.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var cell in row.Cells)
+        {
+            var bounds = cell.ContentBounds;
+            if (bounds.Width <= 16 || bounds.Height <= 12)
+            {
+                continue;
+            }
+
+            var barWidth = Math.Min(bounds.Width - 8, Math.Max(24, bounds.Width * 0.65));
+            var barHeight = 6;
+            var spacing = 6;
+            var step = barHeight + spacing;
+            var availableHeight = Math.Max(0, bounds.Height - 12);
+            var maxBars = Math.Max(1, Math.Min(3, (int)Math.Floor(availableHeight / step)));
+            var y = bounds.Y + 6;
+
+            for (var i = 0; i < maxBars; i++)
+            {
+                if (y + barHeight > bounds.Bottom - 4)
+                {
+                    break;
+                }
+
+                var rect = new Rect(bounds.X + 4, y, barWidth, barHeight);
+                context.FillRectangle(_skeletonBarBrush, rect);
+                y += step;
+            }
+        }
     }
 
     private void DrawRowValidation(DrawingContext context, RowRenderInfo row)
@@ -1258,6 +1406,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             bool isExpanded,
             Rect toggleRect,
             bool isGroup,
+            bool isSummary,
             bool isPlaceholder)
         {
             Row = row;
@@ -1269,6 +1418,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             IsExpanded = isExpanded;
             ToggleRect = toggleRect;
             IsGroup = isGroup;
+            IsSummary = isSummary;
             IsPlaceholder = isPlaceholder;
             Validation = FastTreeDataGridRowValidationState.None;
         }
@@ -1283,6 +1433,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         public Rect ToggleRect { get; }
         public Rect? ToggleBounds { get; set; }
         public bool IsGroup { get; }
+        public bool IsSummary { get; }
         public bool IsPlaceholder { get; }
         public List<CellRenderInfo> Cells { get; } = new();
         public FastTreeDataGridRowValidationState Validation { get; set; }

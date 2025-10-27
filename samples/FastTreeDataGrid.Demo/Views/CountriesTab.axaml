@@ -57,6 +57,7 @@
                                  RowHeight="28"
                                  IndentWidth="18"
                                  HeaderHeight="34"
+                                 IsFilterRowVisible="True"
                                  TypeSearchSelector="{x:Static vm:CountriesViewModel.CountryNameSelector}" />
     </Border>
   </Grid>

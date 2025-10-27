@@ -24,6 +24,11 @@ public sealed class FastTreeDataGridRow
             IsGroup = group.IsGroup;
         }
 
+        if (item is IFastTreeDataGridSummaryRow summary)
+        {
+            IsSummary = summary.IsSummary;
+        }
+
         if (item is INotifyDataErrorInfo notify)
         {
             notify.ErrorsChanged += OnErrorsChanged;
@@ -37,6 +42,8 @@ public sealed class FastTreeDataGridRow
     public IFastTreeDataGridValueProvider? ValueProvider { get; }
 
     public bool IsGroup { get; }
+
+    public bool IsSummary { get; }
 
     public int Level { get; internal set; }
 

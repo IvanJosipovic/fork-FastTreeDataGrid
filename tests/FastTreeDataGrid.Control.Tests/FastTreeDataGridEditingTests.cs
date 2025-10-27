@@ -152,7 +152,8 @@ public class FastTreeDataGridEditingTests
                 hasChildren: false,
                 isExpanded: false,
                 toggleRect: default,
-               isGroup: false,
+                isGroup: false,
+                isSummary: false,
                 isPlaceholder: false);
 
             var cellInfo = new FastTreeDataGridPresenter.CellRenderInfo(

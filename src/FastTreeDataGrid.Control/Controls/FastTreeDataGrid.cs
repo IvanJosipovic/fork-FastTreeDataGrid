@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
+using Avalonia.Automation.Peers;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
@@ -36,11 +37,20 @@ public partial class FastTreeDataGrid : TemplatedControl
     public static readonly StyledProperty<double> HeaderHeightProperty =
         AvaloniaProperty.Register<FastTreeDataGrid, double>(nameof(HeaderHeight), 32d);
 
+    public static readonly StyledProperty<bool> IsFilterRowVisibleProperty =
+        AvaloniaProperty.Register<FastTreeDataGrid, bool>(nameof(IsFilterRowVisible));
+
     public static readonly DirectProperty<FastTreeDataGrid, AvaloniaList<FastTreeDataGridColumn>> ColumnsProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGrid, AvaloniaList<FastTreeDataGridColumn>>(nameof(Columns), o => o.Columns);
 
     public static readonly StyledProperty<int> SelectedIndexProperty =
         AvaloniaProperty.Register<FastTreeDataGrid, int>(nameof(SelectedIndex), -1);
+
+    public static readonly DirectProperty<FastTreeDataGrid, bool> IsLoadingProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, bool>(nameof(IsLoading), o => o.IsLoading);
+
+    public static readonly DirectProperty<FastTreeDataGrid, double> LoadingProgressProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, double>(nameof(LoadingProgress), o => o.LoadingProgress);
 
     public static readonly DirectProperty<FastTreeDataGrid, object?> SelectedItemProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGrid, object?>(nameof(SelectedItem), o => o.SelectedItem, (o, v) => o.SetSelectedItem(v));
@@ -81,10 +91,13 @@ public partial class FastTreeDataGrid : TemplatedControl
     private readonly AvaloniaList<FastTreeDataGridColumn> _columns = new();
     private readonly List<double> _columnWidths = new();
     private readonly List<double> _columnOffsets = new();
+    private readonly List<int> _visibleColumnIndices = new();
 
     private ScrollViewer? _headerScrollViewer;
     private Border? _headerHost;
     private FastTreeDataGridHeaderPresenter? _headerPresenter;
+    private FastTreeDataGridFilterPresenter? _filterPresenter;
+    private FastTreeDataGridColumnFilterFlyout? _columnFilterFlyout;
     private bool _updatingHeaderFromBody;
     private FastTreeDataGridPresenter? _presenter;
     private ScrollViewer? _scrollViewer;
@@ -100,6 +113,11 @@ public partial class FastTreeDataGrid : TemplatedControl
     private bool _columnsDirty = true;
     private bool _autoWidthChanged;
     private readonly List<FastTreeDataGridSortDescription> _sortDescriptions = new();
+    private readonly AvaloniaList<FastTreeDataGridGroupDescriptor> _groupDescriptors = new();
+    private readonly AvaloniaList<FastTreeDataGridAggregateDescriptor> _aggregateDescriptors = new();
+    private readonly Dictionary<FastTreeDataGridColumn, FastTreeDataGridFilterDescriptor> _activeFilters = new();
+    private readonly List<FastTreeDataGridFilterDescriptor> _filterDescriptorCache = new();
+    private readonly Dictionary<FastTreeDataGridColumn, string> _filterTextCache = new();
     private IFastTreeDataGridRowLayout? _rowLayout;
     private FastTreeDataGridThrottleDispatcher? _resetThrottle;
     private IFastTreeDataGridSelectionModel _selectionModel = null!;
@@ -110,20 +128,31 @@ public partial class FastTreeDataGrid : TemplatedControl
     private string _typeSearchBuffer = string.Empty;
     private DateTime _typeSearchTimestamp = DateTime.MinValue;
     private static readonly TimeSpan s_typeSearchResetInterval = TimeSpan.FromSeconds(1.5);
+    private bool _isLoading;
+    private double _loadingProgress = double.NaN;
+    private AvaloniaControl? _loadingOverlay;
+    private ProgressBar? _loadingProgressBar;
+    private TextBlock? _loadingText;
 
     static FastTreeDataGrid()
     {
         AffectsMeasure<FastTreeDataGrid>(ItemsSourceProperty, RowHeightProperty, IndentWidthProperty);
+        IsFilterRowVisibleProperty.Changed.AddClassHandler<FastTreeDataGrid>((x, e) => x.OnFilterRowVisibilityChanged(e));
     }
 
     public FastTreeDataGrid()
     {
         _editingController = new EditingController(this);
         _columns.CollectionChanged += OnColumnsChanged;
+        _groupDescriptors.CollectionChanged += OnGroupDescriptorsChanged;
+        _aggregateDescriptors.CollectionChanged += OnAggregateDescriptorsChanged;
         SetRowLayout(new FastTreeDataGridUniformRowLayout());
         ResetThrottleDispatcher();
         SetSelectionModel(new FastTreeDataGridSelectionModel());
     }
+
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        new FastTreeDataGridAutomationPeer(this);
 
     public IFastTreeDataGridSource? ItemsSource
     {
@@ -150,6 +179,36 @@ public partial class FastTreeDataGrid : TemplatedControl
     }
 
     public AvaloniaList<FastTreeDataGridColumn> Columns => _columns;
+
+    public AvaloniaList<FastTreeDataGridGroupDescriptor> GroupDescriptors => _groupDescriptors;
+
+    public AvaloniaList<FastTreeDataGridAggregateDescriptor> AggregateDescriptors => _aggregateDescriptors;
+
+    public bool IsLoading => _isLoading;
+
+    public double LoadingProgress => _loadingProgress;
+
+    public bool IsFilterRowVisible
+    {
+        get => GetValue(IsFilterRowVisibleProperty);
+        set => SetValue(IsFilterRowVisibleProperty, value);
+    }
+
+    public void ExpandAllGroups()
+    {
+        if (_virtualizationProvider is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.ExpandAllGroups();
+        }
+    }
+
+    public void CollapseAllGroups()
+    {
+        if (_virtualizationProvider is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.CollapseAllGroups();
+        }
+    }
 
     public int SelectedIndex
     {
@@ -179,6 +238,7 @@ public partial class FastTreeDataGrid : TemplatedControl
             SetAndRaise(VirtualizationSettingsProperty, ref _virtualizationSettings, newValue);
             _viewportScheduler?.UpdateSettings(_virtualizationSettings);
             ResetThrottleDispatcher();
+            UpdateLoadingOverlay();
         }
     }
 
@@ -400,6 +460,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         column.PropertyChanged -= OnColumnPropertyChanged;
+        _filterTextCache.Remove(column);
     }
 
     private void OnColumnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -461,8 +522,12 @@ public partial class FastTreeDataGrid : TemplatedControl
         _headerScrollViewer = e.NameScope.Find<ScrollViewer>("PART_HeaderScrollViewer");
         _headerHost = e.NameScope.Find<Border>("PART_HeaderHost");
         _headerPresenter = e.NameScope.Find<FastTreeDataGridHeaderPresenter>("PART_HeaderPresenter");
+        _filterPresenter = e.NameScope.Find<FastTreeDataGridFilterPresenter>("PART_FilterPresenter");
         _scrollViewer = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
         _presenter = e.NameScope.Find<FastTreeDataGridPresenter>("PART_Presenter");
+        _loadingOverlay = e.NameScope.Find<AvaloniaControl>("PART_LoadingOverlay");
+        _loadingProgressBar = e.NameScope.Find<ProgressBar>("PART_LoadingProgress");
+        _loadingText = e.NameScope.Find<TextBlock>("PART_LoadingText");
 
         if (_headerScrollViewer is not null)
         {
@@ -486,6 +551,14 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.HeaderHeight = HeaderHeight;
         }
 
+        if (_filterPresenter is not null)
+        {
+            _filterPresenter.FilterHeight = RowHeight;
+            _filterPresenter.IsVisible = IsFilterRowVisible;
+            _filterPresenter.IsHitTestVisible = IsFilterRowVisible;
+            _filterPresenter.FilterChanged += OnFilterPresenterFilterChanged;
+        }
+
         if (_scrollViewer is not null)
         {
             _scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
@@ -497,7 +570,8 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
-        ApplySortStateToProvider(_sortDescriptions.Count == 0 ? Array.Empty<FastTreeDataGridSortDescription>() : _sortDescriptions.ToArray());
+        ApplyDataOperationsToProvider();
+        UpdateLoadingOverlay();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -642,9 +716,12 @@ public partial class FastTreeDataGrid : TemplatedControl
         _providerInitializationCts?.Dispose();
         _providerInitializationCts = new CancellationTokenSource();
         _viewportScheduler = new FastTreeDataGridViewportScheduler(_virtualizationProvider, _virtualizationSettings);
+        _viewportScheduler.LoadingStateChanged += OnViewportSchedulerLoadingStateChanged;
         ResetThrottleDispatcher();
         var token = _providerInitializationCts.Token;
         _ = InitializeVirtualizationProviderAsync(_virtualizationProvider, token);
+        ApplyDataOperationsToProvider();
+        UpdateLoadingOverlay();
     }
 
     private void DisposeVirtualizationProvider()
@@ -659,8 +736,12 @@ public partial class FastTreeDataGrid : TemplatedControl
             return;
         }
 
-        _viewportScheduler?.Dispose();
-        _viewportScheduler = null;
+        if (_viewportScheduler is not null)
+        {
+            _viewportScheduler.LoadingStateChanged -= OnViewportSchedulerLoadingStateChanged;
+            _viewportScheduler.Dispose();
+            _viewportScheduler = null;
+        }
         _resetThrottle?.Dispose();
         _resetThrottle = null;
 
@@ -680,6 +761,9 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         _virtualizationProvider = null;
+        SetAndRaise(IsLoadingProperty, ref _isLoading, false);
+        SetAndRaise(LoadingProgressProperty, ref _loadingProgress, double.NaN);
+        UpdateLoadingOverlay();
     }
 
     private async Task InitializeVirtualizationProviderAsync(IFastTreeDataVirtualizationProvider provider, CancellationToken token)
@@ -743,6 +827,22 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _viewportScheduler?.CancelAll();
         EnqueueThrottledReset();
+    }
+
+    private void OnViewportSchedulerLoadingStateChanged(object? sender, FastTreeDataGridLoadingStateEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!ReferenceEquals(sender, _viewportScheduler))
+            {
+                return;
+            }
+
+            var progress = double.IsNaN(e.Progress) ? double.NaN : Math.Clamp(e.Progress, 0d, 1d);
+            SetAndRaise(IsLoadingProperty, ref _isLoading, e.IsLoading);
+            SetAndRaise(LoadingProgressProperty, ref _loadingProgress, progress);
+            UpdateLoadingOverlay();
+        }, DispatcherPriority.Render);
     }
 
     private void EnqueueThrottledReset()
@@ -832,6 +932,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             return;
         }
 
+        var filtersRemoved = false;
+
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
             foreach (var column in _columns)
@@ -846,6 +948,12 @@ public partial class FastTreeDataGrid : TemplatedControl
                 foreach (FastTreeDataGridColumn column in e.OldItems)
                 {
                     DetachColumnHandlers(column);
+                    if (_activeFilters.Remove(column))
+                    {
+                        filtersRemoved = true;
+                    }
+                    column.IsFilterActive = false;
+                    _filterPresenter?.SetFilterValue(column, string.Empty);
                 }
             }
 
@@ -860,6 +968,21 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
+
+        if (filtersRemoved)
+        {
+            ApplyDataOperationsToProvider();
+        }
+    }
+
+    private void OnGroupDescriptorsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        ApplyDataOperationsToProvider();
+    }
+
+    private void OnAggregateDescriptorsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        ApplyDataOperationsToProvider();
     }
 
     private void AttachTemplatePartHandlers()
@@ -892,6 +1015,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.ColumnMoveLeftRequested += OnColumnMoveLeftRequested;
             _headerPresenter.ColumnMoveRightRequested += OnColumnMoveRightRequested;
             _headerPresenter.ColumnHideRequested += OnColumnHideRequested;
+            _headerPresenter.ColumnFilterRequested += OnColumnFilterRequested;
+            _headerPresenter.ColumnFilterCleared += OnColumnFilterCleared;
         }
 
         _templateHandlersAttached = true;
@@ -927,6 +1052,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.ColumnMoveLeftRequested -= OnColumnMoveLeftRequested;
             _headerPresenter.ColumnMoveRightRequested -= OnColumnMoveRightRequested;
             _headerPresenter.ColumnHideRequested -= OnColumnHideRequested;
+            _headerPresenter.ColumnFilterRequested -= OnColumnFilterRequested;
+            _headerPresenter.ColumnFilterCleared -= OnColumnFilterCleared;
         }
 
         _templateHandlersAttached = false;
@@ -943,6 +1070,15 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
         AttachPresenterForEditing(null);
 
+        if (_filterPresenter is not null)
+        {
+            _filterPresenter.FilterChanged -= OnFilterPresenterFilterChanged;
+            if (clearReferences)
+            {
+                _filterPresenter = null;
+            }
+        }
+
         if (!clearReferences)
         {
             return;
@@ -953,6 +1089,10 @@ public partial class FastTreeDataGrid : TemplatedControl
         _headerHost = null;
         _headerPresenter = null;
         _presenter = null;
+        if (clearReferences)
+        {
+            _filterPresenter = null;
+        }
     }
 
     private void OnScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -1059,7 +1199,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         ApplySortVisualState(requestUpdate);
-        ApplySortStateToProvider(Array.Empty<FastTreeDataGridSortDescription>());
+        ApplyDataOperationsToProvider();
     }
 
     private void OnColumnSortRequested(int columnIndex, FastTreeDataGridSortDirection? explicitDirection, KeyModifiers modifiers)
@@ -1118,52 +1258,474 @@ public partial class FastTreeDataGrid : TemplatedControl
             }
         }
 
-        var descriptionsSnapshot = _sortDescriptions.Count == 0
-            ? Array.Empty<FastTreeDataGridSortDescription>()
-            : _sortDescriptions.ToArray();
-
-        ApplySortStateToProvider(descriptionsSnapshot);
+        ApplyDataOperationsToProvider();
         RaiseSortRequested(columnIndex, resultingDirection, modifiers);
     }
 
-    private void ApplySortStateToProvider(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
+    private void ApplyDataOperationsToProvider()
     {
         if (_virtualizationProvider is null)
         {
             return;
         }
 
-        if (descriptions.Count == 0)
+        IReadOnlyList<FastTreeDataGridSortDescriptor> sortDescriptors;
+        if (_sortDescriptions.Count == 0)
         {
-            var emptyRequest = new FastTreeDataGridSortFilterRequest
-            {
-                SortDescriptors = Array.Empty<FastTreeDataGridSortDescriptor>(),
-                FilterDescriptors = Array.Empty<FastTreeDataGridFilterDescriptor>(),
-            };
-
-            _ = _virtualizationProvider.ApplySortFilterAsync(emptyRequest, CancellationToken.None);
-            return;
+            sortDescriptors = Array.Empty<FastTreeDataGridSortDescriptor>();
         }
-
-        var descriptors = new List<FastTreeDataGridSortDescriptor>(descriptions.Count);
-        foreach (var description in descriptions)
+        else
         {
-            var column = description.Column;
-            descriptors.Add(new FastTreeDataGridSortDescriptor
+            var descriptors = new List<FastTreeDataGridSortDescriptor>(_sortDescriptions.Count);
+            foreach (var description in _sortDescriptions)
             {
-                ColumnKey = column.ValueKey,
-                Direction = description.Direction,
-                RowComparison = column.SortComparison,
-            });
+                var column = description.Column;
+                descriptors.Add(new FastTreeDataGridSortDescriptor
+                {
+                    ColumnKey = column.ValueKey,
+                    Direction = description.Direction,
+                    RowComparison = column.SortComparison,
+                });
+            }
+
+            sortDescriptors = descriptors;
         }
 
         var request = new FastTreeDataGridSortFilterRequest
         {
-            SortDescriptors = descriptors,
-            FilterDescriptors = Array.Empty<FastTreeDataGridFilterDescriptor>(),
+            SortDescriptors = sortDescriptors,
+            FilterDescriptors = BuildFilterDescriptors(),
+            GroupDescriptors = _groupDescriptors.Count == 0 ? Array.Empty<FastTreeDataGridGroupDescriptor>() : _groupDescriptors.ToArray(),
+            AggregateDescriptors = _aggregateDescriptors.Count == 0 ? Array.Empty<FastTreeDataGridAggregateDescriptor>() : _aggregateDescriptors.ToArray(),
         };
 
         _ = _virtualizationProvider.ApplySortFilterAsync(request, CancellationToken.None);
+    }
+
+    private IReadOnlyList<FastTreeDataGridFilterDescriptor> BuildFilterDescriptors()
+    {
+        if (_activeFilters.Count == 0)
+        {
+            return Array.Empty<FastTreeDataGridFilterDescriptor>();
+        }
+
+        _filterDescriptorCache.Clear();
+        foreach (var descriptor in _activeFilters.Values)
+        {
+            _filterDescriptorCache.Add(descriptor);
+        }
+
+        var result = _filterDescriptorCache.ToArray();
+        _filterDescriptorCache.Clear();
+        return result;
+    }
+
+    private void ApplyFilterValue(int columnIndex, string? text, bool updatePresenterText)
+    {
+        if (_columns.Count == 0 || columnIndex < 0 || columnIndex >= _columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserFilter)
+        {
+            return;
+        }
+
+        var displayText = (text ?? string.Empty).Trim();
+        var descriptor = CreateFilterDescriptor(column, text);
+
+        if (descriptor is null)
+        {
+            var removed = _activeFilters.Remove(column);
+            column.IsFilterActive = false;
+            _filterTextCache.Remove(column);
+            if (updatePresenterText)
+            {
+                _filterPresenter?.SetFilterValue(columnIndex, string.Empty);
+            }
+
+            if (removed)
+            {
+                ApplyDataOperationsToProvider();
+            }
+        }
+        else
+        {
+            descriptor.ColumnKey ??= column.ValueKey;
+            _activeFilters[column] = descriptor;
+            column.IsFilterActive = true;
+            _filterTextCache[column] = displayText;
+
+            if (updatePresenterText)
+            {
+                _filterPresenter?.SetFilterValue(columnIndex, displayText);
+            }
+
+            ApplyDataOperationsToProvider();
+        }
+    }
+
+    private string GetFilterText(FastTreeDataGridColumn column)
+    {
+        if (_filterTextCache.TryGetValue(column, out var cached))
+        {
+            return cached;
+        }
+
+        if (_filterPresenter is not null)
+        {
+            return _filterPresenter.GetFilterValue(column) ?? string.Empty;
+        }
+
+        return string.Empty;
+    }
+
+    internal void ApplyFilterFromFlyout(int columnIndex, string? text)
+    {
+        ApplyFilterValue(columnIndex, text, updatePresenterText: true);
+    }
+
+    internal RowLayoutViewport GetAutomationViewport()
+    {
+        if (_itemsSource is null)
+        {
+            return RowLayoutViewport.Empty;
+        }
+
+        var layout = GetActiveRowLayout();
+        var defaultRowHeight = Math.Max(1d, RowHeight);
+        var verticalOffset = _scrollViewer?.Offset.Y ?? 0;
+        var viewportHeight = _scrollViewer?.Viewport.Height ?? Bounds.Height;
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            viewportHeight = defaultRowHeight;
+        }
+
+        return layout.GetVisibleRange(
+            verticalOffset,
+            viewportHeight,
+            defaultRowHeight,
+            _itemsSource.RowCount,
+            buffer: 1);
+    }
+
+    internal bool TryGetRowForAutomation(int rowIndex, out FastTreeDataGridRow row)
+    {
+        row = default!;
+        if (_itemsSource is null || rowIndex < 0 || rowIndex >= _itemsSource.RowCount)
+        {
+            return false;
+        }
+
+        if (_itemsSource.IsPlaceholder(rowIndex))
+        {
+            return false;
+        }
+
+        row = _itemsSource.GetRow(rowIndex);
+        return true;
+    }
+
+    internal Rect GetRowBoundsForAutomation(int rowIndex)
+    {
+        if (_itemsSource is null || rowIndex < 0 || rowIndex >= _itemsSource.RowCount)
+        {
+            return default;
+        }
+
+        var layout = GetActiveRowLayout();
+        var defaultRowHeight = Math.Max(1d, RowHeight);
+        var top = layout.GetRowTop(rowIndex);
+        var height = defaultRowHeight;
+
+        if (!_itemsSource.IsPlaceholder(rowIndex))
+        {
+            var row = _itemsSource.GetRow(rowIndex);
+            height = layout.GetRowHeight(rowIndex, row, defaultRowHeight);
+        }
+
+        var width = Bounds.Width;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = _columnWidths.Count > 0 ? _columnWidths.Sum() : 0;
+        }
+
+        return new Rect(0, top, width, height);
+    }
+
+    internal Rect GetCellBoundsForAutomation(int rowIndex, int columnIndex)
+    {
+        if (columnIndex < 0 || columnIndex >= _columnWidths.Count)
+        {
+            return default;
+        }
+
+        var rowBounds = GetRowBoundsForAutomation(rowIndex);
+        if (rowBounds.Height <= 0)
+        {
+            return default;
+        }
+
+        var width = _columnWidths[columnIndex];
+        var left = columnIndex == 0 ? 0 : _columnOffsets[Math.Min(columnIndex - 1, _columnOffsets.Count - 1)];
+        var scrollX = _scrollViewer?.Offset.X ?? 0;
+
+        return new Rect(left - scrollX, rowBounds.Top, width, rowBounds.Height);
+    }
+
+    internal string GetAutomationCellText(FastTreeDataGridRow row, FastTreeDataGridColumn column) =>
+        GetCellText(row, column);
+
+    internal bool IsRowSelected(int index)
+    {
+        if (index < 0)
+        {
+            return false;
+        }
+
+        return _selectionModel.SelectedIndices.Contains(index);
+    }
+
+    internal void AutomationSelectSingleRow(int index)
+    {
+        if (index < 0)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            SetCurrentValue(SelectedIndexProperty, index);
+            EnsureRowVisible(index);
+        }, DispatcherPriority.Background);
+    }
+
+    internal void AutomationAddRowToSelection(int index)
+    {
+        if (index < 0 || _selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+            {
+                SetCurrentValue(SelectedIndexProperty, index);
+                EnsureRowVisible(index);
+                return;
+            }
+
+            if (_selectionModel.SelectedIndices.Contains(index))
+            {
+                return;
+            }
+
+            _selectionModel.SelectRange(index, index, keepExisting: true);
+            EnsureRowVisible(index);
+        }, DispatcherPriority.Background);
+    }
+
+    internal void AutomationRemoveRowFromSelection(int index)
+    {
+        if (index < 0 || _selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+            {
+                if (_selectionModel.SelectedIndices.Contains(index))
+                {
+                    _selectionModel.Clear();
+                    SetCurrentValue(SelectedIndexProperty, -1);
+                }
+
+                return;
+            }
+
+            if (_selectionModel.SelectedIndices.Contains(index))
+            {
+                _selectionModel.Toggle(index);
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    internal void AutomationSetRowExpansion(int rowIndex, bool expand)
+    {
+        if (_itemsSource is null || rowIndex < 0 || rowIndex >= _itemsSource.RowCount)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_itemsSource is null || rowIndex < 0 || rowIndex >= _itemsSource.RowCount)
+            {
+                return;
+            }
+
+            if (_itemsSource.IsPlaceholder(rowIndex))
+            {
+                return;
+            }
+
+            var row = _itemsSource.GetRow(rowIndex);
+            if (!row.HasChildren || row.IsExpanded == expand)
+            {
+                return;
+            }
+
+            _itemsSource.ToggleExpansion(rowIndex);
+        }, DispatcherPriority.Background);
+    }
+
+    internal (double HorizontalOffset, double VerticalOffset, double ExtentWidth, double ExtentHeight, double ViewportWidth, double ViewportHeight) GetScrollMetrics()
+    {
+        if (_scrollViewer is null)
+        {
+            return (0d, 0d, 0d, 0d, 0d, 0d);
+        }
+
+        var extent = _scrollViewer.Extent;
+        var viewport = _scrollViewer.Viewport;
+        var offset = _scrollViewer.Offset;
+        return (offset.X, offset.Y, extent.Width, extent.Height, viewport.Width, viewport.Height);
+    }
+
+    internal void AutomationScrollToOffset(double? horizontal, double? vertical)
+    {
+        if (_scrollViewer is null)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_scrollViewer is null)
+            {
+                return;
+            }
+
+            var extent = _scrollViewer.Extent;
+            var viewport = _scrollViewer.Viewport;
+            var current = _scrollViewer.Offset;
+
+            var maxX = Math.Max(0d, extent.Width - viewport.Width);
+            var maxY = Math.Max(0d, extent.Height - viewport.Height);
+
+            var targetX = horizontal.HasValue ? Math.Clamp(horizontal.Value, 0d, maxX) : current.X;
+            var targetY = vertical.HasValue ? Math.Clamp(vertical.Value, 0d, maxY) : current.Y;
+
+            _scrollViewer.Offset = new Vector(targetX, targetY);
+        }, DispatcherPriority.Background);
+    }
+
+    private void OnFilterPresenterFilterChanged(int columnIndex, string? text) =>
+        ApplyFilterValue(columnIndex, text, updatePresenterText: false);
+
+    private void OnColumnFilterRequested(int columnIndex, ContentControl headerCell)
+    {
+        if (columnIndex < 0 || columnIndex >= _columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        _columnFilterFlyout ??= CreateColumnFilterFlyout();
+
+        var currentValue = GetFilterText(column);
+        _columnFilterFlyout.Show(headerCell, column, columnIndex, currentValue);
+    }
+
+    private FastTreeDataGridColumnFilterFlyout CreateColumnFilterFlyout()
+    {
+        var flyout = new FastTreeDataGridColumnFilterFlyout();
+        flyout.Attach(this);
+        return flyout;
+    }
+
+    private void OnColumnFilterCleared(int columnIndex) =>
+        ApplyFilterValue(columnIndex, string.Empty, updatePresenterText: true);
+
+    private FastTreeDataGridFilterDescriptor? CreateFilterDescriptor(FastTreeDataGridColumn column, string? text)
+    {
+        var input = text?.Trim();
+        if (string.IsNullOrEmpty(input) || !column.CanUserFilter)
+        {
+            return null;
+        }
+
+        if (column.FilterFactory is { } factory)
+        {
+            return factory(input);
+        }
+
+        if (string.IsNullOrEmpty(column.ValueKey))
+        {
+            return null;
+        }
+
+        return new FastTreeDataGridFilterDescriptor
+        {
+            ColumnKey = column.ValueKey,
+            Predicate = row =>
+            {
+                if (row.ValueProvider is not null)
+                {
+                    var value = row.ValueProvider.GetValue(row.Item, column.ValueKey);
+                    return FilterMatches(value, input);
+                }
+
+                return FilterMatches(row.Item, input);
+            },
+        };
+    }
+
+    private static bool FilterMatches(object? value, string text)
+    {
+        if (value is null)
+        {
+            return false;
+        }
+
+        var comparison = StringComparison.CurrentCultureIgnoreCase;
+
+        if (value is string s)
+        {
+            return s.IndexOf(text, comparison) >= 0;
+        }
+
+        if (value is IFormattable formattable)
+        {
+            var formatted = formattable.ToString(null, CultureInfo.CurrentCulture);
+            return formatted?.IndexOf(text, comparison) >= 0;
+        }
+
+        return value.ToString()?.IndexOf(text, comparison) >= 0;
+    }
+
+    private void OnFilterRowVisibilityChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        if (_filterPresenter is null)
+        {
+            return;
+        }
+
+        var isVisible = IsFilterRowVisible;
+        _filterPresenter.IsVisible = isVisible;
+        _filterPresenter.IsHitTestVisible = isVisible;
+        if (!isVisible)
+        {
+            Focus();
+        }
+
+        _columnsDirty = true;
+        RequestViewportUpdate();
     }
 
     private static FastTreeDataGridSortDirection GetNextSortDirection(FastTreeDataGridSortDirection current)
@@ -1658,9 +2220,21 @@ public partial class FastTreeDataGrid : TemplatedControl
             _columnOffsets.Add(columnPositions[i] + _columnWidths[i]);
         }
 
+        var viewportLeft = offset.X;
+        var viewportRight = viewportLeft + viewportWidth;
+        UpdateVisibleColumns(columnPositions, _columnWidths, leftIndices, bodyIndices, rightIndices, viewportLeft, viewportRight);
+
         if (_headerPresenter is not null)
         {
             _headerPresenter.BindColumns(_columns, _columnWidths, offset.X, viewportWidth);
+        }
+
+        if (_filterPresenter is not null)
+        {
+            _filterPresenter.FilterHeight = RowHeight;
+            _filterPresenter.BindColumns(_columns, _columnWidths, columnPositions, totalWidth);
+            _filterPresenter.IsVisible = IsFilterRowVisible;
+            _filterPresenter.IsHitTestVisible = IsFilterRowVisible;
         }
 
         UpdateHeaderScroll(offset.X);
@@ -1717,13 +2291,14 @@ public partial class FastTreeDataGrid : TemplatedControl
                 row.IsExpanded,
                 toggleRect,
                 isGroup,
+                row.IsSummary,
                 isPlaceholder);
 
             var rowErrorCount = 0;
             var rowWarningCount = 0;
             string? rowFirstMessage = null;
 
-            for (var columnIndex = 0; columnIndex < _columns.Count; columnIndex++)
+            foreach (var columnIndex in _visibleColumnIndices)
             {
                 var column = _columns[columnIndex];
                 var width = _columnWidths[columnIndex];
@@ -1779,17 +2354,21 @@ public partial class FastTreeDataGrid : TemplatedControl
 
                 if (control is not null)
                 {
+                    if (rowInfo.IsSummary && control is TextBlock textBlock)
+                    {
+                        textBlock.FontWeight = FontWeight.SemiBold;
+                    }
+
                     // Intentionally left blank: controls are measured/arranged by the presenter.
                 }
                 else if (widget is null)
                 {
-                    var textWidget = new FormattedTextWidget
-                    {
-                        Key = column.ValueKey,
-                        EmSize = CalculateCellFontSize(rowHeight),
-                        Foreground = GetImmutableBrush(textBrush),
-                    };
+                    var textWidget = column.RentTextWidget();
+                    textWidget.Key = column.ValueKey;
+                    textWidget.EmSize = CalculateCellFontSize(rowHeight);
+                    textWidget.Foreground = GetImmutableBrush(textBrush);
                     textWidget.UpdateValue(row.ValueProvider, row.Item);
+                    textWidget.FontWeight = rowInfo.IsSummary ? FontWeight.SemiBold : FontWeight.Normal;
 
                     textWidget.Arrange(contentBounds);
                     textWidget.Invalidate();
@@ -1809,6 +2388,10 @@ public partial class FastTreeDataGrid : TemplatedControl
                             MaxTextWidth = contentWidth,
                             Trimming = TextTrimming.CharacterEllipsis,
                         };
+                        if (rowInfo.IsSummary)
+                        {
+                            formatted.SetFontWeight(FontWeight.SemiBold);
+                        }
 
                         textOrigin = new Point(
                             contentBounds.X,
@@ -2549,6 +3132,8 @@ public partial class FastTreeDataGrid : TemplatedControl
         _typeSearchTimestamp = DateTime.MinValue;
     }
 
+    internal void ScrollRowIntoViewForAutomation(int index) => EnsureRowVisible(index);
+
     private void EnsureRowVisible(int index)
     {
         if (_scrollViewer is null || _itemsSource is null || index < 0)
@@ -2692,6 +3277,62 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
     }
 
+    private void UpdateVisibleColumns(double[] columnPositions, IReadOnlyList<double> widths, IReadOnlyList<int> leftIndices, IReadOnlyList<int> bodyIndices, IReadOnlyList<int> rightIndices, double viewportLeft, double viewportRight)
+    {
+        _visibleColumnIndices.Clear();
+
+        void AddColumn(int index)
+        {
+            if ((uint)index >= (uint)_columns.Count)
+            {
+                return;
+            }
+
+            if (!_visibleColumnIndices.Contains(index))
+            {
+                _visibleColumnIndices.Add(index);
+            }
+        }
+
+        foreach (var index in leftIndices)
+        {
+            AddColumn(index);
+        }
+
+        foreach (var index in bodyIndices)
+        {
+            if ((uint)index >= (uint)widths.Count)
+            {
+                continue;
+            }
+
+            var x = columnPositions[index];
+            var width = widths[index];
+            var right = x + width;
+            if (right >= viewportLeft - 1 && x <= viewportRight + 1)
+            {
+                AddColumn(index);
+            }
+        }
+
+        foreach (var index in rightIndices)
+        {
+            AddColumn(index);
+        }
+
+        if (_visibleColumnIndices.Count == 0 && _columns.Count > 0)
+        {
+            if (bodyIndices.Count > 0)
+            {
+                AddColumn(bodyIndices[0]);
+            }
+            else
+            {
+                AddColumn(0);
+            }
+        }
+    }
+
     private void UpdateBodyScroll(double horizontalOffset)
     {
         if (_scrollViewer is null)
@@ -2703,6 +3344,42 @@ public partial class FastTreeDataGrid : TemplatedControl
         if (!AreClose(current.X, horizontalOffset))
         {
             _scrollViewer.Offset = new Vector(horizontalOffset, current.Y);
+        }
+    }
+
+    private void UpdateLoadingOverlay()
+    {
+        if (_loadingOverlay is null)
+        {
+            return;
+        }
+
+        if (!_virtualizationSettings.ShowLoadingOverlay)
+        {
+            _loadingOverlay.IsVisible = false;
+            return;
+        }
+
+        var isLoading = _isLoading;
+        _loadingOverlay.IsVisible = isLoading;
+
+        if (_loadingProgressBar is not null)
+        {
+            if (double.IsNaN(_loadingProgress))
+            {
+                _loadingProgressBar.IsIndeterminate = true;
+            }
+            else
+            {
+                _loadingProgressBar.IsIndeterminate = false;
+                _loadingProgressBar.Maximum = 100;
+                _loadingProgressBar.Value = Math.Clamp(_loadingProgress * 100, 0d, 100d);
+            }
+        }
+
+        if (_loadingText is not null)
+        {
+            _loadingText.IsVisible = isLoading;
         }
     }
 

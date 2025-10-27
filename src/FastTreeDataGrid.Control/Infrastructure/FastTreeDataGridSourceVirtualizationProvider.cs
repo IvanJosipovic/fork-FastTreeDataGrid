@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider
+public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider, IFastTreeDataGridGroupingController
 {
     private readonly IFastTreeDataGridSource _source;
     private bool _disposed;
@@ -97,6 +97,22 @@ public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeData
 
     public Task DeleteAsync(object viewModel, CancellationToken cancellationToken) =>
         Task.FromException(new NotSupportedException("Delete operations are not supported by this provider."));
+
+    public void ExpandAllGroups()
+    {
+        if (_source is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.ExpandAllGroups();
+        }
+    }
+
+    public void CollapseAllGroups()
+    {
+        if (_source is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.CollapseAllGroups();
+        }
+    }
 
     public void Dispose()
     {

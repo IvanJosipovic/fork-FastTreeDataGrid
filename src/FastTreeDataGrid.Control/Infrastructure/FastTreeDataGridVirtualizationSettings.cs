@@ -10,6 +10,8 @@ public sealed class FastTreeDataGridVirtualizationSettings
     private int _maxPages = 64;
     private int _maxConcurrentLoads = 4;
     private int _resetThrottleDelay = 120;
+    private bool _showLoadingOverlay = true;
+    private bool _showPlaceholderSkeletons = true;
 
     public int PageSize
     {
@@ -42,4 +44,16 @@ public sealed class FastTreeDataGridVirtualizationSettings
     }
 
     public DispatcherPriority DispatcherPriority { get; set; } = DispatcherPriority.Background;
+
+    public bool ShowLoadingOverlay
+    {
+        get => _showLoadingOverlay;
+        set => _showLoadingOverlay = value;
+    }
+
+    public bool ShowPlaceholderSkeletons
+    {
+        get => _showPlaceholderSkeletons;
+        set => _showPlaceholderSkeletons = value;
+    }
 }

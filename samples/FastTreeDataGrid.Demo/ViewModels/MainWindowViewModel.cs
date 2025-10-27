@@ -8,6 +8,7 @@ using FastTreeDataGrid.Demo.ViewModels.Charts;
 using FastTreeDataGrid.Demo.ViewModels.VariableHeights;
 using FastTreeDataGrid.Demo.ViewModels.Widgets;
 using FastTreeDataGrid.Demo.ViewModels.Virtualization;
+using FastTreeDataGrid.Demo.ViewModels.Extensibility;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
@@ -43,6 +44,8 @@ public sealed class MainWindowViewModel : IDisposable
         DynamicDataSources = new DynamicDataSourcesViewModel();
         LiveMutations = new LiveMutationDataSourcesViewModel();
         Virtualization = new VirtualizationSamplesViewModel();
+        Adapters = new AdaptersSamplesViewModel();
+        Extensibility = new ExtensibilitySamplesViewModel();
     }
 
     public FilesViewModel Files { get; }
@@ -73,6 +76,10 @@ public sealed class MainWindowViewModel : IDisposable
 
     public VirtualizationSamplesViewModel Virtualization { get; }
 
+    public AdaptersSamplesViewModel Adapters { get; }
+
+    public ExtensibilitySamplesViewModel Extensibility { get; }
+
     public void Dispose()
     {
         Crypto.Dispose();
@@ -80,6 +87,7 @@ public sealed class MainWindowViewModel : IDisposable
         DataSources.Dispose();
         DynamicDataSources.Dispose();
         LiveMutations.Dispose();
+        Extensibility.Dispose();
     }
 
     private static void ExpandAllNodes(IFastTreeDataGridSource source)

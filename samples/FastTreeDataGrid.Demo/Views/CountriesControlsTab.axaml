@@ -56,12 +56,14 @@
             CornerRadius="4"
             Padding="0"
             Margin="0">
-      <controls:FastTreeDataGrid ItemsSource="{Binding Countries.Source}"
+      <controls:FastTreeDataGrid x:Name="CountriesGrid"
+                                 ItemsSource="{Binding Countries.Source}"
                                  SelectionMode="Extended"
                                  SelectedIndices="{Binding Countries.SelectedIndices, Mode=TwoWay}"
                                  RowHeight="28"
                                  IndentWidth="18"
                                  HeaderHeight="34"
+                                 IsFilterRowVisible="True"
                                  SortRequested="OnCountriesSortRequested"
                                  TypeSearchSelector="{x:Static vm:CountriesViewModel.CountryNameSelector}">
         <controls:FastTreeDataGrid.Columns>
@@ -69,7 +71,8 @@
                                            SizingMode="Star"
                                            IsHierarchy="True"
                                            CanUserSort="True"
-                                           ValueKey="{x:Static vm:CountryNode.KeyName}">
+                                           ValueKey="{x:Static vm:CountryNode.KeyName}"
+                                           FilterPlaceholder="Filter country">
             <models:FastTreeDataGridColumn.CellControlTemplate>
               <DataTemplate x:DataType="vm:CountryNode">
                 <TextBlock Text="{Binding DisplayName}"
@@ -80,7 +83,8 @@
           <models:FastTreeDataGridColumn Header="Region"
                                            SizingMode="Star"
                                            CanUserSort="True"
-                                           ValueKey="{x:Static vm:CountryNode.KeyRegion}">
+                                           ValueKey="{x:Static vm:CountryNode.KeyRegion}"
+                                           FilterPlaceholder="Filter region">
             <models:FastTreeDataGridColumn.CellControlTemplate>
               <DataTemplate x:DataType="vm:CountryNode">
                 <TextBlock Text="{Binding Region}"
@@ -93,7 +97,8 @@
                                            PixelWidth="200"
                                            MinWidth="160"
                                            CanUserSort="True"
-                                           ValueKey="{x:Static vm:CountryNode.KeyPopulation}">
+                                           ValueKey="{x:Static vm:CountryNode.KeyPopulation}"
+                                           FilterPlaceholder="Filter population">
             <models:FastTreeDataGridColumn.CellControlTemplate>
               <DataTemplate x:DataType="vm:CountryNode">
                 <Grid ColumnDefinitions="Auto,*"
@@ -116,7 +121,8 @@
           <models:FastTreeDataGridColumn Header="Area"
                                            SizingMode="Star"
                                            CanUserSort="True"
-                                           ValueKey="{x:Static vm:CountryNode.KeyArea}">
+                                           ValueKey="{x:Static vm:CountryNode.KeyArea}"
+                                           FilterPlaceholder="Filter area">
             <models:FastTreeDataGridColumn.CellControlTemplate>
               <DataTemplate x:DataType="vm:CountryNode">
                 <TextBlock Text="{Binding Area, StringFormat={}{0:N0}, TargetNullValue=-}"
@@ -127,7 +133,8 @@
           <models:FastTreeDataGridColumn Header="GDP"
                                            SizingMode="Star"
                                            CanUserSort="True"
-                                           ValueKey="{x:Static vm:CountryNode.KeyGdp}">
+                                           ValueKey="{x:Static vm:CountryNode.KeyGdp}"
+                                           FilterPlaceholder="Filter GDP">
             <models:FastTreeDataGridColumn.CellControlTemplate>
               <DataTemplate x:DataType="vm:CountryNode">
                 <TextBlock Text="{Binding Gdp, StringFormat={}{0:N0}, TargetNullValue=-}"
