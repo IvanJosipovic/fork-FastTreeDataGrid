@@ -5,13 +5,13 @@ using System.Diagnostics.Metrics;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-internal readonly record struct FastTreeDataGridVirtualizationLogEntry(
+public readonly record struct FastTreeDataGridVirtualizationLogEntry(
     string Category,
     string Message,
     Exception? Exception,
     IReadOnlyList<KeyValuePair<string, object?>> Tags);
 
-internal static class FastTreeDataGridVirtualizationDiagnostics
+public static class FastTreeDataGridVirtualizationDiagnostics
 {
     private static readonly Meter s_meter = new("FastTreeDataGrid.Virtualization", "1.0.0");
 

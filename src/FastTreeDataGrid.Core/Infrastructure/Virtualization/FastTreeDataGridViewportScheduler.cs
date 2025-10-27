@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-internal sealed class FastTreeDataGridViewportScheduler : IDisposable
+public sealed class FastTreeDataGridViewportScheduler : IDisposable
 {
     private readonly IFastTreeDataVirtualizationProvider _provider;
     private FastTreeDataGridVirtualizationSettings _settings;

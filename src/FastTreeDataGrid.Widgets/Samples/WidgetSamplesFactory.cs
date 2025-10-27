@@ -10,9 +10,9 @@ using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
 using FastTreeDataGrid.Control.Widgets;
 
-namespace FastTreeDataGrid.DataSourcesDemo.ViewModels.Widgets;
+namespace FastTreeDataGrid.Control.Widgets.Samples;
 
-internal static class WidgetSamplesFactory
+public static class WidgetSamplesFactory
 {
     public static IReadOnlyList<WidgetGalleryNode> Create()
     {

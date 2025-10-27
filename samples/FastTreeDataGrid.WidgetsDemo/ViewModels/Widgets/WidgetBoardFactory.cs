@@ -10,6 +10,7 @@ using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
+using FastTreeDataGrid.Control.Widgets.Samples;
 
 namespace FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets;
 

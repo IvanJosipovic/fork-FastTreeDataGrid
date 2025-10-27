@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-internal sealed class FastTreeDataGridVirtualizationProviderRegistration : IDisposable
+public sealed class FastTreeDataGridVirtualizationProviderRegistration : IDisposable
 {
     private readonly Action _onDispose;
     private bool _disposed;
@@ -25,7 +25,7 @@ internal sealed class FastTreeDataGridVirtualizationProviderRegistration : IDisp
     }
 }
 
-internal static class FastTreeDataGridVirtualizationProviderRegistry
+public static class FastTreeDataGridVirtualizationProviderRegistry
 {
     private static readonly object s_sync = new();
     private static readonly List<Func<object, FastTreeDataGridVirtualizationSettings, IFastTreeDataVirtualizationProvider?>> s_factories = new()

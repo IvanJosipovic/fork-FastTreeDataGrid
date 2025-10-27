@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels"
              xmlns:widgets="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets"
+             xmlns:host="clr-namespace:FastTreeDataGrid.Control.Widgets.Hosting;assembly=FastTreeDataGrid.Widgets"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.WidgetsDemo.Views.WidgetsGalleryTab"
              x:DataType="vm:MainWindowViewModel">
@@ -83,8 +84,8 @@
                         <TextBlock Text="{Binding Description}"
                                    Foreground="#666"
                                    TextWrapping="Wrap" />
-                        <widgets:WidgetBoardPresenter Board="{Binding}"
-                                                      HorizontalAlignment="Center" />
+                        <host:WidgetHostPresenter Host="{Binding Board}"
+                                                  HorizontalAlignment="Center" />
                       </StackPanel>
                     </Border>
                   </DataTemplate>

@@ -5,7 +5,7 @@ using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Controls;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
-using FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets;
+using FastTreeDataGrid.Control.Widgets.Samples;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
 
 namespace FastTreeDataGrid.WidgetsDemo.Views;

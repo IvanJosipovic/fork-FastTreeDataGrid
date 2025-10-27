@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels"
-             xmlns:widgets="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets"
+             xmlns:host="clr-namespace:FastTreeDataGrid.Control.Widgets.Hosting;assembly=FastTreeDataGrid.Widgets"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.WidgetsDemo.Views.VirtualizingLayoutsTab"
              x:DataType="vm:MainWindowViewModel">
@@ -25,8 +25,8 @@
             BorderThickness="1"
             CornerRadius="10"
             Background="#FAFBFF">
-      <widgets:WidgetBoardPresenter Board="{Binding VirtualizingLayoutBoard}"
-                                    HorizontalAlignment="Center" />
+      <host:WidgetHostPresenter Host="{Binding VirtualizingLayoutBoard.Board}"
+                                HorizontalAlignment="Center" />
     </Border>
   </Grid>
 </UserControl>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
 
-namespace FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets;
+namespace FastTreeDataGrid.Control.Widgets.Samples;
 
 public sealed class WidgetGalleryNode : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup
 {

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-internal sealed class FastTreeDataGridThrottleDispatcher : IDisposable
+public sealed class FastTreeDataGridThrottleDispatcher : IDisposable
 {
     private readonly TimeSpan _delay;
     private readonly object _gate = new();

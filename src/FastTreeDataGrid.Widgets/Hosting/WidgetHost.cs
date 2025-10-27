@@ -5,57 +5,70 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
-using FastTreeDataGrid.Control.Widgets;
-using AvaloniaControl = Avalonia.Controls.Control;
+using AvaloniaControl = global::Avalonia.Controls.Control;
 
-namespace FastTreeDataGrid.DataSourcesDemo.ViewModels.Widgets;
+namespace FastTreeDataGrid.Control.Widgets.Hosting;
 
-public sealed class WidgetBoard
+/// <summary>
+/// Provides a simple factory for embedding immediate-mode widgets inside standard Avalonia layouts.
+/// </summary>
+public static class WidgetHost
 {
-    public string Title { get; }
-
-    public string Description { get; }
-
-    public AvaloniaControl Board { get; }
-
-    private WidgetBoard(string title, string description, AvaloniaControl board)
+    /// <summary>
+    /// Creates an Avalonia control that can render and interact with the specified widget.
+    /// </summary>
+    /// <param name="root">The widget tree to host.</param>
+    /// <param name="width">Optional fixed width for the host surface. Leave as <see cref="double.NaN"/> for auto.</param>
+    /// <param name="height">Optional fixed height for the host surface. Leave as <see cref="double.NaN"/> for auto.</param>
+    /// <param name="background">Optional background brush rendered behind the widget.</param>
+    /// <returns>An Avalonia <see cref="AvaloniaControl"/> ready to embed in the visual tree.</returns>
+    public static AvaloniaControl Create(Widget root, double width = double.NaN, double height = double.NaN, IBrush? background = null)
     {
-        Title = title;
-        Description = description;
-        Board = board;
-    }
-
-    public static WidgetBoard Create(string title, string description, Widget root)
-    {
-        var surface = new WidgetSurface(root)
+        if (root is null)
         {
-            Width = 400,
-            Height = 220,
-            Background = Brushes.Transparent,
+            throw new ArgumentNullException(nameof(root));
+        }
+
+        var surface = new WidgetHostSurface(root)
+        {
+            Background = background
         };
 
-        root.Arrange(new Rect(0, 0, surface.Width, surface.Height));
+        surface.Width = width;
+        surface.Height = height;
 
-        return new WidgetBoard(title, description, surface);
+        // Ensure the widget has initial layout data before it renders.
+        if (!double.IsNaN(width) && !double.IsNaN(height))
+        {
+            root.Arrange(new Rect(0, 0, width, height));
+        }
+
+        return surface;
     }
 }
 
-public sealed class WidgetBoardPresenter : ContentControl
+/// <summary>
+/// Content presenter that safely embeds controls created by <see cref="WidgetHost.Create"/>.
+/// </summary>
+public sealed class WidgetHostPresenter : ContentControl
 {
-    public static readonly StyledProperty<WidgetBoard?> BoardProperty =
-        AvaloniaProperty.Register<WidgetBoardPresenter, WidgetBoard?>(nameof(Board));
+    public static readonly StyledProperty<AvaloniaControl?> HostProperty =
+        AvaloniaProperty.Register<WidgetHostPresenter, AvaloniaControl?>(nameof(Host));
 
-    public WidgetBoard? Board
+    /// <summary>
+    /// Gets or sets the hosted control (typically the result of <see cref="WidgetHost.Create"/>).
+    /// </summary>
+    public AvaloniaControl? Host
     {
-        get => GetValue(BoardProperty);
-        set => SetValue(BoardProperty, value);
+        get => GetValue(HostProperty);
+        set => SetValue(HostProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == BoardProperty)
+        if (change.Property == HostProperty)
         {
             UpdateSurface();
         }
@@ -63,25 +76,24 @@ public sealed class WidgetBoardPresenter : ContentControl
 
     private void UpdateSurface()
     {
-        var board = Board;
-        if (board is null)
+        var host = Host;
+        if (host is null)
         {
             Content = null;
             return;
         }
 
-        var control = board.Board;
-        if (ReferenceEquals(Content, control))
+        if (ReferenceEquals(Content, host))
         {
             return;
         }
 
-        if (control.Parent is { } parent)
+        if (host.Parent is StyledElement parent)
         {
-            DetachFromParent(control, parent);
+            DetachFromParent(host, parent);
         }
 
-        Content = control;
+        Content = host;
     }
 
     private static void DetachFromParent(AvaloniaControl control, StyledElement parent)
@@ -104,15 +116,18 @@ public sealed class WidgetBoardPresenter : ContentControl
     }
 }
 
-internal sealed class WidgetSurface : Avalonia.Controls.Control
+/// <summary>
+/// Avalonia control that renders a widget tree and forwards input events.
+/// </summary>
+public sealed class WidgetHostSurface : AvaloniaControl
 {
     private readonly Widget _root;
     private bool _pointerCaptured;
     private IDisposable? _animationRegistration;
 
-    public WidgetSurface(Widget root)
+    public WidgetHostSurface(Widget root)
     {
-        _root = root;
+        _root = root ?? throw new ArgumentNullException(nameof(root));
         Focusable = true;
         IsHitTestVisible = true;
     }

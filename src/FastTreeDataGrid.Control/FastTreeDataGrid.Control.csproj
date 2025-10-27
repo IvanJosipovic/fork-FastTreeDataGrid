@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\\FastTreeDataGrid.Core\\FastTreeDataGrid.Core.csproj" />
     <AvaloniaResource Include="Themes\**\*.xaml" />
   </ItemGroup>
 
@@ -18,5 +19,6 @@
     <ProjectReference Include="..\\FastTreeDataGrid.Analyzers\\FastTreeDataGrid.Analyzers.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\\FastTreeDataGrid.Widgets\\FastTreeDataGrid.Widgets.csproj" />
   </ItemGroup>
 </Project>

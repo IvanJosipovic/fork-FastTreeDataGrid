@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FastTreeDataGrid.DataSourcesDemo.ViewModels"
-             xmlns:widgets="clr-namespace:FastTreeDataGrid.DataSourcesDemo.ViewModels.Widgets"
+             xmlns:widgets="clr-namespace:FastTreeDataGrid.Control.Widgets.Samples;assembly=FastTreeDataGrid.Widgets"
              mc:Ignorable="d"
              x:Class="FastTreeDataGrid.DataSourcesDemo.Views.DataSourcesTab"
              x:DataType="vm:MainWindowViewModel">
