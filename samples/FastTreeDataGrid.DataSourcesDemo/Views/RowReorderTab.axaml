@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.DataSourcesDemo.ViewModels"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.DataSourcesDemo.Views.RowReorderTab"
+             x:DataType="vm:RowReorderSamplesViewModel">
+  <Grid RowDefinitions="Auto,*" Margin="0,8,0,0">
+    <Border Background="#F7F9FC" BorderBrush="#DAE4F2" BorderThickness="1" CornerRadius="6" Padding="12">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Product Roadmap" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock Text="Drag features to reprioritize them. Use Ctrl/Cmd+Click to multi-select. Locked milestones stay pinned." Foreground="#4A5D73" />
+        <TextBlock Text="{Binding StatusMessage}" FontStyle="Italic" Foreground="#2F4E7A" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="1" BorderBrush="#D0DAE6" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0,12,0,0">
+      <FastTreeDataGrid x:Name="RoadmapGrid"
+                        ItemsSource="{Binding Roadmap}"
+                        RowReorderSettings="{Binding ReorderSettings}"
+                        RowHeight="34"
+                        IndentWidth="18"
+                        HeaderHeight="36"
+                        RowReordering="RoadmapGrid_OnRowReordering"
+                        RowReordered="RoadmapGrid_OnRowReordered">
+        <FastTreeDataGrid.Columns>
+          <FastTreeDataGridColumn Header="Initiative"
+                                  IsHierarchy="True"
+                                  SizingMode="Star"
+                                  MinWidth="280"
+                                  ValueKey="{x:Static vm:RoadmapNode.KeyTitle}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="13" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Owner"
+                                  SizingMode="Pixel"
+                                  PixelWidth="180"
+                                  ValueKey="{x:Static vm:RoadmapNode.KeyOwner}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12" Foreground="#4A5D73" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Status"
+                                  SizingMode="Pixel"
+                                  PixelWidth="160"
+                                  ValueKey="{x:Static vm:RoadmapNode.KeyStatus}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12" Foreground="#375174" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+          <FastTreeDataGridColumn Header="Effort"
+                                  SizingMode="Pixel"
+                                  PixelWidth="120"
+                                  ValueKey="{x:Static vm:RoadmapNode.KeyEffort}">
+            <FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12" TextAlignment="Right" />
+              </WidgetTemplate>
+            </FastTreeDataGridColumn.CellTemplate>
+          </FastTreeDataGridColumn>
+        </FastTreeDataGrid.Columns>
+      </FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>

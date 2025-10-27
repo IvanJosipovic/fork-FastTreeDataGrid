@@ -48,6 +48,9 @@
       <TextBlock Text="Tip: Hold Shift or Ctrl while using arrows or clicks to build multi-selection. Use Left/Right to collapse or expand groups, and start typing to jump to a country."
                  TextWrapping="Wrap"
                  Foreground="#666" />
+      <TextBlock Text="{Binding ReorderStatus}"
+                 TextWrapping="Wrap"
+                 Foreground="#2F4E7A" />
     </StackPanel>
     <Border Grid.Row="1" BorderBrush="#CCC" BorderThickness="1" CornerRadius="4" Padding="0" Margin="0">
       <controls:FastTreeDataGrid x:Name="CountriesGrid"
@@ -58,6 +61,10 @@
                                  IndentWidth="18"
                                  HeaderHeight="34"
                                  IsFilterRowVisible="True"
+                                 RowReorderSettings="{Binding Countries.RowReorderSettings}"
+                                 RowReorderHandler="{Binding Countries.RowReorderHandler}"
+                                 RowReordering="CountriesGrid_OnRowReordering"
+                                 RowReordered="CountriesGrid_OnRowReordered"
                                  TypeSearchSelector="{x:Static vm:CountriesViewModel.CountryNameSelector}" />
     </Border>
   </Grid>

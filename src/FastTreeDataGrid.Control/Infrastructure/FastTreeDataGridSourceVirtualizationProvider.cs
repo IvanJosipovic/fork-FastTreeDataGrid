@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider, IFastTreeDataGridGroupingController
+public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider, IFastTreeDataGridGroupingController, IFastTreeDataGridRowReorderHandler
 {
     private readonly IFastTreeDataGridSource _source;
     private bool _disposed;
@@ -112,6 +112,18 @@ public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeData
         {
             grouping.CollapseAllGroups();
         }
+    }
+
+    bool IFastTreeDataGridRowReorderHandler.CanReorder(FastTreeDataGridRowReorderRequest request)
+    {
+        return _source is IFastTreeDataGridRowReorderHandler handler && handler.CanReorder(request);
+    }
+
+    Task<FastTreeDataGridRowReorderResult> IFastTreeDataGridRowReorderHandler.ReorderAsync(FastTreeDataGridRowReorderRequest request, CancellationToken cancellationToken)
+    {
+        return _source is IFastTreeDataGridRowReorderHandler handler
+            ? handler.ReorderAsync(request, cancellationToken)
+            : Task.FromResult(FastTreeDataGridRowReorderResult.Cancelled);
     }
 
     public void Dispose()

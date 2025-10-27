@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vh="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels.VariableHeights"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels"
+        xmlns:views="clr-namespace:FastTreeDataGrid.VirtualizationDemo.Views"
+        mc:Ignorable="d"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1024"
+        d:DesignHeight="768"
+        x:Class="FastTreeDataGrid.VirtualizationDemo.MainWindow"
+        Title="FastTreeDataGrid Virtualization">
+  <Grid RowDefinitions="Auto,*" Margin="12">
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <TextBlock Text="FastTreeDataGrid Virtualization Toolkit" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock Text="(explore pooled layouts, adapters, and custom providers)" VerticalAlignment="Center" Foreground="#666" />
+      </StackPanel>
+
+    <TabControl Grid.Row="1" Margin="0,12,0,0" TabStripPlacement="Left">
+      <TabItem Header="Variable Rows">
+        <views:VariableRowsTab />
+      </TabItem>
+      <TabItem Header="Adaptive Rows">
+        <views:AdaptiveRowsTab />
+      </TabItem>
+      <TabItem Header="Adapters">
+        <views:AdaptersTab />
+      </TabItem>
+      <TabItem Header="Virtualization">
+        <views:VirtualizationTab />
+      </TabItem>
+      <TabItem Header="Extensibility">
+        <views:ExtensibilityTab />
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

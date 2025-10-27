@@ -11,6 +11,7 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 | Items & navigation widgets | Drop-in ListBox/TreeView replacements on the widget renderer. | `ItemsControlWidget`, `ListBoxWidget`, `TreeViewWidget` | [Items & navigation widgets](#feature-items--navigation-widgets) |
 | Flexible column system | Combine pixel/star sizing, templates, and selection hooks. | `FastTreeDataGridColumn`, `ColumnSizingMode` | [Flexible column system](#feature-flexible-column-system) |
 | Row layouts & data sources | Mix uniform/variable heights with static or streaming feeds. | `IFastTreeDataGridRowLayout`, `FastTreeDataGridHybridSource<T>` | [Row layouts & data sources](#feature-row-layouts--data-sources) |
+| Row reorder | Pointer-driven drag & drop with live preview, configurable visuals, and events. | `FastTreeDataGridRowReorderSettings`, `IFastTreeDataGridRowReorderHandler` | [Row reorder](#feature-row-reorder) |
 | Provider-agnostic virtualization | Integrate REST/ModelFlow providers and capture diagnostics. | `FastTreeDataGridVirtualizationProviderRegistry`, `FastTreeDataGridVirtualizationDiagnostics` | [Provider-agnostic virtualization](#feature-provider-agnostic-virtualization) |
 
 ## Comprehensive Feature Matrix
@@ -114,6 +115,7 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 | Interaction & UX | Type search selector | Configures how type-to-search derives display text. | `FastTreeDataGrid.TypeSearchSelector` |
 | Interaction & UX | Type search events | Raises events when buffered type-to-search queries update. | `FastTreeDataGrid.TypeSearchRequested`, `FastTreeDataGridTypeSearchEventArgs` |
 | Interaction & UX | Type search auto reset | Clears the search buffer after a short idle interval. | `FastTreeDataGrid` buffered search timeout |
+| Interaction & UX | Row drag & drop reorder | Enables live drag handles, preview overlays, and cancellable hooks. | `FastTreeDataGridRowReorderSettings`, `FastTreeDataGrid.RowReordering`, `FastTreeDataGrid.RowReordered` |
 | Interaction & UX | Sort request events | Notifies when header gestures request a sort direction. | `FastTreeDataGrid.SortRequested`, `FastTreeDataGridSortEventArgs` |
 | Interaction & UX | Filter row visibility | Shows or hides the filter row globally. | `FastTreeDataGrid.IsFilterRowVisible` |
 | Interaction & UX | Column filter flyout | Provides a flyout UI for advanced column filtering. | `FastTreeDataGridColumnFilterFlyout` |
@@ -322,6 +324,42 @@ var filesGrid = new FastTreeDataGrid
 - `FastTreeDataGridStreamingSource<T>` – listens to live feeds (`IObservable`, channels, async enumerables) and applies inserts/removes to the flat list.
 - `FastTreeDataGridHybridSource<T>` – combines a snapshot load with real-time updates; ideal for dashboards that hydrate once then listen for deltas.
 - `FastTreeDataGridDynamicSource<T>` – base class for bespoke dynamic sources when you need custom change tracking or background processing.
+
+## Feature: Row Reorder
+`FastTreeDataGrid` includes a drag & drop pipeline for reordering rows with professional visuals. Enable it by toggling `RowReorderSettings.IsEnabled`, adjust the indicator and preview brushes, and provide an `IFastTreeDataGridRowReorderHandler` (the flat source already implements one) so the grid can persist the new order.
+
+### Quick usage
+- Set behavioural and visual knobs through `RowReorderSettings` (activation threshold, preview opacity, indicator brush, etc.).
+- Handle `RowReordering` to cancel or redirect operations and `RowReordered` for telemetry.
+- Plug in a custom handler when you need to forward reorders to a backend or enforce domain-specific rules.
+
+```csharp
+var grid = new FastTreeDataGrid
+{
+    ItemsSource = new FastTreeDataGridFlatSource<Node>(nodes, node => node.Children),
+    RowReorderSettings = new FastTreeDataGridRowReorderSettings
+    {
+        IsEnabled = true,
+        ActivationThreshold = 4,
+        ShowDragPreview = true,
+        DropIndicatorBrush = new SolidColorBrush(Colors.DeepSkyBlue),
+        DragPreviewOpacity = 0.7,
+    }
+};
+
+grid.RowReordering += (_, e) =>
+{
+    if (e.Request.SourceIndices.Any(IsLockedRow))
+    {
+        e.Cancel = true;
+    }
+};
+
+grid.RowReordered += (_, e) =>
+    Logger.Info($"Rows moved to {string.Join(",", e.Result.NewIndices)}");
+```
+
+> ℹ️  See [docs/rows/reordering.md](docs/rows/reordering.md) for a full settings reference, UX guidance, and examples of custom reorder handlers.
 
 ## Feature: Provider-agnostic Virtualization
 FastTreeDataGrid virtualization is provider-agnostic: register factories with `FastTreeDataGridVirtualizationProviderRegistry` so the grid can discover the right `IFastTreeDataVirtualizationProvider` at runtime. Diagnostics via `FastTreeDataGridVirtualizationDiagnostics` surface fetch latency, placeholder density, and reset frequency so you can harden remote data sources before shipping.

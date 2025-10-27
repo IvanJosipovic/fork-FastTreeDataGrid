@@ -1,4 +1,3 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Rendering;
 using FastTreeDataGrid.Demo.ViewModels;
@@ -10,11 +9,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // RendererDiagnostics.DebugOverlays = RendererDebugOverlays.Fps | RendererDebugOverlays.LayoutTimeGraph | RendererDebugOverlays.RenderTimeGraph;
+        RendererDiagnostics.DebugOverlays = RendererDebugOverlays.Fps | RendererDebugOverlays.LayoutTimeGraph | RendererDebugOverlays.RenderTimeGraph;
         DataContext = new MainWindowViewModel();
     }
 
-    protected override void OnClosed(EventArgs e)
+    protected override void OnClosed(System.EventArgs e)
     {
         base.OnClosed(e);
         if (DataContext is MainWindowViewModel vm)

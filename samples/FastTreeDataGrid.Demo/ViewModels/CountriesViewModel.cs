@@ -2,17 +2,25 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Demo.ViewModels.Data;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 
 public sealed class CountriesViewModel : INotifyPropertyChanged
 {
     private const string AllRegionsOption = "All regions";
+    private const string DefaultReorderStatus = "Drag countries within a region to reprioritize reports.";
 
     private readonly FastTreeDataGridFlatSource<CountryNode> _source;
-    private readonly IReadOnlyList<CountryNode> _rootNodes;
+    private List<RegionGroup> _groups;
+    private List<CountryNode> _rootNodes;
+    private IReadOnlyList<string> _regions;
 
     private string _searchText = string.Empty;
     private string _selectedRegion = AllRegionsOption;
@@ -20,13 +28,42 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
     private IReadOnlyList<CountryNode> _selectedCountries = Array.Empty<CountryNode>();
     private IReadOnlyList<string> _selectedCountryNames = Array.Empty<string>();
     private string _selectionSummary = "No rows selected";
+    private string _reorderStatus = DefaultReorderStatus;
 
-    internal CountriesViewModel(IReadOnlyList<CountryNode> rootNodes)
+    public CountriesViewModel()
+        : this(BuildInitialNodes())
     {
-        _rootNodes = rootNodes ?? throw new ArgumentNullException(nameof(rootNodes));
+    }
+
+    internal CountriesViewModel(IReadOnlyList<CountryNode> initialNodes)
+    {
+        if (initialNodes is null)
+        {
+            throw new ArgumentNullException(nameof(initialNodes));
+        }
+
+        _groups = BuildGroups(initialNodes);
+        _rootNodes = BuildNodes(_groups);
         _source = new FastTreeDataGridFlatSource<CountryNode>(_rootNodes, node => node.Children);
-        Regions = BuildRegions(rootNodes);
+        _regions = BuildRegions(_groups);
         ExpandAllGroups();
+
+        RowReorderSettings = new FastTreeDataGridRowReorderSettings
+        {
+            IsEnabled = true,
+            ActivationThreshold = 6,
+            ShowDragPreview = true,
+            DragPreviewBrush = new ImmutableSolidColorBrush(Color.FromArgb(56, 25, 118, 210)),
+            DragPreviewOpacity = 0.9,
+            DragPreviewCornerRadius = 4,
+            ShowDropIndicator = true,
+            DropIndicatorBrush = new ImmutableSolidColorBrush(Color.FromRgb(25, 118, 210)),
+            DropIndicatorThickness = 2,
+            UseSelection = true,
+            AllowGroupReorder = true,
+        };
+
+        RowReorderHandler = new CountriesRowReorderHandler(this);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -43,7 +80,7 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
 
     public IFastTreeDataGridSource Source => _source;
 
-    public IReadOnlyList<string> Regions { get; }
+    public IReadOnlyList<string> Regions => _regions;
 
     public string SearchText
     {
@@ -85,6 +122,16 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
     {
         get => _selectionSummary;
         private set => SetProperty(ref _selectionSummary, value, nameof(SelectionSummary));
+    }
+
+    public FastTreeDataGridRowReorderSettings RowReorderSettings { get; }
+
+    public IFastTreeDataGridRowReorderHandler RowReorderHandler { get; }
+
+    public string ReorderStatus
+    {
+        get => _reorderStatus;
+        private set => SetProperty(ref _reorderStatus, value, nameof(ReorderStatus));
     }
 
     public bool ApplySort(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
@@ -143,17 +190,367 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private static IReadOnlyList<string> BuildRegions(IReadOnlyList<CountryNode> rootNodes)
+    public bool HasMixedSelection(IReadOnlyList<int> indices)
     {
-        var result = new List<string> { AllRegionsOption };
-        var regions = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
-        foreach (var node in rootNodes)
+        if (indices is null || indices.Count == 0)
         {
-            regions.Add(node.Title);
+            return false;
         }
 
-        result.AddRange(regions);
+        var hasGroup = false;
+        var hasLeaf = false;
+
+        foreach (var index in indices)
+        {
+            if (TryGetNode(index) is not { } node)
+            {
+                continue;
+            }
+
+            if (node.IsGroup)
+            {
+                hasGroup = true;
+            }
+            else
+            {
+                hasLeaf = true;
+            }
+
+            if (hasGroup && hasLeaf)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public void NotifyReorderCancelled()
+    {
+        ReorderStatus = "Drag either regions or individual countries—mixed selections can't be moved together.";
+    }
+
+    public void NotifyReorderCompleted(IReadOnlyList<int> newIndices)
+    {
+        if (newIndices is null || newIndices.Count == 0)
+        {
+            ReorderStatus = DefaultReorderStatus;
+            return;
+        }
+
+        var flat = BuildRowReferences(_groups);
+        var summaries = new List<string>();
+        var regions = new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var index in newIndices)
+        {
+            if ((uint)index >= (uint)flat.Count)
+            {
+                continue;
+            }
+
+            var entry = flat[index];
+            if (entry.IsGroup)
+            {
+                summaries.Add(entry.Group.Name);
+                regions.Add(entry.Group.Name);
+            }
+            else if (entry.Country is { } country)
+            {
+                summaries.Add(country.Name ?? country.Region ?? "Country");
+                regions.Add(entry.Group.Name);
+            }
+        }
+
+        if (summaries.Count == 0)
+        {
+            ReorderStatus = DefaultReorderStatus;
+            return;
+        }
+
+        var preview = string.Join(", ", summaries.Take(3));
+        if (summaries.Count > 3)
+        {
+            preview = $"{preview}, +{summaries.Count - 3} more";
+        }
+
+        if (regions.Count == 1)
+        {
+            ReorderStatus = $"Moved {preview} within {regions.First()}.";
+        }
+        else if (regions.Count > 1)
+        {
+            ReorderStatus = $"Reassigned {preview} across {regions.Count} regions.";
+        }
+        else
+        {
+            ReorderStatus = $"Moved {preview}.";
+        }
+    }
+
+    public void ResetReorderStatus()
+    {
+        ReorderStatus = DefaultReorderStatus;
+    }
+
+    internal bool CanReorder(FastTreeDataGridRowReorderRequest request) =>
+        TryApplyReorder(request, apply: false, out _);
+
+    internal Task<FastTreeDataGridRowReorderResult> ReorderAsync(FastTreeDataGridRowReorderRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!TryApplyReorder(request, apply: true, out var newIndices))
+        {
+            return Task.FromResult(FastTreeDataGridRowReorderResult.Cancelled);
+        }
+
+        return Task.FromResult(FastTreeDataGridRowReorderResult.Successful(newIndices));
+    }
+
+    private static IReadOnlyList<CountryNode> BuildInitialNodes() => DemoDataFactory.CreateCountries();
+
+    private static List<RegionGroup> BuildGroups(IReadOnlyList<CountryNode> nodes)
+    {
+        var result = new List<RegionGroup>(nodes.Count);
+        foreach (var groupNode in nodes)
+        {
+            var countries = new List<Country>();
+            foreach (var child in groupNode.Children)
+            {
+                if (child.Model is { } country)
+                {
+                    countries.Add(country);
+                }
+            }
+
+            result.Add(new RegionGroup(groupNode.Title, countries));
+        }
+
+        if (result.Count == 0)
+        {
+            var fallback = Countries.All
+                .GroupBy(country => country.Region ?? "Unknown", StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
+
+            foreach (var region in fallback)
+            {
+                result.Add(new RegionGroup(region.Key, region.OrderBy(country => country.Name, StringComparer.CurrentCultureIgnoreCase).ToList()));
+            }
+        }
+
         return result;
+    }
+
+    private static List<CountryNode> BuildNodes(IReadOnlyList<RegionGroup> groups)
+    {
+        var result = new List<CountryNode>(groups.Count);
+        foreach (var group in groups)
+        {
+            var children = group.Countries
+                .Select(CountryNode.CreateLeaf)
+                .ToList();
+
+            result.Add(CountryNode.CreateGroup(group.Name, children));
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<string> BuildRegions(IEnumerable<RegionGroup> groups)
+    {
+        var list = new List<string> { AllRegionsOption };
+        list.AddRange(groups.Select(g => g.Name).Distinct(StringComparer.CurrentCultureIgnoreCase));
+        return list;
+    }
+
+    private static List<RowReference> BuildRowReferences(IReadOnlyList<RegionGroup> groups)
+    {
+        var rows = new List<RowReference>();
+        foreach (var group in groups)
+        {
+            rows.Add(RowReference.ForGroup(group));
+            foreach (var country in group.Countries)
+            {
+                rows.Add(RowReference.ForCountry(group, country));
+            }
+        }
+
+        return rows;
+    }
+
+    private static List<RegionGroup> CloneGroups(IReadOnlyList<RegionGroup> groups)
+    {
+        var clone = new List<RegionGroup>(groups.Count);
+        foreach (var group in groups)
+        {
+            clone.Add(new RegionGroup(group.Name, new List<Country>(group.Countries)));
+        }
+
+        return clone;
+    }
+
+    private bool TryApplyReorder(FastTreeDataGridRowReorderRequest request, bool apply, out IReadOnlyList<int> newIndices)
+    {
+        newIndices = Array.Empty<int>();
+
+        if (request is null || request.SourceIndices.Count == 0)
+        {
+            return false;
+        }
+
+        var workingGroups = apply ? _groups : CloneGroups(_groups);
+        var references = BuildRowReferences(workingGroups);
+        if (references.Count == 0)
+        {
+            return false;
+        }
+
+        var sortedIndices = request.SourceIndices
+            .Where(index => index >= 0 && index < references.Count)
+            .Distinct()
+            .OrderBy(index => index)
+            .ToList();
+
+        if (sortedIndices.Count == 0)
+        {
+            return false;
+        }
+
+        var selectedRefs = sortedIndices.Select(index => references[index]).ToList();
+        var movingGroups = selectedRefs.All(entry => entry.IsGroup);
+        var movingLeaves = selectedRefs.All(entry => !entry.IsGroup);
+
+        if (!movingGroups && !movingLeaves)
+        {
+            return false;
+        }
+
+        var insertIndex = Math.Clamp(request.InsertIndex, 0, references.Count - sortedIndices.Count);
+
+        if (movingGroups)
+        {
+            var moving = selectedRefs.Select(entry => entry.Group).Distinct().ToList();
+            workingGroups.RemoveAll(group => moving.Contains(group));
+
+            var remainingRows = BuildRowReferences(workingGroups);
+            insertIndex = Math.Clamp(insertIndex, 0, remainingRows.Count);
+
+            var finalRows = new List<RowReference>(remainingRows);
+            finalRows.InsertRange(insertIndex, selectedRefs);
+
+            var reorderedGroups = new List<RegionGroup>();
+            foreach (var entry in finalRows)
+            {
+                if (entry.IsGroup && !reorderedGroups.Contains(entry.Group))
+                {
+                    reorderedGroups.Add(entry.Group);
+                }
+            }
+
+            workingGroups = reorderedGroups;
+
+            var finalRefs = BuildRowReferences(workingGroups);
+            var indices = new List<int>();
+            foreach (var group in moving)
+            {
+                var index = finalRefs.FindIndex(entry => entry.IsGroup && ReferenceEquals(entry.Group, group));
+                if (index >= 0)
+                {
+                    indices.Add(index);
+                }
+            }
+
+            newIndices = indices;
+
+            if (apply)
+            {
+                _groups = workingGroups;
+                RebuildSourceFromGroups();
+            }
+
+            return indices.Count == moving.Count;
+        }
+
+        // Move leaf rows.
+        var movingCountries = selectedRefs.Select(entry => entry.Country!).ToList();
+        foreach (var entry in selectedRefs)
+        {
+            entry.Group.Countries.Remove(entry.Country!);
+        }
+
+        var remaining = BuildRowReferences(workingGroups);
+        insertIndex = Math.Clamp(request.InsertIndex, 0, remaining.Count);
+
+        var afterRef = insertIndex < remaining.Count ? remaining[insertIndex] : null;
+        var beforeRef = insertIndex > 0 ? remaining[insertIndex - 1] : null;
+
+        RegionGroup? targetGroup = null;
+        var insertPosition = 0;
+
+        if (afterRef is not null)
+        {
+            targetGroup = afterRef.Group;
+            insertPosition = afterRef.IsGroup
+                ? 0
+                : afterRef.Group.Countries.IndexOf(afterRef.Country!);
+        }
+        else if (beforeRef is not null)
+        {
+            targetGroup = beforeRef.Group;
+            insertPosition = beforeRef.IsGroup
+                ? beforeRef.Group.Countries.Count
+                : beforeRef.Group.Countries.IndexOf(beforeRef.Country!) + 1;
+        }
+        else if (workingGroups.Count > 0)
+        {
+            targetGroup = workingGroups[0];
+            insertPosition = 0;
+        }
+
+        if (targetGroup is null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < movingCountries.Count; i++)
+        {
+            targetGroup.Countries.Insert(insertPosition + i, movingCountries[i]);
+        }
+
+        var finalReferences = BuildRowReferences(workingGroups);
+        var newPositions = new List<int>();
+        foreach (var country in movingCountries)
+        {
+            var index = finalReferences.FindIndex(entry => !entry.IsGroup && ReferenceEquals(entry.Country, country));
+            if (index >= 0)
+            {
+                newPositions.Add(index);
+            }
+        }
+
+        newIndices = newPositions;
+
+        if (apply)
+        {
+            _groups = workingGroups;
+            RebuildSourceFromGroups();
+        }
+
+        return newPositions.Count == movingCountries.Count;
+    }
+
+    private void RebuildSourceFromGroups()
+    {
+        _rootNodes = BuildNodes(_groups);
+        _source.Reset(_rootNodes, preserveExpansion: true);
+
+        var regions = BuildRegions(_groups);
+        if (!_regions.SequenceEqual(regions))
+        {
+            _regions = regions;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Regions)));
+        }
     }
 
     private void ExpandAllGroups()
@@ -242,13 +639,7 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         var names = new List<string>();
         foreach (var index in _selectedIndices)
         {
-            if (index < 0 || index >= _source.RowCount)
-            {
-                continue;
-            }
-
-            var row = _source.GetRow(index);
-            if (row.Item is CountryNode node)
+            if (TryGetNode(index) is { } node)
             {
                 items.Add(node);
                 names.Add(node.IsGroup ? node.Title : node.DisplayName ?? node.Title);
@@ -298,12 +689,34 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         }
         else if (!string.IsNullOrEmpty(summary))
         {
-            summary = preview.Count == 1 ? summary : $"{summary}";
+            summary = preview.Count == 1 ? summary : summary;
         }
 
         return string.IsNullOrEmpty(summary)
             ? $"{items.Count} items selected"
             : $"Selected ({items.Count}): {summary}";
+    }
+
+    private CountryNode? TryGetNode(int index)
+    {
+        if (index < 0 || index >= _source.RowCount)
+        {
+            return null;
+        }
+
+        if (_source.TryGetMaterializedRow(index, out var row))
+        {
+            return row.Item as CountryNode;
+        }
+
+        try
+        {
+            return _source.GetRow(index).Item as CountryNode;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
     }
 
     private string? GetRegionFilter()
@@ -313,18 +726,15 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
             : _selectedRegion;
     }
 
-    private Comparison<FastTreeDataGridRow>? GetComparison(string valueKey)
+    private Comparison<FastTreeDataGridRow>? GetComparison(string valueKey) => valueKey switch
     {
-        return valueKey switch
-        {
-            CountryNode.KeyName => CreateStringComparison(node => node.DisplayName),
-            CountryNode.KeyRegion => CreateStringComparison(node => node.Region),
-            CountryNode.KeyPopulation => CreateNumericComparison(node => node.Population),
-            CountryNode.KeyArea => CreateNumericComparison(node => node.Area),
-            CountryNode.KeyGdp => CreateNumericComparison(node => node.Gdp),
-            _ => null,
-        };
-    }
+        CountryNode.KeyName => CreateStringComparison(node => node.DisplayName),
+        CountryNode.KeyRegion => CreateStringComparison(node => node.Region),
+        CountryNode.KeyPopulation => CreateNumericComparison(node => node.Population),
+        CountryNode.KeyArea => CreateNumericComparison(node => node.Area),
+        CountryNode.KeyGdp => CreateNumericComparison(node => node.Gdp),
+        _ => null,
+    };
 
     private static Comparison<FastTreeDataGridRow> CreateStringComparison(Func<CountryNode, string?> selector)
     {
@@ -380,15 +790,10 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
                 return 1;
             }
 
-            var leftValue = selector(left);
-            var rightValue = selector(right);
-            var comparison = Nullable.Compare(leftValue, rightValue);
-            if (comparison != 0)
-            {
-                return comparison;
-            }
-
-            return tieBreaker.Compare(left.DisplayName, right.DisplayName);
+            var leftValue = selector(left) ?? 0;
+            var rightValue = selector(right) ?? 0;
+            var comparison = leftValue.CompareTo(rightValue);
+            return comparison != 0 ? comparison : tieBreaker.Compare(left.DisplayName, right.DisplayName);
         };
     }
 
@@ -402,5 +807,52 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         storage = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         return true;
+    }
+
+    private sealed class RegionGroup
+    {
+        public RegionGroup(string name, List<Country> countries)
+        {
+            Name = name;
+            Countries = countries;
+        }
+
+        public string Name { get; }
+
+        public List<Country> Countries { get; }
+    }
+
+    private sealed class RowReference
+    {
+        private RowReference(RegionGroup group, Country? country)
+        {
+            Group = group;
+            Country = country;
+        }
+
+        public RegionGroup Group { get; }
+
+        public Country? Country { get; }
+
+        public bool IsGroup => Country is null;
+
+        public static RowReference ForGroup(RegionGroup group) => new(group, null);
+
+        public static RowReference ForCountry(RegionGroup group, Country country) => new(group, country);
+    }
+
+    private sealed class CountriesRowReorderHandler : IFastTreeDataGridRowReorderHandler
+    {
+        private readonly CountriesViewModel _owner;
+
+        public CountriesRowReorderHandler(CountriesViewModel owner)
+        {
+            _owner = owner;
+        }
+
+        public bool CanReorder(FastTreeDataGridRowReorderRequest request) => _owner.CanReorder(request);
+
+        public Task<FastTreeDataGridRowReorderResult> ReorderAsync(FastTreeDataGridRowReorderRequest request, CancellationToken cancellationToken) =>
+            _owner.ReorderAsync(request, cancellationToken);
     }
 }

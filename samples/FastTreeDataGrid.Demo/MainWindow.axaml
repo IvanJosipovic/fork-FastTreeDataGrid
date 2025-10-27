@@ -2,11 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:fs="clr-namespace:FastTreeDataGrid.Demo.ViewModels.FileSystem"
-        xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
-        xmlns:vh="clr-namespace:FastTreeDataGrid.Demo.ViewModels.VariableHeights"
         xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
-        xmlns:virt="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Virtualization"
         xmlns:views="clr-namespace:FastTreeDataGrid.Demo.Views"
         mc:Ignorable="d"
         x:DataType="vm:MainWindowViewModel"
@@ -38,24 +34,6 @@
       </TabItem>
       <TabItem Header="Charts">
         <views:ChartsTab />
-      </TabItem>
-      <TabItem Header="Variable Rows">
-        <views:VariableRowsTab />
-      </TabItem>
-      <TabItem Header="Adaptive Rows">
-        <views:AdaptiveRowsTab />
-      </TabItem>
-      <TabItem Header="Adapters">
-        <views:AdaptersTab />
-      </TabItem>
-      <TabItem Header="Data Sources">
-        <views:DataSourcesTab />
-      </TabItem>
-      <TabItem Header="Virtualization">
-        <views:VirtualizationTab />
-      </TabItem>
-      <TabItem Header="Extensibility">
-        <views:ExtensibilityTab />
       </TabItem>
     </TabControl>
   </Grid>

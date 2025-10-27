@@ -34,6 +34,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private readonly Dictionary<AvaloniaControl, FastTreeDataGridColumn> _controlColumnMap = new();
     private AvaloniaControl? _editingControl;
     private Rect _editingControlBounds;
+    private RowReorderOverlayState? _rowReorderOverlay;
 
     private IBrush _selectionBrush = new SolidColorBrush(Color.FromArgb(40, 49, 130, 206));
     private IBrush _placeholderBrush = new SolidColorBrush(Color.FromArgb(40, 200, 200, 200));
@@ -143,6 +144,28 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         _pointerOverWidget = null;
         _focusedWidget = null;
         ClearOverlays();
+    }
+
+    internal IReadOnlyList<RowRenderInfo> VisibleRows => _rows;
+
+    internal RowRenderInfo? TryGetRow(int rowIndex)
+    {
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            var row = _rows[i];
+            if (row.RowIndex == rowIndex)
+            {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
+    internal void UpdateRowReorderOverlay(RowReorderOverlayState? overlay)
+    {
+        _rowReorderOverlay = overlay;
+        InvalidateVisual();
     }
 
     public void UpdateSelection(IReadOnlyList<int> selectedIndices)
@@ -484,9 +507,41 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             context.DrawLine(_gridPen, new Point(offset, 0), new Point(offset, Height));
         }
 
+        if (_rowReorderOverlay is { } reorderOverlay)
+        {
+            DrawRowReorderOverlay(context, reorderOverlay);
+        }
+
         foreach (var overlay in _overlayOrder)
         {
             overlay.Widget.Draw(context);
+        }
+    }
+
+    private void DrawRowReorderOverlay(DrawingContext context, RowReorderOverlayState overlay)
+    {
+        if (overlay.ShowTargetHighlight && overlay.TargetHighlightBrush is { } targetBrush)
+        {
+            using (context.PushOpacity(Math.Clamp(overlay.TargetHighlightOpacity, 0, 1)))
+            {
+                var radius = overlay.TargetHighlightCornerRadius;
+                context.DrawRectangle(targetBrush, null, overlay.TargetHighlightRect, radius, radius);
+            }
+        }
+
+        if (overlay.ShowDragPreview && overlay.DragPreviewBrush is { } dragBrush)
+        {
+            using (context.PushOpacity(Math.Clamp(overlay.DragPreviewOpacity, 0, 1)))
+            {
+                var radius = overlay.DragPreviewCornerRadius;
+                context.DrawRectangle(dragBrush, null, overlay.DragPreviewRect, radius, radius);
+            }
+        }
+
+        if (overlay.ShowIndicator && overlay.IndicatorBrush is { } indicatorBrush)
+        {
+            var pen = new Pen(indicatorBrush, Math.Max(0.5, overlay.IndicatorThickness), lineCap: PenLineCap.Round);
+            context.DrawLine(pen, new Point(0, overlay.IndicatorY), new Point(Width, overlay.IndicatorY));
         }
     }
 
@@ -532,7 +587,13 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             return;
         }
 
-        var widget = HitTestWidget(point, out _);
+        var widget = HitTestWidget(point, out var rowInfo);
+        if (_owner is not null && _owner.HandlePresenterPointerMoved(rowInfo, point, e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (!ReferenceEquals(widget, _pointerOverWidget))
         {
             if (_pointerOverWidget is not null)
@@ -559,6 +620,13 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         base.OnPointerReleased(e);
 
         var point = e.GetCurrentPoint(this).Position;
+
+        var rowInfo = HitTestRow(point);
+        if (_owner is not null && _owner.HandlePresenterPointerReleased(rowInfo, point, e))
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (_pointerCapturedWidget is not null)
         {
@@ -588,6 +656,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             RoutePointerToWidget(_pointerOverWidget, e.GetCurrentPoint(this).Position, e, WidgetPointerEventKind.Exited);
             _pointerOverWidget = null;
         }
+
+        _owner?.HandlePresenterPointerCancelled();
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -600,6 +670,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             RoutePointerToWidget(_pointerCapturedWidget, origin, null, WidgetPointerEventKind.CaptureLost);
             _pointerCapturedWidget = null;
         }
+
+        _owner?.HandlePresenterPointerCancelled();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -676,7 +748,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
 
         var toggleHit = HitTestToggle(row, point);
-        _owner?.HandlePresenterPointerPressed(row, point, e.ClickCount, toggleHit, e.KeyModifiers);
+        _owner?.HandlePresenterPointerPressed(row, point, e.ClickCount, toggleHit, e);
         return true;
     }
 
@@ -1392,6 +1464,56 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         public WidgetOverlayPlacement Placement { get; set; }
         public WidgetOverlayOptions Options { get; set; } = new();
         public bool IsOpen { get; set; }
+    }
+
+    internal readonly struct RowReorderOverlayState
+    {
+        public RowReorderOverlayState(
+            bool showIndicator,
+            double indicatorY,
+            double indicatorThickness,
+            IBrush? indicatorBrush,
+            bool showDragPreview,
+            Rect dragPreviewRect,
+            IBrush? dragPreviewBrush,
+            double dragPreviewOpacity,
+            double dragPreviewCornerRadius,
+            bool showTargetHighlight,
+            Rect targetHighlightRect,
+            IBrush? targetHighlightBrush,
+            double targetHighlightOpacity,
+            double targetHighlightCornerRadius)
+        {
+            ShowIndicator = showIndicator;
+            IndicatorY = indicatorY;
+            IndicatorThickness = indicatorThickness;
+            IndicatorBrush = indicatorBrush;
+            ShowDragPreview = showDragPreview;
+            DragPreviewRect = dragPreviewRect;
+            DragPreviewBrush = dragPreviewBrush;
+            DragPreviewOpacity = dragPreviewOpacity;
+            DragPreviewCornerRadius = dragPreviewCornerRadius;
+            ShowTargetHighlight = showTargetHighlight;
+            TargetHighlightRect = targetHighlightRect;
+            TargetHighlightBrush = targetHighlightBrush;
+            TargetHighlightOpacity = targetHighlightOpacity;
+            TargetHighlightCornerRadius = targetHighlightCornerRadius;
+        }
+
+        public bool ShowIndicator { get; }
+        public double IndicatorY { get; }
+        public double IndicatorThickness { get; }
+        public IBrush? IndicatorBrush { get; }
+        public bool ShowDragPreview { get; }
+        public Rect DragPreviewRect { get; }
+        public IBrush? DragPreviewBrush { get; }
+        public double DragPreviewOpacity { get; }
+        public double DragPreviewCornerRadius { get; }
+        public bool ShowTargetHighlight { get; }
+        public Rect TargetHighlightRect { get; }
+        public IBrush? TargetHighlightBrush { get; }
+        public double TargetHighlightOpacity { get; }
+        public double TargetHighlightCornerRadius { get; }
     }
 
     internal sealed class RowRenderInfo

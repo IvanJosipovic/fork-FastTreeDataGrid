@@ -80,4 +80,40 @@ public partial class CountriesControlsTab : UserControl
             Formatter = value => value is long l ? l.ToString("N0", CultureInfo.CurrentCulture) : value?.ToString(),
         };
     }
+
+    private void OnCountriesRowReordering(object? sender, FastTreeDataGridRowReorderingEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+
+        var countries = vm.Countries;
+        if (countries.HasMixedSelection(e.Request.SourceIndices))
+        {
+            e.Cancel = true;
+            countries.NotifyReorderCancelled();
+        }
+        else
+        {
+            countries.ResetReorderStatus();
+        }
+    }
+
+    private void OnCountriesRowReordered(object? sender, FastTreeDataGridRowReorderedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+
+        if (e.Result.Success)
+        {
+            vm.Countries.NotifyReorderCompleted(e.Result.NewIndices);
+        }
+        else
+        {
+            vm.Countries.NotifyReorderCancelled();
+        }
+    }
 }

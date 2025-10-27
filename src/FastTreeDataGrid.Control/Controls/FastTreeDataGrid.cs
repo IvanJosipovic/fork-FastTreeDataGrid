@@ -64,6 +64,18 @@ public partial class FastTreeDataGrid : TemplatedControl
             o => o.VirtualizationSettings,
             (o, v) => o.VirtualizationSettings = v);
 
+    public static readonly DirectProperty<FastTreeDataGrid, FastTreeDataGridRowReorderSettings> RowReorderSettingsProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, FastTreeDataGridRowReorderSettings>(
+            nameof(RowReorderSettings),
+            o => o.RowReorderSettings,
+            (o, v) => o.SetRowReorderSettings(v));
+
+    public static readonly DirectProperty<FastTreeDataGrid, IFastTreeDataGridRowReorderHandler?> RowReorderHandlerProperty =
+        AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IFastTreeDataGridRowReorderHandler?>(
+            nameof(RowReorderHandler),
+            o => o.RowReorderHandler,
+            (o, v) => o.SetExplicitRowReorderHandler(v));
+
     public static readonly DirectProperty<FastTreeDataGrid, IFastTreeDataGridSelectionModel?> SelectionModelProperty =
         AvaloniaProperty.RegisterDirect<FastTreeDataGrid, IFastTreeDataGridSelectionModel?>(
             nameof(SelectionModel),
@@ -123,6 +135,10 @@ public partial class FastTreeDataGrid : TemplatedControl
     private IFastTreeDataGridSelectionModel _selectionModel = null!;
     private FastTreeDataGridSelectionMode _selectionMode = FastTreeDataGridSelectionMode.Extended;
     private bool _synchronizingSelection;
+    private FastTreeDataGridRowReorderSettings _rowReorderSettings = new();
+    private IFastTreeDataGridRowReorderHandler? _explicitRowReorderHandler;
+    private IFastTreeDataGridRowReorderHandler? _autoRowReorderHandler;
+    private readonly RowReorderController _rowReorderController;
     private Func<FastTreeDataGridRow, string?>? _typeSearchSelector;
     private IReadOnlyList<int> _selectedIndices = Array.Empty<int>();
     private string _typeSearchBuffer = string.Empty;
@@ -149,6 +165,8 @@ public partial class FastTreeDataGrid : TemplatedControl
         SetRowLayout(new FastTreeDataGridUniformRowLayout());
         ResetThrottleDispatcher();
         SetSelectionModel(new FastTreeDataGridSelectionModel());
+        _rowReorderSettings.SettingsChanged += OnRowReorderSettingsChanged;
+        _rowReorderController = new RowReorderController(this);
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() =>
@@ -247,6 +265,8 @@ public partial class FastTreeDataGrid : TemplatedControl
     public event EventHandler<FastTreeDataGridSortEventArgs>? SortRequested;
     public event EventHandler<FastTreeDataGridSelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<FastTreeDataGridTypeSearchEventArgs>? TypeSearchRequested;
+    public event EventHandler<FastTreeDataGridRowReorderingEventArgs>? RowReordering;
+    public event EventHandler<FastTreeDataGridRowReorderedEventArgs>? RowReordered;
 
     public IFastTreeDataGridSelectionModel SelectionModel
     {
@@ -342,6 +362,97 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             _selectionModel.Clear();
         }
+    }
+
+    public FastTreeDataGridRowReorderSettings RowReorderSettings => _rowReorderSettings;
+
+    public IFastTreeDataGridRowReorderHandler? RowReorderHandler => _explicitRowReorderHandler ?? _autoRowReorderHandler;
+
+    private void SetRowReorderSettings(FastTreeDataGridRowReorderSettings? settings)
+    {
+        var newValue = settings ?? new FastTreeDataGridRowReorderSettings();
+        if (ReferenceEquals(_rowReorderSettings, newValue))
+        {
+            return;
+        }
+
+        var oldValue = _rowReorderSettings;
+        _rowReorderSettings.SettingsChanged -= OnRowReorderSettingsChanged;
+        _rowReorderSettings = newValue;
+        _rowReorderSettings.SettingsChanged += OnRowReorderSettingsChanged;
+        RaisePropertyChanged(RowReorderSettingsProperty, oldValue, newValue);
+        OnRowReorderSettingsChanged(_rowReorderSettings, EventArgs.Empty);
+    }
+
+    private void SetExplicitRowReorderHandler(IFastTreeDataGridRowReorderHandler? handler)
+    {
+        if (ReferenceEquals(_explicitRowReorderHandler, handler))
+        {
+            return;
+        }
+
+        var oldResolved = RowReorderHandler;
+        _explicitRowReorderHandler = handler;
+        RaisePropertyChanged(RowReorderHandlerProperty, oldResolved, RowReorderHandler);
+        OnRowReorderHandlerChanged();
+    }
+
+    private void OnRowReorderSettingsChanged(object? sender, EventArgs e)
+    {
+        if (sender is FastTreeDataGridRowReorderSettings settings && !ReferenceEquals(_rowReorderSettings, settings))
+        {
+            return;
+        }
+
+        OnRowReorderSettingsChanged();
+    }
+
+    private void OnRowReorderSettingsChanged()
+    {
+        _rowReorderController.Refresh();
+    }
+
+    private void OnRowReorderHandlerChanged()
+    {
+        _rowReorderController.Refresh();
+    }
+
+    private void RefreshAutoRowReorderHandler()
+    {
+        var resolved = TryResolveRowReorderHandler();
+        if (ReferenceEquals(_autoRowReorderHandler, resolved))
+        {
+            if (_explicitRowReorderHandler is null)
+            {
+                OnRowReorderHandlerChanged();
+            }
+            return;
+        }
+
+        var oldResolved = RowReorderHandler;
+        _autoRowReorderHandler = resolved;
+
+        if (!ReferenceEquals(oldResolved, RowReorderHandler))
+        {
+            RaisePropertyChanged(RowReorderHandlerProperty, oldResolved, RowReorderHandler);
+        }
+
+        OnRowReorderHandlerChanged();
+    }
+
+    private IFastTreeDataGridRowReorderHandler? TryResolveRowReorderHandler()
+    {
+        if (_virtualizationProvider is IFastTreeDataGridRowReorderHandler providerHandler)
+        {
+            return providerHandler;
+        }
+
+        if (_itemsSource is IFastTreeDataGridRowReorderHandler sourceHandler)
+        {
+            return sourceHandler;
+        }
+
+        return null;
     }
 
     private void SetSelectedIndices(IReadOnlyList<int>? indices)
@@ -669,6 +780,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         ConfigureVirtualizationProvider(newSource);
+        RefreshAutoRowReorderHandler();
 
         ResetTypeSearch();
         SetValue(SelectedIndexProperty, -1);
@@ -690,6 +802,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             _virtualizationProvider = null;
             _presenter?.SetVirtualizationProvider(null);
+            RefreshAutoRowReorderHandler();
             return;
         }
 
@@ -711,6 +824,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         _virtualizationProvider.CountChanged += OnVirtualizationProviderCountChanged;
 
         _presenter?.SetVirtualizationProvider(_virtualizationProvider);
+        RefreshAutoRowReorderHandler();
 
         _providerInitializationCts?.Cancel();
         _providerInitializationCts?.Dispose();
@@ -763,6 +877,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         _virtualizationProvider = null;
         SetAndRaise(IsLoadingProperty, ref _isLoading, false);
         SetAndRaise(LoadingProgressProperty, ref _loadingProgress, double.NaN);
+        RefreshAutoRowReorderHandler();
         UpdateLoadingOverlay();
     }
 
@@ -1062,6 +1177,7 @@ public partial class FastTreeDataGrid : TemplatedControl
     private void DetachTemplateParts(bool clearReferences)
     {
         DetachTemplatePartHandlers();
+        _rowReorderController.CancelDrag();
 
         if (_presenter is not null)
         {
@@ -2516,7 +2632,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         };
     }
 
-    internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit, KeyModifiers modifiers)
+    internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit, PointerPressedEventArgs args)
     {
         if (_itemsSource is null)
         {
@@ -2551,7 +2667,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         var index = rowInfo.RowIndex;
-        var normalized = NormalizeKeyModifiers(modifiers);
+        var normalized = NormalizeKeyModifiers(args.KeyModifiers);
         var hasShift = (normalized & KeyModifiers.Shift) == KeyModifiers.Shift;
         var hasControl = HasControlModifier(normalized);
 
@@ -2591,6 +2707,8 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         ResetTypeSearch();
 
+        _rowReorderController.OnPointerPressed(rowInfo, pointerPosition, args, toggleHit);
+
         var shouldToggle = rowInfo.HasChildren && (toggleHit || clickCount > 1);
         if (shouldToggle)
         {
@@ -2602,6 +2720,21 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             BeginEdit(FastTreeDataGridEditActivationReason.Pointer, null);
         }
+    }
+
+    internal bool HandlePresenterPointerMoved(FastTreeDataGridPresenter.RowRenderInfo? rowInfo, Point pointerPosition, PointerEventArgs args)
+    {
+        return _rowReorderController.HandlePointerMoved(rowInfo, pointerPosition, args);
+    }
+
+    internal bool HandlePresenterPointerReleased(FastTreeDataGridPresenter.RowRenderInfo? rowInfo, Point pointerPosition, PointerReleasedEventArgs args)
+    {
+        return _rowReorderController.HandlePointerReleased(rowInfo, pointerPosition, args);
+    }
+
+    internal void HandlePresenterPointerCancelled()
+    {
+        _rowReorderController.CancelDrag();
     }
 
     internal bool HandlePresenterKeyDown(KeyEventArgs e)
@@ -3442,6 +3575,575 @@ public partial class FastTreeDataGrid : TemplatedControl
             {
                 _updatingHeaderFromBody = false;
             }
+        }
+    }
+
+    private sealed class RowReorderController
+    {
+        private readonly FastTreeDataGrid _owner;
+        private bool _pending;
+        private bool _dragging;
+        private IPointer? _pointer;
+        private int _pointerId;
+        private Point _startPoint;
+        private Point _currentPoint;
+        private FastTreeDataGridPresenter.RowRenderInfo? _sourceRow;
+        private readonly List<int> _activeIndices = new();
+        private int[] _sourceIndexSnapshot = Array.Empty<int>();
+        private double _dragOffsetWithinRow;
+        private double _dragBlockHeight;
+        private double _blockTop;
+        private double _blockBottom;
+        private int _rawInsertIndex;
+        private double _indicatorY;
+        private FastTreeDataGridPresenter.RowRenderInfo? _targetRow;
+
+        internal RowReorderController(FastTreeDataGrid owner)
+        {
+            _owner = owner;
+        }
+
+        private FastTreeDataGridRowReorderSettings Settings => _owner._rowReorderSettings;
+
+        private IFastTreeDataGridRowReorderHandler? Handler => _owner.RowReorderHandler;
+
+        private FastTreeDataGridPresenter? Presenter => _owner._presenter;
+
+        private bool CanStart => Settings.IsEnabled && Handler is not null && Presenter is not null && !_owner.HasActiveEdit;
+
+        internal void Refresh()
+        {
+            if (!CanStart)
+            {
+                CancelDrag();
+                return;
+            }
+
+            if (_dragging)
+            {
+                PublishOverlay(new DropTarget(_rawInsertIndex, _targetRow, _indicatorY));
+            }
+        }
+
+        internal void OnPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point point, PointerPressedEventArgs args, bool toggleHit)
+        {
+            CancelDrag();
+
+            if (!CanStart || toggleHit || args.ClickCount > 1 || !IsRowEligible(rowInfo))
+            {
+                return;
+            }
+
+            _pending = true;
+            _pointer = args.Pointer;
+            _pointerId = args.Pointer.Id;
+            _startPoint = point;
+            _currentPoint = point;
+            _sourceRow = rowInfo;
+            _dragOffsetWithinRow = point.Y - rowInfo.Top;
+            CaptureSourceIndices(rowInfo.RowIndex);
+            _rawInsertIndex = rowInfo.RowIndex;
+            _dragBlockHeight = CalculateBlockHeight();
+            ComputeBlockBounds();
+            _indicatorY = rowInfo.Top;
+        }
+
+        internal bool HandlePointerMoved(FastTreeDataGridPresenter.RowRenderInfo? rowInfo, Point point, PointerEventArgs args)
+        {
+            if (!_pending && !_dragging)
+            {
+                return false;
+            }
+
+            if (_pointer is null || args.Pointer.Id != _pointerId)
+            {
+                return false;
+            }
+
+            _currentPoint = point;
+            _ = rowInfo; // intentionally unused
+
+            var element = (Visual?)Presenter ?? _owner;
+            var props = args.GetCurrentPoint(element).Properties;
+            if (!props.IsLeftButtonPressed)
+            {
+                CancelDrag();
+                return false;
+            }
+
+            if (_pending)
+            {
+                if (!HasExceededThreshold(point))
+                {
+                    return false;
+                }
+
+                if (!BeginDrag())
+                {
+                    CancelDrag();
+                    return false;
+                }
+            }
+
+            if (_dragging)
+            {
+                UpdateDrag(point);
+                return true;
+            }
+
+            return false;
+        }
+
+        internal bool HandlePointerReleased(FastTreeDataGridPresenter.RowRenderInfo? rowInfo, Point point, PointerReleasedEventArgs args)
+        {
+            if ((!_pending && !_dragging) || args.Pointer.Id != _pointerId)
+            {
+                return false;
+            }
+
+            if (_pending)
+            {
+                CancelDrag();
+                return false;
+            }
+
+            UpdateDrag(point);
+            _ = CommitAsync();
+            _ = rowInfo; // intentionally unused
+            return true;
+        }
+
+        internal void CancelDrag()
+        {
+            if (_pointer is { } pointer)
+            {
+                try
+                {
+                    pointer.Capture(null);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            _pending = false;
+            _dragging = false;
+            _pointer = null;
+            _pointerId = 0;
+            ClearState();
+            Presenter?.UpdateRowReorderOverlay(null);
+        }
+
+        private void ClearState()
+        {
+            _activeIndices.Clear();
+            _sourceIndexSnapshot = Array.Empty<int>();
+            _sourceRow = null;
+            _targetRow = null;
+            _dragBlockHeight = 0;
+            _blockTop = 0;
+            _blockBottom = 0;
+            _rawInsertIndex = 0;
+            _indicatorY = 0;
+        }
+
+        private bool BeginDrag()
+        {
+            var presenter = Presenter;
+            if (!CanStart || presenter is null || _pointer is null)
+            {
+                return false;
+            }
+
+            try
+            {
+                _pointer.Capture(presenter);
+            }
+            catch
+            {
+                return false;
+            }
+
+            _pending = false;
+            _dragging = true;
+            return true;
+        }
+
+        private bool HasExceededThreshold(Point point)
+        {
+            var threshold = Settings.ActivationThreshold;
+            if (threshold <= 0)
+            {
+                return true;
+            }
+
+            return Math.Abs(point.X - _startPoint.X) >= threshold || Math.Abs(point.Y - _startPoint.Y) >= threshold;
+        }
+
+        private void CaptureSourceIndices(int primaryIndex)
+        {
+            _activeIndices.Clear();
+
+            if (ShouldUseSelection(primaryIndex))
+            {
+                var selection = _owner._selectionModel?.SelectedIndices;
+                if (selection is not null)
+                {
+                    for (var i = 0; i < selection.Count; i++)
+                    {
+                        var index = selection[i];
+                        if (index >= 0)
+                        {
+                            _activeIndices.Add(index);
+                        }
+                    }
+                }
+            }
+
+            if (_activeIndices.Count == 0)
+            {
+                _activeIndices.Add(primaryIndex);
+            }
+
+            _activeIndices.Sort();
+            _sourceIndexSnapshot = _activeIndices.ToArray();
+        }
+
+        private bool ShouldUseSelection(int primaryIndex)
+        {
+            if (!Settings.UseSelection || _owner._selectionModel is null)
+            {
+                return false;
+            }
+
+            var selection = _owner._selectionModel.SelectedIndices;
+            if (selection.Count <= 1)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < selection.Count; i++)
+            {
+                if (selection[i] == primaryIndex)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private double CalculateBlockHeight()
+        {
+            if (_sourceIndexSnapshot.Length == 0)
+            {
+                return _sourceRow?.Height ?? _owner.RowHeight;
+            }
+
+            var presenter = Presenter;
+            double height = 0;
+
+            if (presenter is null)
+            {
+                var fallback = _sourceRow?.Height ?? _owner.RowHeight;
+                height = fallback * _sourceIndexSnapshot.Length;
+            }
+            else
+            {
+                for (var i = 0; i < _sourceIndexSnapshot.Length; i++)
+                {
+                    var row = presenter.TryGetRow(_sourceIndexSnapshot[i]);
+                    height += row?.Height ?? (_sourceRow?.Height ?? _owner.RowHeight);
+                }
+            }
+
+            return Math.Max(height, _sourceRow?.Height ?? _owner.RowHeight);
+        }
+
+        private void ComputeBlockBounds()
+        {
+            var presenter = Presenter;
+            if (presenter is null)
+            {
+                var top = _sourceRow?.Top ?? 0;
+                _blockTop = top;
+                _blockBottom = top + _dragBlockHeight;
+                return;
+            }
+
+            double topBound = double.MaxValue;
+            double bottomBound = double.MinValue;
+
+            for (var i = 0; i < _sourceIndexSnapshot.Length; i++)
+            {
+                var row = presenter.TryGetRow(_sourceIndexSnapshot[i]);
+                if (row is null)
+                {
+                    continue;
+                }
+
+                topBound = Math.Min(topBound, row.Top);
+                bottomBound = Math.Max(bottomBound, row.Top + row.Height);
+            }
+
+            if (double.IsInfinity(topBound) || topBound == double.MaxValue)
+            {
+                topBound = _sourceRow?.Top ?? 0;
+            }
+
+            if (double.IsInfinity(bottomBound) || bottomBound == double.MinValue)
+            {
+                bottomBound = topBound + _dragBlockHeight;
+            }
+
+            _blockTop = topBound;
+            _blockBottom = bottomBound;
+        }
+
+        private void UpdateDrag(Point point)
+        {
+            ComputeBlockBounds();
+            var target = CalculateDropTarget(point);
+            _rawInsertIndex = target.InsertIndex;
+            _targetRow = target.TargetRow;
+            _indicatorY = target.IndicatorY;
+            PublishOverlay(target);
+        }
+
+        private DropTarget CalculateDropTarget(Point point)
+        {
+            var presenter = Presenter;
+            if (presenter is null || presenter.VisibleRows.Count == 0)
+            {
+                return new DropTarget(0, null, point.Y);
+            }
+
+            var rows = presenter.VisibleRows;
+            var indicatorY = rows[^1].Top + rows[^1].Height;
+            var insertIndex = rows[^1].RowIndex + 1;
+            FastTreeDataGridPresenter.RowRenderInfo? targetRow = rows[^1];
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                if (point.Y < row.Top)
+                {
+                    insertIndex = row.RowIndex;
+                    indicatorY = row.Top;
+                    targetRow = row;
+                    break;
+                }
+
+                var rowBottom = row.Top + row.Height;
+                if (point.Y <= rowBottom)
+                {
+                    var before = point.Y < row.Top + row.Height / 2;
+                    insertIndex = before ? row.RowIndex : row.RowIndex + 1;
+                    indicatorY = before ? row.Top : rowBottom;
+                    targetRow = before ? row : (i + 1 < rows.Count ? rows[i + 1] : row);
+                    break;
+                }
+            }
+
+            var minIndex = _sourceIndexSnapshot.Length > 0 ? _sourceIndexSnapshot[0] : 0;
+            var maxExclusive = _sourceIndexSnapshot.Length > 0 ? _sourceIndexSnapshot[^1] + 1 : minIndex;
+
+            if (insertIndex >= minIndex && insertIndex <= maxExclusive)
+            {
+                if (point.Y < _blockTop)
+                {
+                    insertIndex = minIndex;
+                    indicatorY = _blockTop;
+                    targetRow = presenter.TryGetRow(insertIndex) ?? targetRow;
+                }
+                else
+                {
+                    insertIndex = maxExclusive;
+                    indicatorY = _blockBottom;
+                    targetRow = presenter.TryGetRow(insertIndex) ?? targetRow;
+                }
+            }
+
+            return new DropTarget(insertIndex, targetRow, indicatorY);
+        }
+
+        private void PublishOverlay(DropTarget target)
+        {
+            var presenter = Presenter;
+            if (presenter is null)
+            {
+                return;
+            }
+
+            var width = presenter.Bounds.Width;
+            if (!double.IsFinite(width) || width <= 0)
+            {
+                width = presenter.Width;
+            }
+
+            if (!double.IsFinite(width) || width <= 0)
+            {
+                width = _owner.Bounds.Width;
+            }
+
+            width = Math.Max(0, width);
+
+            var height = presenter.Bounds.Height;
+            if (!double.IsFinite(height) || height <= 0)
+            {
+                height = presenter.Height;
+            }
+
+            if (!double.IsFinite(height) || height <= 0)
+            {
+                height = _owner.Bounds.Height;
+            }
+
+            height = Math.Max(0, height);
+
+            var previewTop = Math.Clamp(_currentPoint.Y - _dragOffsetWithinRow, 0, Math.Max(0, height - _dragBlockHeight));
+            var dragPreviewRect = new Rect(0, previewTop, width, _dragBlockHeight);
+            var indicatorY = Math.Clamp(target.IndicatorY, 0, height);
+
+            Rect targetRect = default;
+            var showTarget = target.TargetRow is not null;
+            if (target.TargetRow is { } targetRow)
+            {
+                targetRect = new Rect(0, targetRow.Top, width, targetRow.Height);
+            }
+
+            var highlightOpacity = Math.Clamp(Settings.DragPreviewOpacity * 0.5, 0, 1);
+
+            var overlay = new FastTreeDataGridPresenter.RowReorderOverlayState(
+                Settings.ShowDropIndicator,
+                indicatorY,
+                Settings.DropIndicatorThickness,
+                Settings.DropIndicatorBrush,
+                Settings.ShowDragPreview,
+                dragPreviewRect,
+                Settings.DragPreviewBrush,
+                Settings.DragPreviewOpacity,
+                Settings.DragPreviewCornerRadius,
+                showTarget,
+                targetRect,
+                Settings.DragPreviewBrush,
+                highlightOpacity,
+                Settings.DragPreviewCornerRadius);
+
+            presenter.UpdateRowReorderOverlay(overlay);
+        }
+
+        private int AdjustInsertIndex(int insertIndex)
+        {
+            var adjusted = insertIndex;
+            for (var i = 0; i < _sourceIndexSnapshot.Length; i++)
+            {
+                if (_sourceIndexSnapshot[i] < adjusted)
+                {
+                    adjusted--;
+                }
+            }
+
+            return Math.Max(0, adjusted);
+        }
+
+        private async Task CommitAsync()
+        {
+            var handler = Handler;
+            if (handler is null)
+            {
+                CancelDrag();
+                return;
+            }
+
+            var indices = (int[])_sourceIndexSnapshot.Clone();
+            var insertIndex = AdjustInsertIndex(_rawInsertIndex);
+
+            Presenter?.UpdateRowReorderOverlay(null);
+
+            if (_pointer is { } pointer)
+            {
+                try
+                {
+                    pointer.Capture(null);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            _pointer = null;
+            _pointerId = 0;
+            _pending = false;
+            _dragging = false;
+
+            var request = new FastTreeDataGridRowReorderRequest(indices, insertIndex)
+            {
+                Source = _owner._itemsSource,
+                Context = Settings
+            };
+
+            if (!handler.CanReorder(request))
+            {
+                ClearState();
+                return;
+            }
+
+            var reorderingArgs = new FastTreeDataGridRowReorderingEventArgs(request);
+            _owner.RowReordering?.Invoke(_owner, reorderingArgs);
+            if (reorderingArgs.Cancel)
+            {
+                ClearState();
+                return;
+            }
+
+            FastTreeDataGridRowReorderResult result;
+            try
+            {
+                result = await handler.ReorderAsync(request, CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+                ClearState();
+                return;
+            }
+
+            _owner.RowReordered?.Invoke(_owner, new FastTreeDataGridRowReorderedEventArgs(request, result));
+            ClearState();
+        }
+
+        private bool IsRowEligible(FastTreeDataGridPresenter.RowRenderInfo row)
+        {
+            if (row is null || row.IsPlaceholder || row.IsSummary)
+            {
+                return false;
+            }
+
+            if (row.IsGroup && !Settings.AllowGroupReorder)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private readonly struct DropTarget
+        {
+            public DropTarget(int insertIndex, FastTreeDataGridPresenter.RowRenderInfo? targetRow, double indicatorY)
+            {
+                InsertIndex = insertIndex;
+                TargetRow = targetRow;
+                IndicatorY = indicatorY;
+            }
+
+            public int InsertIndex { get; }
+
+            public FastTreeDataGridPresenter.RowRenderInfo? TargetRow { get; }
+
+            public double IndicatorY { get; }
         }
     }
 

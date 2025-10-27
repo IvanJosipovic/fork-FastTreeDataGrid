@@ -10,7 +10,7 @@ using Avalonia.Threading;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFastTreeDataGridSortFilterHandler, IFastTreeDataGridGroupingController
+public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFastTreeDataGridSortFilterHandler, IFastTreeDataGridGroupingController, IFastTreeDataGridRowReorderHandler
 {
     private readonly Func<T, IEnumerable<T>> _childrenSelector;
     private readonly Func<T, string>? _keySelector;
@@ -285,6 +285,24 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         }
     }
 
+    bool IFastTreeDataGridRowReorderHandler.CanReorder(FastTreeDataGridRowReorderRequest request)
+    {
+        return TryProcessReorderRequest(request, applyChanges: false, out _);
+    }
+
+    Task<FastTreeDataGridRowReorderResult> IFastTreeDataGridRowReorderHandler.ReorderAsync(FastTreeDataGridRowReorderRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!TryProcessReorderRequest(request, applyChanges: true, out var newIndices))
+        {
+            return Task.FromResult(FastTreeDataGridRowReorderResult.Cancelled);
+        }
+
+        RaiseResetRequested();
+        return Task.FromResult(FastTreeDataGridRowReorderResult.Successful(newIndices));
+    }
+
     private void SortCore(Comparison<FastTreeDataGridRow>? comparison)
     {
         if (comparison is null)
@@ -542,6 +560,196 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         for (var i = 0; i < rows.Count; i++)
         {
             handler.Invoke(this, new FastTreeDataGridRowMaterializedEventArgs(startIndex + i, rows[i]));
+        }
+    }
+
+    private bool TryProcessReorderRequest(FastTreeDataGridRowReorderRequest request, bool applyChanges, out IReadOnlyList<int> newIndices)
+    {
+        newIndices = Array.Empty<int>();
+        if (request is null)
+        {
+            return false;
+        }
+
+        lock (_dataLock)
+        {
+            if (_visibleEntries.Count == 0 || request.SourceIndices.Count == 0)
+            {
+                return false;
+            }
+
+            var allowGroupReorder = request.Context is FastTreeDataGridRowReorderSettings settings && settings.AllowGroupReorder;
+
+            var sortedIndices = request.SourceIndices
+                .Where(index => index >= 0)
+                .Distinct()
+                .OrderBy(index => index)
+                .ToList();
+
+            if (sortedIndices.Count == 0)
+            {
+                return false;
+            }
+
+            if (request.InsertIndex < 0 || request.InsertIndex > _visibleEntries.Count)
+            {
+                return false;
+            }
+
+            var nodes = new List<TreeNode>(sortedIndices.Count);
+            TreeNode? parent = null;
+
+            foreach (var index in sortedIndices)
+            {
+                if (index >= _visibleEntries.Count)
+                {
+                    return false;
+                }
+
+                var entry = _visibleEntries[index];
+                if (!IsReorderableEntry(entry, allowGroupReorder))
+                {
+                    return false;
+                }
+
+                var node = entry.Node!;
+                if (parent is null)
+                {
+                    parent = node.Parent;
+                }
+                else if (!ReferenceEquals(node.Parent, parent))
+                {
+                    return false;
+                }
+
+                nodes.Add(node);
+            }
+
+            var workingEntries = new List<VisibleEntry>(_visibleEntries);
+            RemoveEntriesForNodes(sortedIndices, workingEntries);
+
+            if (request.InsertIndex < 0 || request.InsertIndex > workingEntries.Count)
+            {
+                return false;
+            }
+
+            if (parent is not null)
+            {
+                var parentIndex = workingEntries.FindIndex(e => ReferenceEquals(e.Node, parent));
+                if (parentIndex < 0)
+                {
+                    return false;
+                }
+
+                var parentLevel = parent.Row.Level;
+                var minInsert = parentIndex + 1;
+                var maxInsert = minInsert;
+
+                while (maxInsert < workingEntries.Count && workingEntries[maxInsert].Level > parentLevel)
+                {
+                    maxInsert++;
+                }
+
+                if (request.InsertIndex < minInsert || request.InsertIndex > maxInsert)
+                {
+                    return false;
+                }
+            }
+
+            var siblings = parent is null
+                ? new List<TreeNode>(_rootNodes)
+                : new List<TreeNode>(parent.Children);
+
+            foreach (var node in nodes)
+            {
+                siblings.Remove(node);
+            }
+
+            var childInsertIndex = siblings.Count;
+            if (workingEntries.Count == 0)
+            {
+                childInsertIndex = siblings.Count;
+            }
+            else if (request.InsertIndex < workingEntries.Count)
+            {
+                var targetEntry = workingEntries[request.InsertIndex];
+                if (!IsReorderableEntry(targetEntry, allowGroupReorder) || !ReferenceEquals(targetEntry.Node!.Parent, parent))
+                {
+                    return false;
+                }
+
+                childInsertIndex = siblings.IndexOf(targetEntry.Node!);
+                if (childInsertIndex < 0)
+                {
+                    childInsertIndex = siblings.Count;
+                }
+            }
+            else
+            {
+                childInsertIndex = siblings.Count;
+            }
+
+            if (!applyChanges)
+            {
+                return true;
+            }
+
+            ApplyReorder(parent, nodes, childInsertIndex);
+            FlattenNodes();
+            UpdateFilterStates();
+            RebuildVisible();
+
+            var nodeSet = new HashSet<TreeNode>(nodes);
+            var indices = new List<int>(nodes.Count);
+            for (var i = 0; i < _visibleEntries.Count && nodeSet.Count > 0; i++)
+            {
+                var entry = _visibleEntries[i];
+                if (entry.Node is not null && nodeSet.Remove(entry.Node))
+                {
+                    indices.Add(i);
+                }
+            }
+
+            newIndices = indices;
+            return true;
+        }
+    }
+
+    private static bool IsReorderableEntry(VisibleEntry entry, bool allowGroupReorder) =>
+        entry.Node is not null && !entry.IsSummary && (allowGroupReorder || !entry.IsGroup);
+
+    private static void RemoveEntriesForNodes(IReadOnlyList<int> indices, List<VisibleEntry> workingEntries)
+    {
+        for (var i = indices.Count - 1; i >= 0; i--)
+        {
+            var index = indices[i];
+            if (index < 0 || index >= workingEntries.Count)
+            {
+                continue;
+            }
+
+            var level = workingEntries[index].Level;
+            workingEntries.RemoveAt(index);
+            while (index < workingEntries.Count && workingEntries[index].Level > level)
+            {
+                workingEntries.RemoveAt(index);
+            }
+        }
+    }
+
+    private void ApplyReorder(TreeNode? parent, IReadOnlyList<TreeNode> nodes, int insertIndex)
+    {
+        var targetList = parent is null ? _rootNodes : parent.Children;
+
+        foreach (var node in nodes)
+        {
+            targetList.Remove(node);
+        }
+
+        var boundedInsertIndex = Math.Clamp(insertIndex, 0, targetList.Count);
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            targetList.Insert(Math.Min(boundedInsertIndex + i, targetList.Count), nodes[i]);
         }
     }
 

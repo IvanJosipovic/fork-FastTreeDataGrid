@@ -1,0 +1,136 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels"
+             xmlns:data="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels.Data"
+             xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:model="clr-namespace:FastTreeDataGrid.Control.Models;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.VirtualizationDemo.Views.AdaptersTab"
+             x:DataType="vm:MainWindowViewModel">
+  <UserControl.Resources>
+    <infra:FastTreeDataGridItemsAdapter x:Key="PathAdapter"
+                                        Items="{Binding Adapters.Catalog}"
+                                        ChildrenMemberPath="Children"
+                                        KeyMemberPath="Key" />
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*,Auto,*"
+        RowSpacing="12">
+    <TextBlock Text="Hierarchical template adapter"
+               FontSize="16"
+               FontWeight="SemiBold" />
+
+    <Border Grid.Row="1"
+            Padding="0"
+            BorderBrush="#CCC"
+            BorderThickness="1"
+            CornerRadius="4">
+      <controls:FastTreeDataGrid ItemsSource="{Binding Adapters.TemplateSource}"
+                                 SelectionMode="Extended"
+                                 RowHeight="28"
+                                 HeaderHeight="34"
+                                 IndentWidth="18">
+        <controls:FastTreeDataGrid.Columns>
+          <model:FastTreeDataGridColumn Header="Name"
+                                           IsHierarchy="True"
+                                           SizingMode="Star"
+                                           MinWidth="220"
+                                           ValueKey="{x:Static data:CatalogNode.KeyName}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="13"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+          <model:FastTreeDataGridColumn Header="Kind"
+                                           SizingMode="Pixel"
+                                           PixelWidth="140"
+                                           MinWidth="120"
+                                           ValueKey="{x:Static data:CatalogNode.KeyKind}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+          <model:FastTreeDataGridColumn Header="Price"
+                                           SizingMode="Pixel"
+                                           PixelWidth="140"
+                                           MinWidth="120"
+                                           ValueKey="{x:Static data:CatalogNode.KeyPrice}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12"
+                                     TextAlignment="Right"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+
+    <TextBlock Grid.Row="2"
+               Text="Children member path adapter"
+               FontSize="16"
+               FontWeight="SemiBold"
+               Margin="0,12,0,0" />
+
+    <Border Grid.Row="3"
+            Padding="0"
+            BorderBrush="#CCC"
+            BorderThickness="1"
+            CornerRadius="4">
+      <controls:FastTreeDataGrid ItemsSource="{Binding Source, Source={StaticResource PathAdapter}}"
+                                 SelectionMode="Extended"
+                                 RowHeight="28"
+                                 HeaderHeight="34"
+                                 IndentWidth="18">
+        <controls:FastTreeDataGrid.Columns>
+          <model:FastTreeDataGridColumn Header="Name"
+                                           IsHierarchy="True"
+                                           SizingMode="Star"
+                                           MinWidth="220"
+                                           ValueKey="{x:Static data:CatalogNode.KeyName}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="13"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+          <model:FastTreeDataGridColumn Header="Kind"
+                                           SizingMode="Pixel"
+                                           PixelWidth="140"
+                                           MinWidth="120"
+                                           ValueKey="{x:Static data:CatalogNode.KeyKind}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+          <model:FastTreeDataGridColumn Header="Price"
+                                           SizingMode="Pixel"
+                                           PixelWidth="140"
+                                           MinWidth="120"
+                                           ValueKey="{x:Static data:CatalogNode.KeyPrice}">
+            <model:FastTreeDataGridColumn.CellTemplate>
+              <WidgetTemplate>
+                <FormattedTextWidget EmSize="12"
+                                     TextAlignment="Right"
+                                     Trimming="CharacterEllipsis" />
+              </WidgetTemplate>
+            </model:FastTreeDataGridColumn.CellTemplate>
+          </model:FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>
