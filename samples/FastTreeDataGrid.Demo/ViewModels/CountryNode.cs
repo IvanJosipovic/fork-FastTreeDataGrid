@@ -36,6 +36,8 @@ internal sealed class CountryNode : IFastTreeDataGridValueProvider, IFastTreeDat
 
     public long? Gdp => _country?.GDP;
 
+    public Country? Model => _country;
+
     public bool IsGroup => _country is null;
 
     public IReadOnlyList<CountryNode> Children => _children;
