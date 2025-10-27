@@ -1,12 +1,8 @@
 using System;
-using System.Linq;
-using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Demo.ViewModels.Crypto;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
-using Avalonia.Collections;
 using FastTreeDataGrid.Demo.ViewModels.Charts;
 using FastTreeDataGrid.Demo.ViewModels.VariableHeights;
-using FastTreeDataGrid.Demo.ViewModels.Widgets;
 using FastTreeDataGrid.Demo.ViewModels.Virtualization;
 using FastTreeDataGrid.Demo.ViewModels.Extensibility;
 
@@ -29,17 +25,6 @@ public sealed class MainWindowViewModel : IDisposable
         Charts = new ChartSamplesViewModel();
         VariableHeights = new VariableHeightRowsViewModel();
         VariableHeightsAdaptive = new VariableHeightRowsViewModel(groupCount: 320, itemsPerGroup: 800);
-
-        var widgetNodes = WidgetSamplesFactory.Create();
-        var widgetsSource = new FastTreeDataGridFlatSource<WidgetGalleryNode>(widgetNodes, node => node.Children);
-        ExpandAllNodes(widgetsSource);
-        WidgetsSource = widgetsSource;
-
-        var boards = WidgetBoardFactory.CreateBoards(widgetNodes);
-        WidgetBoards = new AvaloniaList<WidgetBoard>(boards);
-        VirtualizingLayoutBoard = WidgetBoards.FirstOrDefault(b =>
-            string.Equals(b.Title, WidgetBoardFactory.VirtualizingBoardTitle, StringComparison.Ordinal));
-        WidgetsGalleryScenarios = new AvaloniaList<WidgetsGalleryScenario>(WidgetsGalleryScenarioFactory.Create());
         DataSources = new DataSourceSamplesViewModel();
         DynamicDataSources = new DynamicDataSourcesViewModel();
         LiveMutations = new LiveMutationDataSourcesViewModel();
@@ -59,14 +44,6 @@ public sealed class MainWindowViewModel : IDisposable
     public VariableHeightRowsViewModel VariableHeights { get; }
 
     public VariableHeightRowsViewModel VariableHeightsAdaptive { get; }
-
-    public IFastTreeDataGridSource WidgetsSource { get; }
-
-    public AvaloniaList<WidgetBoard> WidgetBoards { get; }
-
-    public WidgetBoard? VirtualizingLayoutBoard { get; }
-
-    public AvaloniaList<WidgetsGalleryScenario> WidgetsGalleryScenarios { get; }
 
     public DataSourceSamplesViewModel DataSources { get; }
 
@@ -88,17 +65,5 @@ public sealed class MainWindowViewModel : IDisposable
         DynamicDataSources.Dispose();
         LiveMutations.Dispose();
         Extensibility.Dispose();
-    }
-
-    private static void ExpandAllNodes(IFastTreeDataGridSource source)
-    {
-        for (var i = 0; i < source.RowCount; i++)
-        {
-            var row = source.GetRow(i);
-            if (row.HasChildren && !row.IsExpanded)
-            {
-                source.ToggleExpansion(i);
-            }
-        }
     }
 }

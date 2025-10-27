@@ -2,10 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
-             xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels"
+             xmlns:widgets="clr-namespace:FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets"
              mc:Ignorable="d"
-             x:Class="FastTreeDataGrid.Demo.Views.VirtualizingLayoutsTab"
+             x:Class="FastTreeDataGrid.WidgetsDemo.Views.VirtualizingLayoutsTab"
              x:DataType="vm:MainWindowViewModel">
   <Grid RowDefinitions="Auto,*"
         Margin="16">

@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace FastTreeDataGrid.Demo.Views;
+namespace FastTreeDataGrid.WidgetsDemo.Views;
 
 public partial class WidgetsGalleryTab : UserControl
 {

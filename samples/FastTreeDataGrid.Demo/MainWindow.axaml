@@ -6,7 +6,6 @@
         xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
         xmlns:vh="clr-namespace:FastTreeDataGrid.Demo.ViewModels.VariableHeights"
         xmlns:vm="clr-namespace:FastTreeDataGrid.Demo.ViewModels"
-        xmlns:widgets="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Widgets"
         xmlns:virt="clr-namespace:FastTreeDataGrid.Demo.ViewModels.Virtualization"
         xmlns:views="clr-namespace:FastTreeDataGrid.Demo.Views"
         mc:Ignorable="d"
@@ -45,18 +44,6 @@
       </TabItem>
       <TabItem Header="Adaptive Rows">
         <views:AdaptiveRowsTab />
-      </TabItem>
-      <TabItem Header="Widgets">
-        <views:WidgetsTab />
-      </TabItem>
-      <TabItem Header="Layouts (Widgets)">
-        <views:VirtualizingLayoutsTab />
-      </TabItem>
-      <TabItem Header="Widgets Gallery">
-        <views:WidgetsGalleryTab />
-      </TabItem>
-      <TabItem Header="Gallery">
-        <views:GalleryTab />
       </TabItem>
       <TabItem Header="Adapters">
         <views:AdaptersTab />

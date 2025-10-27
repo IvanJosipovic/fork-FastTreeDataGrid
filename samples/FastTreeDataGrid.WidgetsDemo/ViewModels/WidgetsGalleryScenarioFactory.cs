@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using FastTreeDataGrid.Demo.ViewModels.Widgets;
+using FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets;
 
-namespace FastTreeDataGrid.Demo.ViewModels;
+namespace FastTreeDataGrid.WidgetsDemo.ViewModels;
 
 public static class WidgetsGalleryScenarioFactory
 {

@@ -5,10 +5,10 @@ using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Controls;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
-using FastTreeDataGrid.Demo.ViewModels.Widgets;
+using FastTreeDataGrid.WidgetsDemo.ViewModels.Widgets;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
 
-namespace FastTreeDataGrid.Demo.Views;
+namespace FastTreeDataGrid.WidgetsDemo.Views;
 
 public partial class WidgetsTab : UserControl
 {
