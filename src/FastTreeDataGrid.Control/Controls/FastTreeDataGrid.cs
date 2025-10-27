@@ -3629,7 +3629,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             CancelDrag();
 
-            if (!CanStart || toggleHit || args.ClickCount > 1 || !IsReorderable(rowInfo))
+            if (!CanStart || toggleHit || args.ClickCount > 1 || !IsRowEligible(rowInfo))
             {
                 return;
             }
@@ -4081,7 +4081,8 @@ public partial class FastTreeDataGrid : TemplatedControl
 
             var request = new FastTreeDataGridRowReorderRequest(indices, insertIndex)
             {
-                Source = _owner._itemsSource
+                Source = _owner._itemsSource,
+                Context = Settings
             };
 
             if (!handler.CanReorder(request))
@@ -4114,8 +4115,20 @@ public partial class FastTreeDataGrid : TemplatedControl
             ClearState();
         }
 
-        private static bool IsReorderable(FastTreeDataGridPresenter.RowRenderInfo row) =>
-            row is not null && !row.IsPlaceholder && !row.IsGroup && !row.IsSummary;
+        private bool IsRowEligible(FastTreeDataGridPresenter.RowRenderInfo row)
+        {
+            if (row is null || row.IsPlaceholder || row.IsSummary)
+            {
+                return false;
+            }
+
+            if (row.IsGroup && !Settings.AllowGroupReorder)
+            {
+                return false;
+            }
+
+            return true;
+        }
 
         private readonly struct DropTarget
         {

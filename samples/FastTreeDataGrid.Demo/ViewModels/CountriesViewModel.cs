@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 
@@ -20,6 +22,8 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
     private IReadOnlyList<CountryNode> _selectedCountries = Array.Empty<CountryNode>();
     private IReadOnlyList<string> _selectedCountryNames = Array.Empty<string>();
     private string _selectionSummary = "No rows selected";
+    private string _reorderStatus = DefaultReorderStatus;
+    private const string DefaultReorderStatus = "Drag countries or regions to reprioritize.";
 
     internal CountriesViewModel(IReadOnlyList<CountryNode> rootNodes)
     {
@@ -27,6 +31,21 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         _source = new FastTreeDataGridFlatSource<CountryNode>(_rootNodes, node => node.Children);
         Regions = BuildRegions(rootNodes);
         ExpandAllGroups();
+
+        RowReorderSettings = new FastTreeDataGridRowReorderSettings
+        {
+            IsEnabled = true,
+            ActivationThreshold = 6,
+            ShowDragPreview = true,
+            DragPreviewOpacity = 0.9,
+            DragPreviewBrush = new ImmutableSolidColorBrush(Color.FromArgb(56, 25, 118, 210)),
+            DragPreviewCornerRadius = 4,
+            ShowDropIndicator = true,
+            DropIndicatorBrush = new ImmutableSolidColorBrush(Color.FromRgb(25, 118, 210)),
+            DropIndicatorThickness = 2,
+            UseSelection = true,
+            AllowGroupReorder = true,
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -85,6 +104,14 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
     {
         get => _selectionSummary;
         private set => SetProperty(ref _selectionSummary, value, nameof(SelectionSummary));
+    }
+
+    public FastTreeDataGridRowReorderSettings RowReorderSettings { get; }
+
+    public string ReorderStatus
+    {
+        get => _reorderStatus;
+        private set => SetProperty(ref _reorderStatus, value, nameof(ReorderStatus));
     }
 
     public bool ApplySort(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
@@ -311,6 +338,129 @@ public sealed class CountriesViewModel : INotifyPropertyChanged
         return string.Equals(_selectedRegion, AllRegionsOption, StringComparison.OrdinalIgnoreCase)
             ? null
             : _selectedRegion;
+    }
+
+    private CountryNode? TryGetNode(int index)
+    {
+        if (index < 0 || index >= _source.RowCount)
+        {
+            return null;
+        }
+
+        if (_source.TryGetMaterializedRow(index, out var row))
+        {
+            return row.Item as CountryNode;
+        }
+
+        try
+        {
+            return _source.GetRow(index).Item as CountryNode;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    public bool HasMixedSelection(IReadOnlyList<int> indices)
+    {
+        if (indices is null || indices.Count == 0)
+        {
+            return false;
+        }
+
+        var hasGroup = false;
+        var hasLeaf = false;
+
+        foreach (var index in indices)
+        {
+            var node = TryGetNode(index);
+            if (node is null)
+            {
+                continue;
+            }
+
+            if (node.IsGroup)
+            {
+                hasGroup = true;
+            }
+            else
+            {
+                hasLeaf = true;
+            }
+
+            if (hasGroup && hasLeaf)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public void NotifyReorderCancelled()
+    {
+        ReorderStatus = "Select either regions or individual countries before dragging.";
+    }
+
+    public void NotifyReorderCompleted(IReadOnlyList<int> newIndices)
+    {
+        if (newIndices is null || newIndices.Count == 0)
+        {
+            ReorderStatus = DefaultReorderStatus;
+            return;
+        }
+
+        var groups = new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
+        var highlights = new List<string>();
+        foreach (var index in newIndices)
+        {
+            var node = TryGetNode(index);
+            if (node is null)
+            {
+                continue;
+            }
+
+            if (node.IsGroup)
+            {
+                groups.Add(node.Title);
+                highlights.Add(node.Title);
+            }
+            else
+            {
+                groups.Add(node.Region ?? string.Empty);
+                highlights.Add(node.DisplayName ?? node.Title);
+            }
+        }
+
+        if (highlights.Count == 0)
+        {
+            ReorderStatus = DefaultReorderStatus;
+            return;
+        }
+
+        var preview = string.Join(", ", highlights.Take(3));
+        if (highlights.Count > 3)
+        {
+            preview = $"{preview}, +{highlights.Count - 3} more";
+        }
+
+        if (groups.Count == 1)
+        {
+            var region = groups.First();
+            ReorderStatus = string.IsNullOrWhiteSpace(region)
+                ? $"Moved {preview}."
+                : $"Moved {preview} within {region}.";
+        }
+        else
+        {
+            ReorderStatus = $"Reordered {preview} across {groups.Count} regions.";
+        }
+    }
+
+    public void ResetReorderStatus()
+    {
+        ReorderStatus = DefaultReorderStatus;
     }
 
     private Comparison<FastTreeDataGridRow>? GetComparison(string valueKey)

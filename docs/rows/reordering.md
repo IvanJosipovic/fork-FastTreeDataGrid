@@ -48,6 +48,7 @@ grid.RowReordered += (_, e) =>
 | `DropIndicatorBrush` / `DropIndicatorThickness` | Brush and thickness for the indicator line. |
 | `DragPreviewBrush`, `DragPreviewOpacity`, `DragPreviewCornerRadius` | Styling for the floating preview block. |
 | `UseSelection` | When `true`, dragging any selected row moves the entire selection block. When `false`, only the pressed row moves. |
+| `AllowGroupReorder` | Enables drag & drop for group rows (e.g., category headers). |
 
 ## Handler interface
 

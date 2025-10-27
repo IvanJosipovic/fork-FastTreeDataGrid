@@ -16,6 +16,7 @@ public sealed class FastTreeDataGridRowReorderSettings
     private double _dragPreviewCornerRadius = 4;
     private double _dragPreviewOpacity = 1;
     private bool _useSelection = true;
+    private bool _allowGroupReorder;
 
     public event EventHandler? SettingsChanged;
 
@@ -81,6 +82,15 @@ public sealed class FastTreeDataGridRowReorderSettings
     {
         get => _useSelection;
         set => SetField(ref _useSelection, value);
+    }
+
+    /// <summary>
+    /// Allows drag & drop for group rows when enabled.
+    /// </summary>
+    public bool AllowGroupReorder
+    {
+        get => _allowGroupReorder;
+        set => SetField(ref _allowGroupReorder, value);
     }
 
     /// <summary>
