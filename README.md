@@ -1267,6 +1267,12 @@ FastTreeDataGrid prioritises frame time predictability:
 - Variable-height and adaptive row layouts alongside uniform grids.
 - Virtualization tab featuring a 1B-row pseudo-random provider and a REST-backed Hacker News provider that showcase the virtualization stack.
 
+Additional sample applications:
+- `samples/FastTreeDataGrid.VirtualizationDemo` dives deeper into virtualization strategies (adaptive rows, SQLite-backed paging, REST providers, and extensibility hooks).
+- `samples/FastTreeDataGrid.DataSourcesDemo` compares async, streaming, and hybrid providers with live mutation pipelines.
+- `samples/FastTreeDataGrid.WidgetsDemo` is a widget gallery explorer with interactive controls.
+- `samples/FastTreeDataGrid.ExcelDemo` delivers an Excel-style pivot grid with row/column virtualization, Power Fx formulas, and financial cell styling for analytics scenarios.
+
 ## Validation
 
 - Run `dotnet test tests/FastTreeDataGrid.Control.Tests/FastTreeDataGrid.Control.Tests.csproj` to exercise widget layout regressions (expander toggles, scroll viewer viewport notifications, and existing picker coverage).

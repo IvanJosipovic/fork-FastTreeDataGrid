@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.Engine", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.Engine.Tests", "tests\FastTreeDataGrid.Engine.Tests\FastTreeDataGrid.Engine.Tests.csproj", "{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.ExcelDemo", "samples\FastTreeDataGrid.ExcelDemo\FastTreeDataGrid.ExcelDemo.csproj", "{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -189,6 +191,18 @@ Global
 		{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69}.Release|x64.Build.0 = Release|Any CPU
 		{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69}.Release|x86.ActiveCfg = Release|Any CPU
 		{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69}.Release|x86.Build.0 = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|x64.Build.0 = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Debug|x86.Build.0 = Debug|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|x64.ActiveCfg = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|x64.Build.0 = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|x86.ActiveCfg = Release|Any CPU
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -206,5 +220,6 @@ Global
 		{6691EE92-85E4-4F42-84BA-AEB2E0CCC419} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{8F579FCE-99B2-4098-92B4-94D6E91C2BC1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69} = {6DB1ACB8-5D2B-4330-9F06-A485AACF7C6F}
+		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,99 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.ExcelDemo.ViewModels"
+        xmlns:models="clr-namespace:FastTreeDataGrid.ExcelDemo.Models"
+        xmlns:pivot="clr-namespace:FastTreeDataGrid.ExcelDemo.ViewModels.Pivot"
+        mc:Ignorable="d"
+        x:Class="FastTreeDataGrid.ExcelDemo.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1400"
+        d:DesignHeight="900"
+        Title="FastTreeDataGrid Excel Virtualization Demo">
+  <Grid RowDefinitions="Auto,*" Margin="18">
+    <StackPanel Spacing="12">
+      <TextBlock Text="Excel-Style Virtual Pivot"
+                 FontSize="24"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="Explore a billion-style data set with row and column virtualization, dynamic pivoting, and Power Fx formulas for derived measures."
+                 TextWrapping="Wrap"
+                 MaxWidth="900"
+                 Foreground="#546" />
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Rows:" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="0"
+                  Grid.Column="1"
+                  Width="220"
+                  ItemsSource="{Binding Pivot.RowDimensions}"
+                  SelectedItem="{Binding Pivot.SelectedRowDimension, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="models:DimensionOption">
+              <TextBlock Text="{Binding DisplayName}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Grid.Row="0" Grid.Column="2" Text="Columns:" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="0"
+                  Grid.Column="3"
+                  Width="220"
+                  ItemsSource="{Binding Pivot.ColumnDimensions}"
+                  SelectedItem="{Binding Pivot.SelectedColumnDimension, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="models:DimensionOption">
+              <TextBlock Text="{Binding DisplayName}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Grid.Row="0" Grid.Column="4" Text="Measures:" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="5" Orientation="Horizontal" Spacing="10">
+          <CheckBox Content="Revenue" IsChecked="{Binding Pivot.IncludeSales, Mode=TwoWay}" />
+          <CheckBox Content="Cost" IsChecked="{Binding Pivot.IncludeCost, Mode=TwoWay}" />
+          <CheckBox Content="Units" IsChecked="{Binding Pivot.IncludeUnits, Mode=TwoWay}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Formulas:" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="10">
+          <CheckBox Content="Profit" IsChecked="{Binding Pivot.IncludeProfit, Mode=TwoWay}" />
+          <CheckBox Content="Margin %" IsChecked="{Binding Pivot.IncludeMargin, Mode=TwoWay}" />
+          <CheckBox Content="Avg Price" IsChecked="{Binding Pivot.IncludeAveragePrice, Mode=TwoWay}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1"
+                    Grid.Column="4"
+                    Grid.ColumnSpan="2"
+                    Orientation="Horizontal"
+                    Spacing="12"
+                    HorizontalAlignment="Right">
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="Rows:" Foreground="#566" />
+            <TextBlock Text="{Binding Pivot.RowCount}" FontWeight="SemiBold" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="Visible columns:" Foreground="#566" />
+            <TextBlock Text="{Binding Pivot.ColumnCount}" FontWeight="SemiBold" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Margin="0,16,0,0"
+            BorderBrush="#D4DAE5"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="0"
+            Background="#FFF">
+      <controls:FastTreeDataGrid x:Name="PivotGrid"
+                                 ItemsSource="{Binding Pivot.Source}"
+                                 VirtualizationSettings="{Binding Pivot.VirtualizationSettings}"
+                                 RowHeight="30"
+                                 HeaderHeight="36"
+                                 IndentWidth="18"
+                                 IsFilterRowVisible="False" />
+    </Border>
+  </Grid>
+</Window>
