@@ -110,7 +110,7 @@
                                   CanUserSort="False">
             <FastTreeDataGridColumn.EditTemplate>
               <DataTemplate x:DataType="crud:DynamicFlatRow">
-                <ComboBox ItemsSource="{Binding ElementName=Root, Path=DataContext.DynamicFlat.Statuses}"
+                <ComboBox ItemsSource="{Binding ElementName=Root, Path=((vm:MainWindowViewModel)DataContext).DynamicFlat.Statuses}"
                           SelectedItem="{Binding StatusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                           MinWidth="140" />
               </DataTemplate>
