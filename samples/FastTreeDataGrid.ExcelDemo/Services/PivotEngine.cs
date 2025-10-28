@@ -10,13 +10,11 @@ public sealed class PivotEngine
     private readonly IReadOnlyList<SalesRecord> _records;
     private readonly IReadOnlyList<MeasureOption> _baseMeasures;
     private readonly IReadOnlyList<FormulaDefinition> _formulas;
-    private readonly PowerFxFormulaEvaluator _formulaEvaluator;
 
     public PivotEngine(
         IReadOnlyList<SalesRecord> records,
         IReadOnlyList<MeasureOption> baseMeasures,
-        IReadOnlyList<FormulaDefinition> formulas,
-        PowerFxFormulaEvaluator formulaEvaluator)
+        IReadOnlyList<FormulaDefinition> formulas)
     {
         _records = records ?? throw new ArgumentNullException(nameof(records));
         _baseMeasures = baseMeasures ?? throw new ArgumentNullException(nameof(baseMeasures));
@@ -26,7 +24,6 @@ public sealed class PivotEngine
         }
 
         _formulas = formulas ?? throw new ArgumentNullException(nameof(formulas));
-        _formulaEvaluator = formulaEvaluator ?? throw new ArgumentNullException(nameof(formulaEvaluator));
     }
 
     public PivotResult Build(DimensionOption rowDimension, DimensionOption columnDimension)
@@ -131,64 +128,19 @@ public sealed class PivotEngine
             sortedCells[(mappedRow, mappedColumn)] = value;
         }
 
-        Dictionary<(int Row, int Column), double?[]> formulaCells;
-        double?[][] rowFormulaTotals;
-        double?[][] columnFormulaTotals;
-        double?[] formulaGrandTotals;
-
-        if (formulaCount > 0)
-        {
-            formulaCells = new Dictionary<(int Row, int Column), double?[]>(sortedCells.Count);
-            rowFormulaTotals = new double?[sortedRowTotals.Length][];
-            columnFormulaTotals = new double?[sortedColumnTotals.Length][];
-            formulaGrandTotals = new double?[formulaCount];
-
-            foreach (var (key, measureValues) in sortedCells)
-            {
-                var formulaValues = new double?[formulaCount];
-                _formulaEvaluator.EvaluateAll(measureValues, formulaValues);
-                formulaCells[key] = formulaValues;
-            }
-
-            for (var i = 0; i < sortedRowTotals.Length; i++)
-            {
-                var totals = sortedRowTotals[i];
-                var formulaValues = new double?[formulaCount];
-                _formulaEvaluator.EvaluateAll(totals, formulaValues);
-                rowFormulaTotals[i] = formulaValues;
-            }
-
-            for (var i = 0; i < sortedColumnTotals.Length; i++)
-            {
-                var totals = sortedColumnTotals[i];
-                var formulaValues = new double?[formulaCount];
-                _formulaEvaluator.EvaluateAll(totals, formulaValues);
-                columnFormulaTotals[i] = formulaValues;
-            }
-
-            _formulaEvaluator.EvaluateAll(grandTotals, formulaGrandTotals);
-        }
-        else
-        {
-            formulaCells = new Dictionary<(int Row, int Column), double?[]>();
-            rowFormulaTotals = Array.Empty<double?[]>();
-            columnFormulaTotals = Array.Empty<double?[]>();
-            formulaGrandTotals = Array.Empty<double?>();
-        }
-
         return new PivotResult(
             sortedRows,
             sortedColumns,
             _baseMeasures,
             _formulas,
             sortedCells,
-            formulaCells,
+            formulaCount > 0 ? new Dictionary<(int Row, int Column), double?[]>() : null,
             sortedRowTotals,
             sortedColumnTotals,
-            rowFormulaTotals,
-            columnFormulaTotals,
+            formulaCount > 0 ? new Dictionary<int, double?[]>() : null,
+            formulaCount > 0 ? new Dictionary<int, double?[]>() : null,
             grandTotals,
-            formulaGrandTotals);
+            formulaCount > 0 ? Array.Empty<double?>() : null);
     }
 
     private static string Normalize(string value)

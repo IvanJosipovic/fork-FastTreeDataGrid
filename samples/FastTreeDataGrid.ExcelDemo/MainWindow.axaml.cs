@@ -1,5 +1,7 @@
 using System;
 using Avalonia.Controls;
+using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 using FastTreeDataGrid.ExcelDemo.ViewModels;
 using FastTreeDataGrid.ExcelDemo.ViewModels.Pivot;
 
@@ -27,6 +29,11 @@ public partial class MainWindow : Window
         _pivot = (DataContext as MainWindowViewModel)?.Pivot;
         if (_pivot is not null)
         {
+            if (PivotGrid is not null && PivotGrid.SelectionModel is not FastTreeDataGridCellSelectionModel)
+            {
+                PivotGrid.SelectionModel = new FastTreeDataGridCellSelectionModel();
+            }
+
             _pivot.ColumnsChanged += OnColumnsChanged;
             ApplyColumns();
         }
@@ -45,6 +52,11 @@ public partial class MainWindow : Window
         foreach (var column in _pivot.Columns)
         {
             PivotGrid.Columns.Add(column);
+        }
+
+        if (PivotGrid.SelectionModel is IFastTreeDataGridCellSelectionModel cellSelection && PivotGrid.Columns.Count > 0)
+        {
+            cellSelection.SelectCell(new FastTreeDataGridCellIndex(0, 0));
         }
     }
 }

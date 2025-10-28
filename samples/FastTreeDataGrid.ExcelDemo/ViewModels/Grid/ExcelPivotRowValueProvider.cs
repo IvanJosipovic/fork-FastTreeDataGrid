@@ -198,8 +198,7 @@ internal sealed class ExcelPivotRowValueProvider : IFastTreeDataGridValueProvide
             return string.Empty;
         }
 
-        var totals = _result.FormulaGrandTotals;
-        if (descriptor.FormulaIndex.Value >= totals.Count)
+        if (!_result.TryGetFormulaGrandTotals(out var totals) || descriptor.FormulaIndex.Value >= totals.Length)
         {
             return string.Empty;
         }

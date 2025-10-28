@@ -64,7 +64,7 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
         };
 
         _formulaEvaluator = new PowerFxFormulaEvaluator(_measures, _formulas);
-        _pivotEngine = new PivotEngine(_records, _measures, _formulas, _formulaEvaluator);
+        _pivotEngine = new PivotEngine(_records, _measures, _formulas);
 
         RowDimensions = new ReadOnlyCollection<DimensionOption>(new List<DimensionOption>
         {
@@ -264,7 +264,7 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
         }
 
         Columns = new ReadOnlyCollection<FastTreeDataGridColumn>(columnList);
-        Source = new ExcelVirtualizationSource(_currentResult, new ReadOnlyCollection<ExcelColumnDescriptor>(_activeDescriptors.ToList()));
+        Source = new ExcelVirtualizationSource(_currentResult, new ReadOnlyCollection<ExcelColumnDescriptor>(_activeDescriptors.ToList()), _formulaEvaluator);
         RowCount = _currentResult.RowCount;
         ColumnCount = _activeDescriptors.Count;
 
