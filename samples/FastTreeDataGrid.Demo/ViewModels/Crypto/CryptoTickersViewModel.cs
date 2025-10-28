@@ -15,47 +15,39 @@ namespace FastTreeDataGrid.Demo.ViewModels.Crypto;
 public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 {
     private static readonly string[] QuotePriority = { "USDT", "USDC", "BUSD", "BTC", "ETH", "BNB" };
+
     private static readonly string[] QuoteCandidates =
     {
         "USDT", "USDC", "BUSD", "BTC", "ETH", "BNB", "EUR", "TRY", "GBP", "AUD", "DAI", "RUB", "ZAR", "JPY"
     };
+
     private const int MaxTickersPerGroup = 15;
     private const string AllQuotesOption = "All quotes";
 
-    private readonly List<CryptoNode> _rootNodes = new();
-    private readonly Dictionary<string, CryptoGroupNode> _groups = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<CryptoTickerNode> _tickerNodes = new();
     private readonly Dictionary<string, CryptoTickerNode> _tickers = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _timer;
     private readonly CancellationTokenSource _cts = new();
     private readonly AvaloniaList<string> _quotes = new() { AllQuotesOption };
-
-    private IFastTreeDataGridSource _cryptoSource;
-    private FastTreeDataGridFlatSource<CryptoNode>? _flatSource;
+    private readonly FastTreeDataGridFlatSource<CryptoTickerNode> _flatSource;
+    private Comparison<FastTreeDataGridRow>? _activeSortComparison;
 
     private string _searchText = string.Empty;
     private string _selectedQuote = AllQuotesOption;
 
     public CryptoTickersViewModel()
     {
-        _cryptoSource = new FastTreeDataGridFlatSource<CryptoNode>(_rootNodes, node => node.Children);
+        _flatSource = new FastTreeDataGridFlatSource<CryptoTickerNode>(
+            _tickerNodes,
+            static _ => Array.Empty<CryptoTickerNode>());
+
         _timer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, async (_, _) => await RefreshAsync());
         _ = InitializeAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public IFastTreeDataGridSource CryptoSource
-    {
-        get => _cryptoSource;
-        private set
-        {
-            if (!ReferenceEquals(_cryptoSource, value))
-            {
-                _cryptoSource = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CryptoSource)));
-            }
-        }
-    }
+    public IFastTreeDataGridSource CryptoSource => _flatSource;
 
     public IReadOnlyList<string> Quotes => _quotes;
 
@@ -91,13 +83,9 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 
     public bool ApplySort(IReadOnlyList<FastTreeDataGridSortDescription> descriptions)
     {
-        if (_flatSource is null)
-        {
-            return false;
-        }
-
         if (descriptions is null || descriptions.Count == 0)
         {
+            _activeSortComparison = null;
             _flatSource.Sort(null);
             return true;
         }
@@ -106,13 +94,12 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 
         foreach (var description in descriptions)
         {
-            var column = description.Column;
-            if (string.IsNullOrEmpty(column.ValueKey))
+            if (string.IsNullOrEmpty(description.Column.ValueKey))
             {
                 continue;
             }
 
-            var comparison = GetComparison(column.ValueKey);
+            var comparison = GetComparison(description.Column.ValueKey!);
             if (comparison is null)
             {
                 continue;
@@ -124,28 +111,19 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
                 comparison = (left, right) => baseComparison(right, left);
             }
 
-            if (combined is null)
-            {
-                combined = comparison;
-            }
-            else
-            {
-                var previous = combined;
-                var current = comparison;
-                combined = (left, right) =>
-                {
-                    var result = previous(left, right);
-                    return result != 0 ? result : current(left, right);
-                };
-            }
+            combined = combined is null
+                ? comparison
+                : CombineComparisons(combined, comparison);
         }
 
         if (combined is null)
         {
+            _activeSortComparison = null;
             _flatSource.Sort(null);
             return false;
         }
 
+        _activeSortComparison = combined;
         _flatSource.Sort(combined);
         return true;
     }
@@ -161,12 +139,15 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var records = await CryptoTickerService.GetTickersAsync(_cts.Token);
-            await Dispatcher.UIThread.InvokeAsync(() => BuildInitialNodes(records));
-            _timer.Start();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                BuildInitialNodes(records);
+                _timer.Start();
+            });
         }
         catch
         {
-            // Swallow for demo purposes
+            // Swallow errors for demo purposes.
         }
     }
 
@@ -184,35 +165,37 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         }
         catch
         {
-            // ignore transient errors
+            // Ignore transient failures.
         }
     }
 
     private void BuildInitialNodes(IReadOnlyList<CryptoTickerRecord> records)
     {
-        _rootNodes.Clear();
-        _groups.Clear();
+        _tickerNodes.Clear();
         _tickers.Clear();
 
+        var desiredOrder = new List<CryptoTickerNode>();
         foreach (var (quote, tickers) in GroupTickers(records))
         {
-            var groupNode = new CryptoGroupNode(quote);
-            _groups[quote] = groupNode;
-            _rootNodes.Add(groupNode);
-
             foreach (var tickerRecord in tickers)
             {
-                var leaf = CreateTickerNode(tickerRecord, quote);
-                _tickers[tickerRecord.Symbol] = leaf;
-                groupNode.AddChild(leaf);
+                var node = CreateOrUpdateNode(tickerRecord, quote);
+                desiredOrder.Add(node);
             }
         }
 
-        _flatSource = new FastTreeDataGridFlatSource<CryptoNode>(_rootNodes, node => node.Children);
-        CryptoSource = _flatSource;
-        ExpandAllGroups();
+        _tickerNodes.Clear();
+        _tickerNodes.AddRange(desiredOrder);
+        _tickers.Clear();
+        foreach (var node in desiredOrder)
+        {
+            _tickers[node.Symbol] = node;
+        }
+
+        _flatSource.Reset(_tickerNodes, preserveExpansion: false);
         UpdateQuotes();
         UpdateFilter();
+        ApplyActiveSort();
     }
 
     private IEnumerable<(string Quote, List<CryptoTickerRecord> Records)> GroupTickers(IReadOnlyList<CryptoTickerRecord> records)
@@ -233,50 +216,49 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 
     private void UpdateTickers(IReadOnlyList<CryptoTickerRecord> records)
     {
-        foreach (var record in records)
+        var desired = new List<CryptoTickerNode>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (quote, tickers) in GroupTickers(records))
         {
-            if (!_tickers.TryGetValue(record.Symbol, out var node))
+            foreach (var tickerRecord in tickers)
             {
-                continue;
+                var node = CreateOrUpdateNode(tickerRecord, quote);
+                desired.Add(node);
+                seen.Add(node.Symbol);
             }
-
-            var lastPrice = ParseDecimal(record.LastPrice);
-            var changePercent = ParseDecimal(record.PriceChangePercent) / 100m;
-            var volume = ParseDecimal(record.QuoteVolume);
-
-            node.Update(lastPrice, changePercent, volume);
         }
+
+        foreach (var symbol in _tickers.Keys.ToList())
+        {
+            if (!seen.Contains(symbol))
+            {
+                _tickers.Remove(symbol);
+            }
+        }
+
+        _tickerNodes.Clear();
+        _tickerNodes.AddRange(desired);
+        _flatSource.Reset(_tickerNodes, preserveExpansion: true);
+        UpdateQuotes();
+        UpdateFilter();
+
+        ApplyActiveSort();
     }
 
-    private CryptoTickerNode CreateTickerNode(CryptoTickerRecord record, string quoteAsset)
+    private CryptoTickerNode CreateOrUpdateNode(CryptoTickerRecord record, string quoteAsset)
     {
-        var node = new CryptoTickerNode(record.Symbol, quoteAsset);
+        if (!_tickers.TryGetValue(record.Symbol, out var node))
+        {
+            node = new CryptoTickerNode(record.Symbol, quoteAsset);
+            _tickers[record.Symbol] = node;
+        }
+
         var lastPrice = ParseDecimal(record.LastPrice);
         var changePercent = ParseDecimal(record.PriceChangePercent) / 100m;
         var volume = ParseDecimal(record.QuoteVolume);
         node.Update(lastPrice, changePercent, volume);
         return node;
-    }
-
-    private void ExpandAllGroups()
-    {
-        if (_flatSource is null)
-        {
-            return;
-        }
-
-        var index = 0;
-        foreach (var group in _rootNodes)
-        {
-            if (group.Children.Count == 0)
-            {
-                index++;
-                continue;
-            }
-
-            _flatSource.ToggleExpansion(index);
-            index += group.Children.Count + 1;
-        }
     }
 
     private static string? DetermineQuoteAsset(string symbol)
@@ -300,12 +282,9 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 
     private static decimal ParseDecimal(string text)
     {
-        if (decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
-        {
-            return value;
-        }
-
-        return 0m;
+        return decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : 0m;
     }
 
     private Comparison<FastTreeDataGridRow>? GetComparison(string valueKey)
@@ -321,28 +300,28 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
+    private static Comparison<FastTreeDataGridRow> CombineComparisons(
+        Comparison<FastTreeDataGridRow> primary,
+        Comparison<FastTreeDataGridRow> secondary)
+    {
+        return (left, right) =>
+        {
+            var result = primary(left, right);
+            return result != 0 ? result : secondary(left, right);
+        };
+    }
+
     private static Comparison<FastTreeDataGridRow> CreateStringComparison(Func<CryptoTickerNode, string?> selector)
     {
         var comparer = StringComparer.CurrentCultureIgnoreCase;
         return (leftRow, rightRow) =>
         {
-            var order = CompareNodeOrder(leftRow.Item, rightRow.Item);
-            if (order != 0)
+            if (leftRow.Item is not CryptoTickerNode left || rightRow.Item is not CryptoTickerNode right)
             {
-                return order;
+                return 0;
             }
 
-            if (leftRow.Item is CryptoGroupNode leftGroup && rightRow.Item is CryptoGroupNode rightGroup)
-            {
-                return comparer.Compare(leftGroup.QuoteAsset, rightGroup.QuoteAsset);
-            }
-
-            if (leftRow.Item is CryptoTickerNode leftTicker && rightRow.Item is CryptoTickerNode rightTicker)
-            {
-                return comparer.Compare(selector(leftTicker) ?? string.Empty, selector(rightTicker) ?? string.Empty);
-            }
-
-            return 0;
+            return comparer.Compare(selector(left) ?? string.Empty, selector(right) ?? string.Empty);
         };
     }
 
@@ -351,57 +330,23 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         var comparer = StringComparer.CurrentCultureIgnoreCase;
         return (leftRow, rightRow) =>
         {
-            var order = CompareNodeOrder(leftRow.Item, rightRow.Item);
-            if (order != 0)
+            if (leftRow.Item is not CryptoTickerNode left || rightRow.Item is not CryptoTickerNode right)
             {
-                return order;
+                return 0;
             }
 
-            if (leftRow.Item is CryptoGroupNode leftGroup && rightRow.Item is CryptoGroupNode rightGroup)
+            var comparison = selector(left).CompareTo(selector(right));
+            if (comparison != 0)
             {
-                return comparer.Compare(leftGroup.QuoteAsset, rightGroup.QuoteAsset);
+                return comparison;
             }
 
-            if (leftRow.Item is CryptoTickerNode leftTicker && rightRow.Item is CryptoTickerNode rightTicker)
-            {
-                var comparison = selector(leftTicker).CompareTo(selector(rightTicker));
-                if (comparison != 0)
-                {
-                    return comparison;
-                }
-
-                return comparer.Compare(leftTicker.Symbol, rightTicker.Symbol);
-            }
-
-            return 0;
+            return comparer.Compare(left.Symbol, right.Symbol);
         };
-    }
-
-    private static int CompareNodeOrder(object? left, object? right)
-    {
-        var leftIsGroup = left is CryptoGroupNode;
-        var rightIsGroup = right is CryptoGroupNode;
-
-        if (leftIsGroup && !rightIsGroup)
-        {
-            return -1;
-        }
-
-        if (!leftIsGroup && rightIsGroup)
-        {
-            return 1;
-        }
-
-        return 0;
     }
 
     private void UpdateFilter()
     {
-        if (_flatSource is null)
-        {
-            return;
-        }
-
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
         var quote = _selectedQuote;
         var allQuotes = string.Equals(quote, AllQuotesOption, StringComparison.OrdinalIgnoreCase);
@@ -414,45 +359,31 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
 
         _flatSource.SetFilter(row =>
         {
-            if (row.Item is CryptoGroupNode group)
+            if (row.Item is not CryptoTickerNode ticker)
             {
-                var matchesQuote = allQuotes || string.Equals(group.QuoteAsset, quote, StringComparison.OrdinalIgnoreCase);
-                if (!matchesQuote)
-                {
-                    return false;
-                }
-
-                if (!hasSearch)
-                {
-                    return true;
-                }
-
-                return group.QuoteAsset.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+                return true;
             }
 
-            if (row.Item is CryptoTickerNode ticker)
+            if (!allQuotes && !string.Equals(ticker.QuoteAsset, quote, StringComparison.OrdinalIgnoreCase))
             {
-                if (!allQuotes && !string.Equals(ticker.QuoteAsset, quote, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (!hasSearch)
-                {
-                    return true;
-                }
-
-                return ticker.Symbol.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
-                    || ticker.QuoteAsset.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+                return false;
             }
 
-            return true;
+            if (!hasSearch)
+            {
+                return true;
+            }
+
+            return ticker.Symbol.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || ticker.QuoteAsset.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
         }, expandMatches: true);
     }
 
     private void UpdateQuotes()
     {
-        var ordered = _groups.Keys
+        var ordered = _tickerNodes
+            .Select(t => t.QuoteAsset)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(GetQuotePriority)
             .ThenBy(q => q, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -473,6 +404,14 @@ public sealed class CryptoTickersViewModel : INotifyPropertyChanged, IDisposable
         else
         {
             UpdateFilter();
+        }
+    }
+
+    private void ApplyActiveSort()
+    {
+        if (_activeSortComparison is not null)
+        {
+            _flatSource.Sort(_activeSortComparison);
         }
     }
 }
