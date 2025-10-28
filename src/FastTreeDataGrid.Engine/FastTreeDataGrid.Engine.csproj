@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Core engine that flattens, virtualizes, and aggregates hierarchical data for FastTreeDataGrid.</Description>
+    <PackageTags>$(PackageTags);engine;virtualization</PackageTags>
   </PropertyGroup>
 
 </Project>

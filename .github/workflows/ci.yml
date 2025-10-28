@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore FastTreeDataGrid.sln
+
+      - name: Build
+        run: dotnet build FastTreeDataGrid.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test FastTreeDataGrid.sln --configuration Release --no-build --verbosity normal
+
+      - name: Calculate CI version suffix
+        if: github.ref_type != 'tag'
+        run: echo "CI_VERSION_SUFFIX=ci-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Pack
+        run: dotnet pack FastTreeDataGrid.sln --configuration Release --no-build --output artifacts
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+          if-no-files-found: error

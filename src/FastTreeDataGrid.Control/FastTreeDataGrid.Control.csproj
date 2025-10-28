@@ -4,6 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Description>Avalonia UI control that renders FastTreeDataGrid data with canvas-backed virtualization.</Description>
+    <PackageTags>$(PackageTags);control;avalonia</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -6,6 +6,10 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <LangVersion>latest</LangVersion>
+    <Description>Roslyn analyzers that provide diagnostics and fixes for FastTreeDataGrid usage.</Description>
+    <PackageTags>$(PackageTags);analyzers;roslyn</PackageTags>
+    <PackageType>Analyzer</PackageType>
+    <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,5 +19,10 @@
 
   <ItemGroup>
     <AdditionalFiles Include="Analyzers/AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(TargetDir)$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('$(TargetDir)$(AssemblyName).xml')" />
   </ItemGroup>
 </Project>

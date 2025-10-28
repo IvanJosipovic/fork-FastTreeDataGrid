@@ -6,11 +6,789 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 
 FastTreeDataGrid is split into a few NuGet packages:
 
-- `FastTreeDataGrid.Engine` – the platform-neutral flattening, grouping, and virtualization engine. Reference this package from view models, services, or back-end components that manipulate tree data sources.
-- `FastTreeDataGrid.Control` – the Avalonia control that renders the engine output. Include this package in UI projects and XAML.
-- `FastTreeDataGrid.Widgets` – the immediate-mode widget library used by the control’s templates and samples.
+| Package | NuGet | Downloads | Description |
+| --- | --- | --- | --- |
+| `FastTreeDataGrid.Engine` | [![NuGet](https://img.shields.io/nuget/v/FastTreeDataGrid.Engine.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Engine) | [![Downloads](https://img.shields.io/nuget/dt/FastTreeDataGrid.Engine.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Engine) | Platform-neutral engine that flattens, groups, and virtualizes hierarchical data sources. |
+| `FastTreeDataGrid.Control` | [![NuGet](https://img.shields.io/nuget/v/FastTreeDataGrid.Control.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Control) | [![Downloads](https://img.shields.io/nuget/dt/FastTreeDataGrid.Control.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Control) | Avalonia UI control that renders FastTreeDataGrid data with canvas-backed virtualization. |
+| `FastTreeDataGrid.Widgets` | [![NuGet](https://img.shields.io/nuget/v/FastTreeDataGrid.Widgets.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Widgets) | [![Downloads](https://img.shields.io/nuget/dt/FastTreeDataGrid.Widgets.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Widgets) | Immediate-mode widget library used by the control templates and samples. |
+| `FastTreeDataGrid.Analyzers` | [![NuGet](https://img.shields.io/nuget/v/FastTreeDataGrid.Analyzers.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Analyzers) | [![Downloads](https://img.shields.io/nuget/dt/FastTreeDataGrid.Analyzers.svg)](https://www.nuget.org/packages/FastTreeDataGrid.Analyzers) | Roslyn analyzers that surface diagnostics and fixes for FastTreeDataGrid usage. |
 
 The legacy `FastTreeDataGrid.Core` package has been collapsed into the control. Existing `using FastTreeDataGrid.Control.Infrastructure` statements targeting datasource/virtualization types should now point to `FastTreeDataGrid.Engine.Infrastructure`.
+
+## Quick Usage Guide
+
+### Column templates with Avalonia controls
+
+Reuse your existing Avalonia control templates by supplying `CellControlTemplate` or `CellTemplate` with an Avalonia `DataTemplate`. Cells receive a lightweight `FastTreeDataGridCell` that exposes the bound item (`Item`) and the computed value (`Value`), so you can combine visuals, icons, and formatted text in a single cell.
+
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:YourApp.ViewModels">
+    <FastTreeDataGrid ItemsSource="{Binding Countries}"
+                      RowHeight="32">
+        <FastTreeDataGrid.Columns>
+            <FastTreeDataGridColumn Header="Country"
+                                    ValueKey="Name"
+                                    IsHierarchy="True">
+                <FastTreeDataGridColumn.CellControlTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <Image Width="16"
+                                   Height="12"
+                                   Source="{Binding Item.Flag}" />
+                            <TextBlock Text="{Binding Value}"
+                                       FontWeight="SemiBold" />
+                        </StackPanel>
+                    </DataTemplate>
+                </FastTreeDataGridColumn.CellControlTemplate>
+            </FastTreeDataGridColumn>
+
+            <FastTreeDataGridColumn Header="Population"
+                                    ValueKey="Population"
+                                    SizingMode="Pixel"
+                                    PixelWidth="200">
+                <FastTreeDataGridColumn.CellControlTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="Auto,*"
+                              VerticalAlignment="Center"
+                              Margin="0,2">
+                            <TextBlock Text="{Binding Value,
+                                                      StringFormat={}{0:N0},
+                                                      TargetNullValue=-}"
+                                       VerticalAlignment="Center" />
+                            <ProgressBar Grid.Column="1"
+                                         Margin="12,0,0,0"
+                                         Minimum="0"
+                                         Maximum="1500000000"
+                                         Height="4"
+                                         Value="{Binding Value, TargetNullValue=0}"
+                                         IsHitTestVisible="False" />
+                        </Grid>
+                    </DataTemplate>
+                </FastTreeDataGridColumn.CellControlTemplate>
+            </FastTreeDataGridColumn>
+
+            <FastTreeDataGridColumn Header="Region"
+                                    ValueKey="Region">
+                <FastTreeDataGridColumn.CellControlTemplate>
+                    <DataTemplate>
+                        <Border Background="{DynamicResource ThemeAccentBrush2}"
+                                CornerRadius="4"
+                                Padding="6,2"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Item.Region}"
+                                       Foreground="{DynamicResource ThemeForegroundOnAccentBrush}" />
+                        </Border>
+                    </DataTemplate>
+                </FastTreeDataGridColumn.CellControlTemplate>
+            </FastTreeDataGridColumn>
+        </FastTreeDataGrid.Columns>
+    </FastTreeDataGrid>
+</UserControl>
+```
+
+`YourApp.ViewModels.CountryRow` (referenced through `Countries`) exposes the backing data—use the `Item` field for raw domain objects and the `Value` property for the column’s resolved value. This approach keeps the familiar Avalonia control toolchain while benefiting from the grid’s virtualization pipeline.
+
+```csharp
+public sealed class CountriesViewModel
+{
+    public FastTreeDataGridFlatSource<CountryRow> Countries { get; } =
+        new FastTreeDataGridFlatSource<CountryRow>(
+            rootItems: CountryRow.CreateSampleData(),
+            childrenSelector: row => row.Children,
+            keySelector: row => row.Id);
+}
+
+public sealed class CountryRow : IFastTreeDataGridValueProvider
+{
+    public const string KeyName = "Name";
+    public const string KeyPopulation = "Population";
+    public const string KeyRegion = "Region";
+
+    private readonly List<CountryRow> _children = new();
+
+    public string Id { get; } = Guid.NewGuid().ToString();
+    public string Name { get; init; } = string.Empty;
+    public long Population { get; init; }
+    public string Region { get; init; } = string.Empty;
+    public IBitmap? Flag { get; init; }
+
+    public IReadOnlyList<CountryRow> Children => _children;
+
+    public object? GetValue(object? _, string key) => key switch
+    {
+        KeyName => Name,
+        KeyPopulation => Population,
+        KeyRegion => Region,
+        _ => null
+    };
+
+    public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+
+    public CountryRow AddChild(CountryRow child)
+    {
+        _children.Add(child);
+        return this;
+    }
+
+    public static IEnumerable<CountryRow> CreateSampleData()
+    {
+        yield return new CountryRow
+        {
+            Name = "Canada",
+            Population = 38_000_000,
+            Region = "North America"
+        };
+
+        yield return new CountryRow
+        {
+            Name = "Japan",
+            Population = 125_000_000,
+            Region = "Asia"
+        };
+    }
+}
+```
+
+> Note: Add `using Avalonia.Media.Imaging;` (or whichever namespace exposes `IBitmap` in your project) for the `Flag` property if you display flag images or icons.
+
+Each row implements `IFastTreeDataGridValueProvider`, so the templates gain access to both the strongly typed `Item` for complex visuals (flag images, tags) and the per-column `Value` for quick formatting.
+
+### XAML-first: drop-in control
+
+Reference `FastTreeDataGrid.Control` from your Avalonia project. The assembly’s `XmlnsDefinition` attributes surface the types on the default Avalonia namespace, so you can drop the control straight into XAML and bind `ItemsSource` to a `FastTreeDataGridFlatSource<T>` exposed from your view model.
+
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FastTreeDataGrid ItemsSource="{Binding FileSystem}"
+                      RowHeight="28"
+                      SelectionMode="Extended">
+        <FastTreeDataGrid.Columns>
+            <FastTreeDataGridColumn Header="Name"
+                                    ValueKey="Name"
+                                    SizingMode="Pixel"
+                                    PixelWidth="240"
+                                    IsHierarchy="True" />
+            <FastTreeDataGridColumn Header="Type"
+                                    ValueKey="Kind"
+                                    SizingMode="Pixel"
+                                    PixelWidth="140" />
+            <FastTreeDataGridColumn Header="Size"
+                                    ValueKey="Size"
+                                    SizingMode="Star"
+                                    StarValue="1" />
+        </FastTreeDataGrid.Columns>
+    </FastTreeDataGrid>
+</UserControl>
+```
+
+Expose the source from your view model:
+
+```csharp
+public sealed class ExplorerViewModel
+{
+    public FastTreeDataGridFlatSource<FileNode> FileSystem { get; } =
+        new FastTreeDataGridFlatSource<FileNode>(
+            rootItems: FileNode.LoadRoots(),
+            childrenSelector: node => node.Children,
+            keySelector: node => node.Id);
+}
+
+public sealed class FileNode : IFastTreeDataGridValueProvider
+{
+    public const string KeyName = "Name";
+    public const string KeyKind = "Kind";
+    public const string KeySize = "Size";
+
+    public string Id { get; init; } = Guid.NewGuid().ToString();
+    public string Name { get; init; } = string.Empty;
+    public string Kind { get; init; } = string.Empty;
+    public string Size { get; init; } = string.Empty;
+    public IReadOnlyList<FileNode> Children { get; init; } = Array.Empty<FileNode>();
+
+    public object? GetValue(object? _, string key) => key switch
+    {
+        KeyName => Name,
+        KeyKind => Kind,
+        KeySize => Size,
+        _ => null
+    };
+
+    public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+}
+```
+
+Only rows that implement `IFastTreeDataGridValueProvider` need to expose values; other view models can be wrapped with a lightweight adapter if preferred.
+
+### XAML + widgets: templated cells
+
+Add the `FastTreeDataGrid.Widgets` package to your project and use `WidgetTemplate` to render highly customised cells without touching control templates—the widgets share the same default XML namespace registration. You can also mix widget-backed columns with Avalonia control templates for scenarios that benefit from existing controls.
+
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FastTreeDataGrid ItemsSource="{Binding Metrics}"
+                      RowHeight="32">
+        <FastTreeDataGrid.Columns>
+            <FastTreeDataGridColumn Header="Service"
+                                    ValueKey="Service"
+                                    SizingMode="Pixel"
+                                    PixelWidth="200" />
+            <FastTreeDataGridColumn Header="CPU"
+                                    ValueKey="Cpu"
+                                    SizingMode="Star">
+                <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                        <ProgressWidget Key="Cpu" />
+                    </WidgetTemplate>
+                </FastTreeDataGridColumn.CellTemplate>
+            </FastTreeDataGridColumn>
+            <FastTreeDataGridColumn Header="Alerts"
+                                    ValueKey="Alerts"
+                                    SizingMode="Pixel"
+                                    PixelWidth="120">
+                <FastTreeDataGridColumn.CellTemplate>
+                    <WidgetTemplate>
+                        <BadgeWidget Key="Alerts"
+                                     CornerRadius="8" />
+                    </WidgetTemplate>
+                </FastTreeDataGridColumn.CellTemplate>
+            </FastTreeDataGridColumn>
+            <FastTreeDataGridColumn Header="Owner"
+                                    ValueKey="Owner"
+                                    SizingMode="Pixel"
+                                    PixelWidth="180">
+                <FastTreeDataGridColumn.CellControlTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="4">
+                            <Border Background="{DynamicResource ThemeAccentBrush}"
+                                    Width="6"
+                                    CornerRadius="3" />
+                            <TextBlock Text="{Binding Value,
+                                                        RelativeSource={RelativeSource AncestorType=FastTreeDataGridCell}}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Item.Team}"
+                                       Foreground="{DynamicResource ThemeForegroundLowBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </FastTreeDataGridColumn.CellControlTemplate>
+            </FastTreeDataGridColumn>
+        </FastTreeDataGrid.Columns>
+    </FastTreeDataGrid>
+</UserControl>
+```
+
+Widgets inherit from the same `Widget` base class used internally, so they react to virtualization, value updates, and pointer gestures automatically. The `CellControlTemplate` column uses the control-based pipeline—`FastTreeDataGrid` creates a lightweight `ContentControl` per cell and binds its `DataContext` to the `FastTreeDataGridCell` wrapper so standard Avalonia bindings (like `RelativeSource`) continue to work.
+
+### Code-only: configure in view models or controls
+
+You can construct the grid entirely in code (handy for dynamically generated UIs or integration tests). Import `FastTreeDataGrid.Control`, `FastTreeDataGrid.Engine.Infrastructure`, `FastTreeDataGrid.Engine.Models`, and `FastTreeDataGrid.Control.Widgets` namespaces, then build the control:
+
+```csharp
+var source = new FastTreeDataGridFlatSource<ProcessRow>(
+    rootItems: ProcessRow.CreateSnapshot(),
+    childrenSelector: row => row.Children,
+    keySelector: row => row.Id);
+
+var grid = new FastTreeDataGrid
+{
+    ItemsSource = source,
+    VirtualizationSettings = new FastTreeDataGridVirtualizationSettings
+    {
+        PageSize = 512,
+        PrefetchRadius = 2
+    }
+};
+
+grid.Columns.Add(new FastTreeDataGridColumn
+{
+    Header = "Process",
+    ValueKey = ProcessRow.KeyName,
+    IsHierarchy = true,
+    SizingMode = ColumnSizingMode.Pixel,
+    PixelWidth = 260
+});
+
+grid.Columns.Add(new FastTreeDataGridColumn
+{
+    Header = "CPU %",
+    ValueKey = ProcessRow.KeyCpu,
+    SizingMode = ColumnSizingMode.Star,
+    CellTemplate = new FuncWidgetTemplate(() => new ProgressWidget { Key = ProcessRow.KeyCpu })
+});
+
+grid.Columns.Add(new FastTreeDataGridColumn
+{
+    Header = "Memory",
+    ValueKey = ProcessRow.KeyMemory,
+    SizingMode = ColumnSizingMode.Pixel,
+    PixelWidth = 140
+});
+```
+
+`ProcessRow` in this example is your view model type that exposes static key constants and implements `IFastTreeDataGridValueProvider` so the grid can fetch values on demand.
+
+### Advanced features at a glance
+
+- **Data virtualization** – Stream massive datasets without blocking the UI. Swap the in-memory source for `FastTreeDataGridAsyncSource<T>` (or your own `IFastTreeDataVirtualizationProvider`) and the grid automatically pages data, shows placeholders, and throttles fetches around the viewport.
+
+  ```csharp
+  var catalog = new FastTreeDataGridAsyncSource<CatalogItem>(
+      loadItemsAsync: token => inventoryClient.LoadPageAsync(token),
+      childrenSelector: item => item.Children,
+      keySelector: item => item.Id);
+
+  grid.ItemsSource = catalog;
+  grid.VirtualizationSettings = new FastTreeDataGridVirtualizationSettings
+  {
+      PageSize = 256,
+      PrefetchRadius = 3,
+      ShowPlaceholderSkeletons = true
+  };
+
+  grid.GetObservable(FastTreeDataGrid.IsLoadingProperty)
+      .Subscribe(isLoading => loadingIndicator.IsVisible = isLoading);
+  ```
+
+  Bind the `IsLoading` property to a progress ring or status text so users always know when additional pages are streaming in.
+
+  For bespoke transports (REST, SQL, cloud storage) expose prefetch hints and cancellation through a custom `IFastTreeDataVirtualizationProvider`; the grid reuses the same scheduling, placeholder, and caching logic.
+
+- **Live updates & streaming** – Keep dashboards and monitoring views current without rebuilding the tree. `FastTreeDataGridStreamingSource<T>` snapshots the existing rows, preserves hierarchy expansion, and applies incremental updates from observables or async streams.
+
+  ```csharp
+  var stream = new FastTreeDataGridStreamingSource<MetricRow>(
+      initialItems: metricsProvider.InitialRows,
+      childrenSelector: row => row.Children,
+      keySelector: row => row.Id);
+
+  using var subscription = stream.Connect(metricsProvider.Updates);
+  grid.ItemsSource = stream;
+  stream.ApplyUpdate(rows => metricsProvider.PruneExpired(rows));
+  ```
+
+  Streaming sources support `IObservable<FastTreeDataGridStreamUpdate<T>>` and `IAsyncEnumerable`, so you can bridge Rx pipelines, gRPC streams, message queues, or background agents.
+
+- **Grouping, aggregates, and pinned columns** – Layer pivot-style groupings on any column, calculate custom aggregates, and pin critical metrics to either edge of the grid.
+
+  ```csharp
+  // Requires using System.Linq;
+  grid.GroupDescriptors.Add(new FastTreeDataGridGroupDescriptor
+  {
+      ColumnKey = OrdersRow.KeyRegion,
+      DisplayName = "Region",
+      GroupAdapter = new FastTreeDataGridValueGroupAdapter(OrdersRow.KeyRegion)
+  });
+
+  var revenueColumn = grid.Columns.First(column => column.ValueKey == OrdersRow.KeyRevenue);
+
+  revenueColumn.AggregateDescriptors.Add(new FastTreeDataGridAggregateDescriptor
+  {
+      ColumnKey = OrdersRow.KeyRevenue,
+      Placement = FastTreeDataGridAggregatePlacement.GroupFooter,
+      Aggregator = rows =>
+          rows.Sum(row => (decimal?)row.ValueProvider?.GetValue(row.Item, OrdersRow.KeyRevenue) ?? 0m),
+      Formatter = total => total is decimal value ? value.ToString("C0") : "—",
+      Label = "Total revenue"
+  });
+
+  revenueColumn.PinnedPosition = FastTreeDataGridPinnedPosition.Right;
+  ```
+
+  Combine `GroupDescriptors`, `AggregateDescriptors`, and custom adapters to persist layouts, sort nested groups, or surface subtotal bars inline.
+
+- **Variable heights, overlays, and row adorners** – Mix dense lists with expandable detail panes. Implement `IFastTreeDataGridRowHeightAware` on view models or plug in `FastTreeDataGridDefaultVariableRowHeightProvider` to calculate heights per row, then use overlays for context.
+
+  ```csharp
+  grid.VirtualizationSettings.VariableRowHeightProvider =
+      new FastTreeDataGridDefaultVariableRowHeightProvider(minHeight: 20, maxHeight: 160);
+
+  public sealed class TimelineRow : IFastTreeDataGridValueProvider, IFastTreeDataGridRowHeightAware
+  {
+      public double GetRowHeight(FastTreeDataGridRow row, double defaultHeight) =>
+          IsExpanded ? defaultHeight * 3 : defaultHeight;
+
+      // ...IFastTreeDataGridValueProvider implementation...
+  }
+  ```
+
+  Pair variable heights with `WidgetOverlayManager` to display notes, error badges, or drag indicators that float above the grid.
+
+- **Inline editing & validation** – Reuse Avalonia controls for editing and tap into the full lifecycle (`CellEditStarting`, `CellEditCommitting`, etc.) for validation.
+
+  ```csharp
+  // using Avalonia.Controls;
+  // using Avalonia.Controls.Templates;
+  // using Avalonia.Data;
+  var statusColumn = new FastTreeDataGridColumn
+  {
+      Header = "Status",
+      ValueKey = WorkItemRow.KeyStatus,
+      CellControlTemplate = new FuncDataTemplate<WorkItemRow>((row, _) =>
+          new TextBlock { Text = row.Status, VerticalAlignment = VerticalAlignment.Center }),
+      EditTemplate = new FuncDataTemplate<WorkItemRow>((_, _) =>
+      {
+          var combo = new ComboBox
+          {
+              ItemsSource = WorkItemRow.AllStatuses,
+              MinWidth = 140
+          };
+          combo.Bind(ComboBox.SelectedItemProperty, new Binding("Item.Status")
+          {
+              Mode = BindingMode.TwoWay,
+              UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+          });
+          return combo;
+      })
+  };
+
+  grid.Columns.Add(statusColumn);
+
+  grid.CellEditCommitting += (_, e) =>
+  {
+      if (e.Column == statusColumn && e.Editor is ComboBox combo && combo.SelectedItem is null)
+      {
+          e.Cancel = true; // keep the editor open until a valid status is chosen
+      }
+  };
+  ```
+
+  `WorkItemRow` in this example is a domain model that exposes `KeyStatus`, `Status`, and a static `AllStatuses` collection while implementing `IFastTreeDataGridValueProvider`.
+
+  The editing pipeline cooperates with data validation attributes and raises visual error adorners automatically when an edit is rejected.
+
+- **Row reorder & drag/drop** – Let users reprioritise backlogs or reorder playlists with built-in drag/drop. Configure previews, drop indicators, and persistence through `FastTreeDataGridRowReorderSettings` and `IFastTreeDataGridRowReorderHandler`.
+
+  ```csharp
+  // using Avalonia.Media;
+  grid.RowReorderSettings = new FastTreeDataGridRowReorderSettings
+  {
+      IsEnabled = true,
+      ActivationThreshold = 4,
+      DragPreviewBrush = Brushes.SteelBlue.ToImmutable(),
+      UseSelection = true
+  };
+
+  public sealed class BacklogSource : FastTreeDataGridFlatSource<BacklogItem>, IFastTreeDataGridRowReorderHandler
+  {
+      public BacklogSource(IEnumerable<BacklogItem> items)
+          : base(items, item => item.Children, item => item.Id) { }
+
+      public bool CanReorder(FastTreeDataGridRowReorderRequest request) => request.SourceIndices.Count > 0;
+
+      public Task<FastTreeDataGridRowReorderResult> ReorderAsync(
+          FastTreeDataGridRowReorderRequest request,
+          CancellationToken cancellationToken)
+      {
+          MoveItems(request.SourceIndices, request.InsertIndex);
+          return Task.FromResult(FastTreeDataGridRowReorderResult.Successful());
+      }
+  }
+  ```
+
+  `BacklogItem` is your domain entity (often implementing `IFastTreeDataGridValueProvider`)—move items in your repository within `ReorderAsync` and return the static `FastTreeDataGridRowReorderResult.Successful()` helper.
+
+  Handle `RowReordering`/`RowReordered` events to audit changes or veto moves when business rules require it.
+
+- **Observability & diagnostics** – Track performance with zero-effort telemetry. `FastTreeDataGridVirtualizationDiagnostics` publishes counters/histograms via `System.Diagnostics.Metrics` and exposes a structured log callback.
+
+  ```csharp
+  // using System.Diagnostics.Metrics;
+  // ILogger logger = ...
+  var listener = new MeterListener
+  {
+      InstrumentPublished = (instrument, l) =>
+      {
+          if (instrument.Meter == FastTreeDataGridVirtualizationDiagnostics.Meter)
+          {
+              l.EnableMeasurementEvents(instrument);
+          }
+      }
+  };
+
+  listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+  {
+      if (instrument == FastTreeDataGridVirtualizationDiagnostics.PageFetchDuration)
+      {
+          logger.LogDebug("Page fetched in {Duration:F1} ms", measurement);
+      }
+  });
+
+  listener.Start();
+  FastTreeDataGridVirtualizationDiagnostics.LogCallback = entry =>
+      logger.LogInformation("[{Category}] {Message}", entry.Category, entry.Message);
+  ```
+
+  Coupling the built-in `Meter` with your logging/metrics pipeline gives you first-class visibility into fetch latency, cache efficiency, and reset frequency.
+
+  Feed the metrics into OpenTelemetry, Prometheus, or Application Insights to spot bottlenecks and tune virtualization settings.
+
+
+## Data source options
+
+FastTreeDataGrid decouples rendering from data access using lightweight source abstractions. Pick the source that matches your data workflow or implement your own for bespoke scenarios.
+
+### `FastTreeDataGridFlatSource<T>`
+
+Ideal for in-memory trees or view models where data is already materialised. You supply the root items, child selector, and optional stable key; the grid handles flattening, sorting, filtering, grouping, and row reorder in memory.
+
+```csharp
+var fileSystem = new FastTreeDataGridFlatSource<FileNode>(
+    rootItems: FileNode.LoadRoots(),
+    childrenSelector: node => node.Children,
+    keySelector: node => node.Id);
+
+fileSystem.ToggleExpansion(index: 0);
+fileSystem.InvalidateAsync(FastTreeDataGridInvalidationRequest.Full, CancellationToken.None);
+grid.ItemsSource = fileSystem;
+```
+
+Flat sources implement `IFastTreeDataGridRowReorderHandler`, `IFastTreeDataGridGroupingController`, and `IFastTreeDataGridSortFilterHandler`, so the grid can delegate advanced behaviours without extra glue code.
+
+### `FastTreeDataGridAsyncSource<T>`
+
+Best when data lives elsewhere (REST, SQL, gRPC) or the dataset is too large to load eagerly. You provide async delegates for loading children; the grid orchestrates paging, placeholders, cancellation, and concurrency limits.
+
+```csharp
+var catalog = new FastTreeDataGridAsyncSource<CatalogItem>(
+    loadItemsAsync: async token => await inventoryClient.LoadHierarchyAsync(token),
+    childrenSelector: item => item.Children,
+    keySelector: item => item.Id);
+
+grid.ItemsSource = catalog;
+```
+
+Invalidate ranges or the full view when your backend notifies the client of changes—`FastTreeDataGridAsyncSource<T>` will recalc the visible rows while keeping placeholders onscreen.
+
+### `FastTreeDataGridStreamingSource<T>`
+
+Use this for live dashboards or collaborative boards that receive steady updates. Seed it with the initial snapshot, then connect observables/async streams to flow mutations through the grid without reloading everything.
+
+```csharp
+var stream = new FastTreeDataGridStreamingSource<MetricRow>(
+    initialItems: metricsProvider.InitialRows,
+    childrenSelector: row => row.Children,
+    keySelector: row => row.Id);
+
+using var subscription = stream.Connect(metricsProvider.Updates);
+grid.ItemsSource = stream;
+
+stream.ApplyUpdate(rows => metricsProvider.PruneExpired(rows));
+```
+
+Streaming sources preserve expansion, grouping, selection, and scroll position while diffing rows in place.
+
+### `FastTreeDataGridHybridSource<T>`
+
+Combine cached data with remote refresh. `FastTreeDataGridHybridSource<T>` loads an initial snapshot, applies streaming updates as they arrive, and falls back to async fetches when a region isn’t cached.
+
+```csharp
+var hybrid = new FastTreeDataGridHybridSource<MetricsNode>(
+    loader: metricsClient.LoadInitialAsync,
+    refresher: metricsClient.RefreshAsync,
+    childrenSelector: node => node.Children,
+    keySelector: node => node.Id);
+
+grid.ItemsSource = hybrid;
+```
+
+Hybrid sources are great for dashboards that need immediate local responsiveness with periodic server reconciliation.
+
+### Custom sources and providers
+
+- Implement `IFastTreeDataGridSource` to plug in an existing virtualised tree representation.
+- Implement `IFastTreeDataVirtualizationProvider` when you want full control over paging, caches, and placeholders (the grid will drive it through `FastTreeDataGridViewportScheduler`).
+- Implement `IFastTreeDataGridValueProvider` on your row types so widgets and control templates can extract values on demand without reflection or standard Avalonia bindings.
+
+Because sources are swappable, you can prototype with a flat in-memory source, then drop in an async provider as your dataset grows—all without rewriting view or column definitions.
+
+
+## Widget Value Binding
+
+Widgets bypass Avalonia’s `Binding` system and resolve values directly through `FastTreeDataGrid` row providers:
+
+- `FastTreeDataGridColumn.ValueKey` identifies the value to pull for the column. The grid copies that key into the widget’s `Widget.Key` when it instantiates a cell.
+- `FastTreeDataGridRow` caches the item’s `IFastTreeDataGridValueProvider`. When a cell is realised, the grid calls `Widget.UpdateValue(provider, item)` so the widget can synchronously fetch the value it needs.
+- `IFastTreeDataGridValueProvider.GetValue(item, key)` returns the value to display. Widgets accept primitives, formatted strings, or rich records such as `BadgeWidgetValue` and `ProgressWidgetValue`.
+- When a value changes, raise `ValueInvalidated` so the grid re-queries just the affected widgets instead of walking the Avalonia binding tree.
+- Virtualisation keeps the update surface small—only realised rows invoke `UpdateValue`, and cached providers mean there is no reflection or property-path parsing during scrolling.
+
+```csharp
+public sealed class MetricRow : IFastTreeDataGridValueProvider, INotifyPropertyChanged
+{
+    public const string KeyService = "Service";
+    public const string KeyCpu = "Cpu";
+    public const string KeyAlerts = "Alerts";
+
+    private double _cpu;
+    private string _service = string.Empty;
+    private int _alerts;
+
+    public object? GetValue(object? _, string key) => key switch
+    {
+        KeyService => _service,
+        KeyCpu => new ProgressWidgetValue { Progress = _cpu / 100 },
+        KeyAlerts => _alerts == 0 ? "—" : _alerts.ToString(),
+        _ => null
+    };
+
+    public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public double Cpu
+    {
+        get => _cpu;
+        set
+        {
+            if (Math.Abs(_cpu - value) <= double.Epsilon)
+            {
+                return;
+            }
+
+            _cpu = value;
+            OnPropertyChanged(nameof(Cpu));
+            ValueInvalidated?.Invoke(this, new ValueInvalidatedEventArgs(this, KeyCpu));
+        }
+    }
+
+    // Other properties set _service/_alerts, call OnPropertyChanged, and raise ValueInvalidated likewise.
+
+    private void OnPropertyChanged(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+```
+
+List-style widgets (`ItemsControlWidget`, `ListBoxWidget`, etc.) follow the same pattern. Set `ItemsSource` to an `IFastTreeDataGridSource`, pick a `ValueKey` inside your item template, and widgets will pull the correct value whenever the item is realised.
+
+## Widget Catalog
+
+Every widget draws straight to Avalonia’s `DrawingContext`, providing lightweight equivalents for familiar controls. The tables below list the public widgets shipped with the toolkit.
+
+### Visual widgets
+
+| Widget | Avalonia analogue | Notes |
+| --- | --- | --- |
+| `AccessTextWidget` | `AccessText` | Renders text with access-key underscores. |
+| `ArcShapeWidget` | `Path`/`Arc` | Draws arc segments for gauges and charts. |
+| `BadgeWidget` | `Badge` | Pill badge that supports counts, colours, and corner radius. |
+| `BorderWidget` | `Border` | Single-child container with custom padding, stroke, and background. |
+| `ChartWidget` | Chart controls | Sparkline-style chart rendering without templated controls. |
+| `CustomDrawWidget` | `DrawingPresenter` | Exposes a delegate for bespoke immediate drawing. |
+| `FormattedTextWidget` | `TextBlock` | Multi-line formatted text with trimming and wrapping. |
+| `GeometryWidget` | `Path` | Paints arbitrary geometries provided at runtime. |
+| `GlyphRunWidget` | `GlyphRun` | Low-level glyph rendering for perf-critical text. |
+| `IconElementWidget` | `IconElement` | Hosts fluent icon elements with theme-aware colours. |
+| `IconWidget` | `PathIcon`/`Image` | Displays vector or bitmap icons. |
+| `ImageWidget` | `Image` | Draws bitmaps with stretch modes. |
+| `LineShapeWidget` | `Line` | Straight line drawing with thickness and caps. |
+| `PathShapeWidget` | `Path` | General-purpose path renderer with fill/stroke support. |
+| `PolygonShapeWidget` | `Polygon` | Renders closed polygons. |
+| `PolylineShapeWidget` | `Polyline` | Renders open polyline segments. |
+| `ProgressWidget` | `ProgressBar` | Determinate/indeterminate progress indicator. |
+| `RectangleShapeWidget` | `Rectangle` | Rounded rectangle drawing. |
+| `SectorShapeWidget` | `Path` | Pie-slice renderer for gauges. |
+| `TextBlockWidget` | `TextBlock` | Rich text layout with inline formatting. |
+| `TextWidget` | `TextBlock` (lightweight) | Single-line text tuned for large data sets. |
+| `ThumbWidget` | `Thumb` | Draggable thumb used by sliders and scrollbars. |
+| `TrackWidget` | `Track` | Composes track and thumb visuals for sliders/scrollbars. |
+
+### Input widgets
+
+| Widget | Avalonia analogue | Notes |
+| --- | --- | --- |
+| `AutoCompleteBoxWidget` | `AutoCompleteBox` | Text input with suggestion flyout. |
+| `ButtonWidget` | `Button` | Command-enabled push button with hover/press states. |
+| `ButtonSpinnerWidget` | `ButtonSpinner` | Numeric spinner base with increment/decrement buttons. |
+| `CalendarDatePickerWidget` | `CalendarDatePicker` | Text box + calendar drop-down for picking dates. |
+| `CalendarWidget` | `Calendar` | Month calendar with selection support. |
+| `CheckBoxWidget` | `CheckBox` | Two- or three-state checkbox. |
+| `ComboBoxItemWidget` | `ComboBoxItem` | Item container used by combo boxes. |
+| `ComboBoxWidget` | `ComboBox` | Drop-down selector backed by widget templates. |
+| `DatePickerWidget` | `DatePicker` | Inline date selector with validation. |
+| `DropDownButtonWidget` | `DropDownButton` | Button that opens a menu of widget content. |
+| `HyperlinkButtonWidget` | `HyperlinkButton` | Button styled as a link with navigation events. |
+| `MenuItemWidget` | `MenuItem` | Commandable entry for menus. |
+| `MenuSeparatorWidget` | `Separator` | Visual divider within menus. |
+| `NumericUpDownWidget` | `NumericUpDown` | Numeric input with repeat buttons and formatting. |
+| `RadioButtonWidget` | `RadioButton` | Group-aware option button. |
+| `RepeatButtonWidget` | `RepeatButton` | Auto-repeating button (used by sliders and scrollbars). |
+| `ScrollBarWidget` | `ScrollBar` | Horizontal/vertical scrollbar with virtualization hooks. |
+| `SliderWidget` | `Slider` | Continuous or stepped slider built from `TrackWidget`. |
+| `SplitButtonWidget` | `SplitButton` | Primary button plus secondary drop-down action. |
+| `SpinnerWidget` | `Spinner` | Indeterminate activity indicator. |
+| `TextInputWidget` | `TextBox` | Single-line text input with caret management. |
+| `TimePickerWidget` | `TimePicker` | Time selection with spinner-style editing. |
+| `ToggleSwitchWidget` | `ToggleSwitch` | Animated on/off toggle. |
+
+### Layout and container widgets
+
+| Widget | Avalonia analogue | Notes |
+| --- | --- | --- |
+| `BorderVisualWidget` | `Border` | Optimised border surface for widget trees. |
+| `CanvasLayoutWidget` | `Canvas` | Absolute positioning of child widgets. |
+| `ContentControlWidget` | `ContentControl` | Single-child content host. |
+| `DecoratorWidget` | `Decorator` | Wraps a child with additional visuals or transforms. |
+| `DockLayoutWidget` | `DockPanel` | Dock-style layout with optional `LastChildFill`. |
+| `ExpanderWidget` | `Expander` | Collapsible content region with toggle header. |
+| `GridLayoutWidget` | `Grid` | Row/column grid supporting pixel and star sizing. |
+| `GroupBoxWidget` | `GroupBox` | Headered border container. |
+| `HeaderedContentControlWidget` | `HeaderedContentControl` | Content + header composition. |
+| `LayoutTransformLayoutWidget` | `LayoutTransformControl` | Applies transforms while preserving desired size. |
+| `RelativePanelLayoutWidget` | `RelativePanel` | Constraint-based relative positioning. |
+| `ScrollViewerWidget` | `ScrollViewer` | Scrollable viewport with widget scrollbars. |
+| `SplitViewLayoutWidget` | `SplitView` | Master/detail layout with collapsible pane. |
+| `StackLayoutWidget` | `StackPanel` | Horizontal/vertical stacking with spacing support. |
+| `TransitioningContentWidget` | `TransitioningContentControl` | Animated content transitions. |
+| `UniformGridLayoutWidget` | `UniformGrid` | Evenly sized grid layout. |
+| `ViewboxLayoutWidget` | `Viewbox` | Scales child content to available space. |
+| `VirtualizingCarouselPanelWidget` | `CarouselPanel` | Virtualised looping layout for carousels. |
+| `VirtualizingPanelWidget` | Virtualising panels | Base class that realises items via `IFastTreeDataGridSource`. |
+| `VirtualizingStackPanelWidget` | `VirtualizingStackPanel` | Virtualised stack used by list-style widgets. |
+| `WrapLayoutWidget` | `WrapPanel` | Flow layout that wraps to the next line/column. |
+
+### Collections and navigation widgets
+
+| Widget | Avalonia analogue | Notes |
+| --- | --- | --- |
+| `ContextMenuWidget` | `ContextMenu` | Right-click menu rendered with widgets. |
+| `ItemsControlWidget` | `ItemsControl` | Base repeater with item factory/template support. |
+| `ListBoxWidget` | `ListBox` | Selection-enabled list with keyboard navigation. |
+| `MenuBarWidget` | `Menu` | Horizontal menu bar hosting drop-down menus. |
+| `MenuWidget` | `Menu` | Vertical/horizontal command menu surface. |
+| `SelectableItemsControlWidget` | `SelectingItemsControl` | Base class for selection-capable collections. |
+| `TabControlWidget` | `TabControl` | Tabbed container with animated header strip. |
+| `TabItemWidget` | `TabItem` | Tab header and content pairing. |
+| `TabStripWidget` | `TabStrip` | Standalone tab header surface. |
+| `TreeViewWidget` | `TreeView` | Hierarchical list backed by `IFastTreeDataGridSource`. |
+
+### Data-grid presenters
+
+| Widget | Avalonia analogue | Notes |
+| --- | --- | --- |
+| `FastTreeDataGridGroupRowPresenter` | `GroupItem` | Draws group headers inside the grid using widget styling. |
+| `FastTreeDataGridGroupSummaryPresenter` | `GroupItem` footer | Renders aggregate rows with summary values. |
+
+## Widget Architecture
+
+The widget layer is an immediate-mode rendering system tuned for virtualised data:
+
+- **Rendering pipeline** – `Widget.Draw` is called from `FastTreeDataGridPresenter` or `WidgetHostSurface`. Each widget receives the device `DrawingContext`, so scrolling simply repositions existing widgets without creating Avalonia controls.
+- **Value flow** – `Widget.UpdateValue` works with `IFastTreeDataGridValueProvider` and `Widget.Key`, providing direct access to row data without dependency properties or bindings.
+- **Layout** – Container widgets (`StackLayoutWidget`, `GridLayoutWidget`, `VirtualizingPanelWidget`, etc.) implement their own layout algorithms. Virtualising panels coordinate with `FastTreeDataGridViewportScheduler` to request pages, buffer placeholders, and recycle realised items.
+- **Templating** – `WidgetTemplate` and `FuncWidgetTemplate` allow authoring in XAML or code. Higher-level widgets (`FastTreeDataGridColumn`, `ItemsControlWidget`) simply invoke the template to materialise cells on demand.
+- **Styling & theming** – `WidgetStyleManager` applies palette data from `WidgetFluentPalette`. Switching themes or overriding a style key immediately repaints realised widgets without rebuilding the tree.
+- **Input** – `WidgetPointerEvent` and `WidgetKeyboardEvent` deliver input directly to widgets. Interactive widgets update state and raise callbacks without relying on routed events.
+- **Hosting** – `WidgetHost.Create` wraps any widget tree in a lightweight `WidgetHostSurface` so you can embed widgets inside traditional Avalonia layouts, dashboards, or dialogs.
+- **Overlays** – `WidgetOverlayManager` tracks adorners, tooltips, and drag visuals, keeping them synchronised with the owning host’s coordinate space.
+
+With lightweight widgets for cells, headers, and summary bars, most `FastTreeDataGrid` scenarios can avoid creating Avalonia controls entirely while still exposing familiar building blocks for layout, navigation, and input.
 
 ## Feature Overview
 | Feature | Highlights | Primary APIs | More info |
@@ -462,13 +1240,6 @@ FastTreeDataGrid prioritises frame time predictability:
 - [Benchmarks](docs/virtualization/benchmarks.md)
 - [Virtualization Migration Guide](docs/virtualization/migration.md)
 - [Changelog](docs/changelog.md)
-
-## Migration Guidance
-
-- Replace any `FastTreeDataGrid.Core` PackageReference with `FastTreeDataGrid.Engine` (engine primitives) and/or `FastTreeDataGrid.Control` (Avalonia control).
-- Update `using FastTreeDataGrid.Control.Infrastructure;` statements that reference datasource, grouping, or virtualization contracts to `using FastTreeDataGrid.Engine.Infrastructure;`.
-- Adjust XAML namespace references from `clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Core` to `clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control`.
-- Re-run `dotnet build` and `dotnet test` after the namespace updates to ensure the engine/control split is applied consistently across your solution.
 
 ## Getting started
 
