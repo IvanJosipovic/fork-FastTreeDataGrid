@@ -1,10 +1,9 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix Condition="'$(VersionSuffix)' == '' and '$(CI_VERSION_SUFFIX)' != ''">$(CI_VERSION_SUFFIX)</VersionSuffix>
-    <ContinuousIntegrationBuild Condition="'$(ContinuousIntegrationBuild)' == '' and '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
-    <Authors>FastTreeDataGrid Contributors</Authors>
-    <Company>FastTreeDataGrid</Company>
+    <VersionPrefix Condition="'$(VersionSuffix)' == ''">0.1.0</VersionPrefix>
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha.1</VersionSuffix>
+    <Authors>Wiesław Šoltés</Authors>
+    <Company>Wiesław Šoltés</Company>
     <Product>FastTreeDataGrid</Product>
     <RepositoryUrl>https://github.com/wieslawsoltes/FastTreeDataGrid</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
