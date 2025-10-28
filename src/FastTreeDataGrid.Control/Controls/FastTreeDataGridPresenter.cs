@@ -25,6 +25,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private FastTreeDataGrid? _owner;
     private readonly List<double> _columnOffsets = new();
     private IFastTreeDataVirtualizationProvider? _virtualizationProvider;
+    private FastTreeDataGridSelectionUnit _selectionUnit = FastTreeDataGridSelectionUnit.Row;
+    private readonly Dictionary<int, HashSet<int>> _cellSelectionMap = new();
+    private FastTreeDataGridCellIndex? _primaryCellSelection;
 
     private Widget? _pointerCapturedWidget;
     private Widget? _pointerOverWidget;
@@ -127,6 +130,40 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
+    public void SetSelectionUnit(FastTreeDataGridSelectionUnit unit)
+    {
+        if (_selectionUnit == unit)
+        {
+            return;
+        }
+
+        _selectionUnit = unit;
+        _cellSelectionMap.Clear();
+        _primaryCellSelection = null;
+
+        foreach (var row in _rows)
+        {
+            if (_selectionUnit == FastTreeDataGridSelectionUnit.Row)
+            {
+                foreach (var cell in row.Cells)
+                {
+                    cell.IsSelected = row.IsSelected;
+                }
+            }
+            else
+            {
+                foreach (var cell in row.Cells)
+                {
+                    cell.IsSelected = false;
+                }
+            }
+
+            UpdateControlSelectionState(row);
+        }
+
+        InvalidateVisual();
+    }
+
     public void UpdateContent(IReadOnlyList<RowRenderInfo> rows, double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
     {
         ReturnRowWidgets(_rows);
@@ -183,6 +220,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 : new HashSet<int>(selection);
         }
 
+        if (_selectionUnit == FastTreeDataGridSelectionUnit.Row)
+        {
+            _cellSelectionMap.Clear();
+            _primaryCellSelection = null;
+        }
+
         var changed = false;
         foreach (var row in _rows)
         {
@@ -191,6 +234,18 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             {
                 row.IsSelected = shouldSelect;
                 changed = true;
+            }
+
+            if (_selectionUnit == FastTreeDataGridSelectionUnit.Row)
+            {
+                foreach (var cell in row.Cells)
+                {
+                    if (cell.IsSelected != row.IsSelected)
+                    {
+                        cell.IsSelected = row.IsSelected;
+                        changed = true;
+                    }
+                }
             }
 
             UpdateControlSelectionState(row);
@@ -202,7 +257,67 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
-    private static void UpdateControlSelectionState(RowRenderInfo row)
+    public void UpdateCellSelection(IReadOnlyList<FastTreeDataGridCellIndex> selectedCells, FastTreeDataGridCellIndex primaryCell)
+    {
+        _cellSelectionMap.Clear();
+
+        if (selectedCells is not null)
+        {
+            foreach (var cell in selectedCells)
+            {
+                if (!cell.IsValid)
+                {
+                    continue;
+                }
+
+                if (!_cellSelectionMap.TryGetValue(cell.RowIndex, out var set))
+                {
+                    set = new HashSet<int>();
+                    _cellSelectionMap[cell.RowIndex] = set;
+                }
+
+                set.Add(cell.ColumnIndex);
+            }
+        }
+
+        _primaryCellSelection = primaryCell.IsValid ? primaryCell : null;
+
+        var changed = false;
+        foreach (var row in _rows)
+        {
+            var rowChanged = false;
+            foreach (var cell in row.Cells)
+            {
+                var isSelected = _selectionUnit == FastTreeDataGridSelectionUnit.Cell
+                    && _cellSelectionMap.TryGetValue(row.RowIndex, out var set)
+                    && set.Contains(cell.ColumnIndex);
+
+                if (cell.IsSelected != isSelected)
+                {
+                    cell.IsSelected = isSelected;
+                    rowChanged = true;
+                }
+
+                if (cell.Control is { } control)
+                {
+                    var controlSelected = _selectionUnit == FastTreeDataGridSelectionUnit.Row ? row.IsSelected : cell.IsSelected;
+                    control.SetValue(SelectingItemsControl.IsSelectedProperty, controlSelected);
+                }
+            }
+
+            if (rowChanged)
+            {
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            InvalidateVisual();
+        }
+    }
+
+    private void UpdateControlSelectionState(RowRenderInfo row)
     {
         if (row is null)
         {
@@ -213,7 +328,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         {
             if (cell.Control is { } control)
             {
-                control.SetValue(SelectingItemsControl.IsSelectedProperty, row.IsSelected);
+                var isSelected = _selectionUnit == FastTreeDataGridSelectionUnit.Row ? row.IsSelected : cell.IsSelected;
+                control.SetValue(SelectingItemsControl.IsSelectedProperty, isSelected);
             }
         }
     }
@@ -231,7 +347,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             {
                 if (cell.Control is { } control)
                 {
-                    AttachControl(control, cell.ContentBounds, row.IsSelected, cell.Column, cell.ValidationState);
+                    var isSelected = _selectionUnit == FastTreeDataGridSelectionUnit.Row ? row.IsSelected : cell.IsSelected;
+                    AttachControl(control, cell.ContentBounds, isSelected, cell.Column, cell.ValidationState);
                 }
             }
         }
@@ -463,6 +580,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         using var overlayScope = WidgetOverlayManager.PushCurrentHost(this);
         using var animationScope = WidgetAnimationFrameScheduler.PushCurrentHost(this);
 
+        var isRowSelection = _selectionUnit == FastTreeDataGridSelectionUnit.Row;
+        var isCellSelection = _selectionUnit == FastTreeDataGridSelectionUnit.Cell;
+
         foreach (var row in _rows)
         {
             var rowRect = new Rect(0, row.Top, Width, row.Height);
@@ -484,15 +604,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 context.FillRectangle(_summaryBrush, rowRect);
             }
 
-            if (row.IsSelected)
+            if (isRowSelection && row.IsSelected)
             {
                 context.FillRectangle(_selectionBrush, rowRect);
-            }
-
-            if (_owner?.IsKeyboardFocusWithin == true && row.IsSelected && _focusPen is not null)
-            {
-                var focusRect = rowRect.Deflate(0.5);
-                context.DrawRectangle(_focusPen, focusRect);
             }
 
             if (row.HasChildren)
@@ -502,6 +616,11 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
             foreach (var cell in row.Cells)
             {
+                if (isCellSelection && cell.IsSelected)
+                {
+                    context.FillRectangle(_selectionBrush, cell.Bounds);
+                }
+
                 if (cell.Widget is { } widget)
                 {
                     widget.Draw(context);
@@ -512,6 +631,18 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 }
 
                 DrawCellValidation(context, cell.Bounds, cell.ValidationState);
+
+                if (isCellSelection && _owner?.IsKeyboardFocusWithin == true && _focusPen is not null && _primaryCellSelection is { } primaryCell && primaryCell.RowIndex == row.RowIndex && primaryCell.ColumnIndex == cell.ColumnIndex)
+                {
+                    var focusRect = cell.Bounds.Deflate(0.5);
+                    context.DrawRectangle(_focusPen, focusRect);
+                }
+            }
+
+            if (isRowSelection && _owner?.IsKeyboardFocusWithin == true && row.IsSelected && _focusPen is not null)
+            {
+                var focusRect = rowRect.Deflate(0.5);
+                context.DrawRectangle(_focusPen, focusRect);
             }
 
             DrawRowValidation(context, row);
@@ -1592,8 +1723,9 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
 
     internal sealed class CellRenderInfo
     {
-        public CellRenderInfo(FastTreeDataGridColumn column, Rect bounds, Rect contentBounds, Widget? widget, FormattedText? formattedText, Point textOrigin, AvaloniaControl? control, FastTreeDataGridCellValidationState validationState)
+        public CellRenderInfo(int columnIndex, FastTreeDataGridColumn column, Rect bounds, Rect contentBounds, Widget? widget, FormattedText? formattedText, Point textOrigin, AvaloniaControl? control, FastTreeDataGridCellValidationState validationState, bool isSelected)
         {
+            ColumnIndex = columnIndex;
             Column = column;
             Bounds = bounds;
             ContentBounds = contentBounds;
@@ -1602,8 +1734,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             TextOrigin = textOrigin;
             Control = control;
             ValidationState = validationState;
+            IsSelected = isSelected;
         }
 
+        public int ColumnIndex { get; }
         public FastTreeDataGridColumn Column { get; }
         public Rect Bounds { get; }
         public Rect ContentBounds { get; }
@@ -1612,6 +1746,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         public Point TextOrigin { get; }
         public AvaloniaControl? Control { get; }
         public FastTreeDataGridCellValidationState ValidationState { get; }
+        public bool IsSelected { get; set; }
     }
 
     protected override Size MeasureOverride(Size availableSize)

@@ -158,14 +158,16 @@ public class FastTreeDataGridEditingTests
                 isPlaceholder: false);
 
             var cellInfo = new FastTreeDataGridPresenter.CellRenderInfo(
-                Column,
-                cellBounds,
-                cellBounds,
+                columnIndex: 0,
+                column: Column,
+                bounds: cellBounds,
+                contentBounds: cellBounds,
                 widget: null,
                 formattedText: null,
                 textOrigin: new Point(cellBounds.X, cellBounds.Y),
                 control: null,
-                FastTreeDataGridCellValidationState.None);
+                validationState: FastTreeDataGridCellValidationState.None,
+                isSelected: true);
 
             rowInfo.Cells.Add(cellInfo);
 

@@ -146,6 +146,8 @@ public partial class FastTreeDataGrid : TemplatedControl
     private readonly RowReorderController _rowReorderController;
     private Func<FastTreeDataGridRow, string?>? _typeSearchSelector;
     private IReadOnlyList<int> _selectedIndices = Array.Empty<int>();
+    private bool IsCellSelection => _selectionModel?.SelectionUnit == FastTreeDataGridSelectionUnit.Cell;
+    private IFastTreeDataGridCellSelectionModel? CellSelectionModel => _selectionModel as IFastTreeDataGridCellSelectionModel;
     private string _typeSearchBuffer = string.Empty;
     private DateTime _typeSearchTimestamp = DateTime.MinValue;
     private static readonly TimeSpan s_typeSearchResetInterval = TimeSpan.FromSeconds(1.5);
@@ -400,7 +402,7 @@ public partial class FastTreeDataGrid : TemplatedControl
     private void SetSelectedItem(object? value)
     {
         SetAndRaise(SelectedItemProperty, ref _selectedItem, value);
-        UpdateRowSelectionIndicators();
+        UpdateSelectionIndicators();
     }
 
     private void SetRowLayout(IFastTreeDataGridRowLayout? layout)
@@ -449,8 +451,8 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _selectionModel = newModel;
         RaisePropertyChanged(SelectionModelProperty, oldModel, newModel);
+        _presenter?.SetSelectionUnit(_selectionModel.SelectionUnit);
         UpdateSelectionFromModel();
-        SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
     }
 
     private void SetSelectionMode(FastTreeDataGridSelectionMode mode)
@@ -604,7 +606,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         if (_synchronizingSelection)
         {
             SetSelectedIndicesInternal(e.SelectedIndices);
-            UpdateRowSelectionIndicators();
+            UpdateSelectionIndicators();
             OnSelectionChangedForEditing();
             SelectionChanged?.Invoke(this, e);
             return;
@@ -622,7 +624,11 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         SetSelectedIndicesInternal(e.SelectedIndices);
-        UpdateRowSelectionIndicators();
+        if (IsCellSelection && CellSelectionModel is { } cellModel && cellModel.PrimaryCell.IsValid)
+        {
+            SetCurrentColumnForRow(cellModel.PrimaryCell.ColumnIndex);
+        }
+        UpdateSelectionIndicators();
         OnSelectionChangedForEditing();
         SelectionChanged?.Invoke(this, e);
     }
@@ -646,7 +652,11 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
-        UpdateRowSelectionIndicators();
+        if (IsCellSelection && CellSelectionModel is { } cellModel && cellModel.PrimaryCell.IsValid)
+        {
+            SetCurrentColumnForRow(cellModel.PrimaryCell.ColumnIndex);
+        }
+        UpdateSelectionIndicators();
         OnSelectionChangedForEditing();
     }
 
@@ -774,6 +784,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             _presenter.SetOwner(this);
             _presenter.SetVirtualizationProvider(_virtualizationProvider);
+            _presenter.SetSelectionUnit(_selectionModel.SelectionUnit);
         }
         AttachPresenterForEditing(_presenter);
 
@@ -812,6 +823,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         RequestViewportUpdate();
         ApplyDataOperationsToProvider();
         UpdateLoadingOverlay();
+        UpdateSelectionIndicators();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -831,6 +843,7 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerHost.ClipToBounds = true;
         }
         _presenter?.SetOwner(this);
+        _presenter?.SetSelectionUnit(_selectionModel.SelectionUnit);
         if (_headerPresenter is not null)
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
@@ -840,6 +853,7 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _columnsDirty = true;
         RequestViewportUpdate();
+        UpdateSelectionIndicators();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -2664,13 +2678,12 @@ public partial class FastTreeDataGrid : TemplatedControl
             SetSelectedIndicesInternal(_selectionModel.SelectedIndices);
         }
 
-        var selectedIndices = _selectedIndices;
         HashSet<int>? selectionLookup = null;
-        if (selectedIndices.Count > 0)
+        if (_selectedIndices.Count > 0)
         {
-            selectionLookup = selectedIndices is IReadOnlyCollection<int> collection
+            selectionLookup = _selectedIndices is IReadOnlyCollection<int> collection
                 ? new HashSet<int>(collection)
-                : new HashSet<int>(selectedIndices);
+                : new HashSet<int>(_selectedIndices);
         }
 
         var viewportHeight = viewport.Height > 0 ? viewport.Height : Bounds.Height;
@@ -3115,7 +3128,8 @@ public partial class FastTreeDataGrid : TemplatedControl
                     rowFirstMessage ??= validationState.Message;
                 }
 
-                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(column, bounds, contentBounds, widget, formatted, textOrigin, control, validationState));
+                var initialCellSelected = !IsCellSelection && rowInfo.IsSelected;
+                rowInfo.Cells.Add(new FastTreeDataGridPresenter.CellRenderInfo(columnIndex, column, bounds, contentBounds, widget, formatted, textOrigin, control, validationState, initialCellSelected));
 
                 if (column.SizingMode == ColumnSizingMode.Auto)
                 {
@@ -3156,7 +3170,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         _presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);
-        _presenter.UpdateSelection(selectedIndices);
+        UpdateSelectionIndicators();
         OnViewportUpdatedForEditing(rows);
 
         var placeholderCount = rows.Count(static r => r.IsPlaceholder);
@@ -3281,38 +3295,82 @@ public partial class FastTreeDataGrid : TemplatedControl
         var hasShift = (normalized & KeyModifiers.Shift) == KeyModifiers.Shift;
         var hasControl = HasControlModifier(normalized);
 
-        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        if (IsCellSelection && CellSelectionModel is { } cellModel && hitColumnIndex >= 0)
         {
-            _selectionModel.Clear();
-        }
-        else
-        {
-            if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+            if (_selectionMode == FastTreeDataGridSelectionMode.None)
             {
-                _selectionModel.SelectSingle(index);
-            }
-            else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
-            {
-                var anchor = _selectionModel.AnchorIndex >= 0
-                    ? _selectionModel.AnchorIndex
-                    : (_selectionModel.PrimaryIndex >= 0 ? _selectionModel.PrimaryIndex : index);
-                _selectionModel.SelectRange(anchor, index, keepExisting: hasControl);
-            }
-            else if (hasControl)
-            {
-                _selectionModel.Toggle(index);
+                cellModel.Clear();
             }
             else
             {
-                _selectionModel.SelectSingle(index);
-            }
+                var cell = new FastTreeDataGridCellIndex(index, hitColumnIndex);
 
-            if (!hasShift)
-            {
+                if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+                {
+                    cellModel.SelectCell(cell);
+                }
+                else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
+                {
+                    var anchorCell = cellModel.AnchorCell.IsValid
+                        ? cellModel.AnchorCell
+                        : (cellModel.PrimaryCell.IsValid ? cellModel.PrimaryCell : cell);
+
+                    cellModel.SelectCellRange(anchorCell, cell, keepExisting: hasControl);
+                }
+                else if (hasControl)
+                {
+                    cellModel.ToggleCell(cell);
+                }
+                else
+                {
+                    cellModel.SelectCell(cell);
+                }
+
+                if (!hasShift)
+                {
+                    cellModel.SetCellAnchor(cell);
+                }
+
                 _selectionModel.SetAnchor(index);
+                EnsureRowVisible(index);
+                EnsureColumnVisible(index, hitColumnIndex);
             }
+        }
+        else
+        {
+            if (_selectionMode == FastTreeDataGridSelectionMode.None)
+            {
+                _selectionModel.Clear();
+            }
+            else
+            {
+                if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+                {
+                    _selectionModel.SelectSingle(index);
+                }
+                else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
+                {
+                    var anchor = _selectionModel.AnchorIndex >= 0
+                        ? _selectionModel.AnchorIndex
+                        : (_selectionModel.PrimaryIndex >= 0 ? _selectionModel.PrimaryIndex : index);
+                    _selectionModel.SelectRange(anchor, index, keepExisting: hasControl);
+                }
+                else if (hasControl)
+                {
+                    _selectionModel.Toggle(index);
+                }
+                else
+                {
+                    _selectionModel.SelectSingle(index);
+                }
 
-            EnsureRowVisible(index);
+                if (!hasShift)
+                {
+                    _selectionModel.SetAnchor(index);
+                }
+
+                EnsureRowVisible(index);
+            }
         }
 
         ResetTypeSearch();
@@ -3462,6 +3520,56 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         var modifiers = NormalizeKeyModifiers(e.KeyModifiers);
+        var cellSelection = IsCellSelection && CellSelectionModel is not null;
+
+        if (cellSelection)
+        {
+            switch (e.Key)
+            {
+                case Key.Down:
+                    ResetTypeSearch();
+                    MoveCellSelection(1, 0, modifiers);
+                    return true;
+                case Key.Up:
+                    ResetTypeSearch();
+                    MoveCellSelection(-1, 0, modifiers);
+                    return true;
+                case Key.PageDown:
+                    ResetTypeSearch();
+                    MoveCellSelection(CalculatePageDelta(), 0, modifiers);
+                    return true;
+                case Key.PageUp:
+                    ResetTypeSearch();
+                    MoveCellSelection(-CalculatePageDelta(), 0, modifiers);
+                    return true;
+                case Key.Home:
+                    ResetTypeSearch();
+                    MoveCellSelectionTo(0, EnsureCurrentColumnIndex(), modifiers);
+                    return true;
+                case Key.End:
+                    ResetTypeSearch();
+                    MoveCellSelectionTo(totalRows - 1, EnsureCurrentColumnIndex(), modifiers);
+                    return true;
+                case Key.Left:
+                    ResetTypeSearch();
+                    if ((modifiers & KeyModifiers.Control) == KeyModifiers.Control)
+                    {
+                        return HandleCollapseKey(modifiers);
+                    }
+
+                    MoveCellSelection(0, -1, modifiers);
+                    return true;
+                case Key.Right:
+                    ResetTypeSearch();
+                    if ((modifiers & KeyModifiers.Control) == KeyModifiers.Control)
+                    {
+                        return HandleExpandKey(modifiers);
+                    }
+
+                    MoveCellSelection(0, 1, modifiers);
+                    return true;
+            }
+        }
 
         switch (e.Key)
         {
@@ -3621,7 +3729,14 @@ public partial class FastTreeDataGrid : TemplatedControl
         var target = DetermineRelativeIndex(delta);
         if (target >= 0)
         {
-            ApplyKeyboardSelection(target, modifiers);
+            if (IsCellSelection)
+            {
+                MoveCellSelectionTo(target, EnsureCurrentColumnIndex(), modifiers);
+            }
+            else
+            {
+                ApplyKeyboardSelection(target, modifiers);
+            }
         }
     }
 
@@ -3639,7 +3754,14 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         var target = Math.Clamp(index, 0, count - 1);
-        ApplyKeyboardSelection(target, modifiers);
+        if (IsCellSelection)
+        {
+            MoveCellSelectionTo(target, EnsureCurrentColumnIndex(), modifiers);
+        }
+        else
+        {
+            ApplyKeyboardSelection(target, modifiers);
+        }
     }
 
     private int DetermineRelativeIndex(int delta)
@@ -3702,6 +3824,97 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         EnsureRowVisible(targetIndex);
+    }
+
+    private void MoveCellSelection(int rowDelta, int columnDelta, KeyModifiers modifiers)
+    {
+        if (_itemsSource is null || columnDelta == 0 && rowDelta == 0)
+        {
+            return;
+        }
+
+        if (CellSelectionModel is not { } cellModel)
+        {
+            return;
+        }
+
+        var rowCount = _itemsSource.RowCount;
+        var columnCount = _columns.Count;
+        if (rowCount <= 0 || columnCount <= 0)
+        {
+            return;
+        }
+
+        var current = cellModel.PrimaryCell;
+        if (!current.IsValid)
+        {
+            var rowIndex = _selectionModel.PrimaryIndex >= 0 ? _selectionModel.PrimaryIndex : 0;
+            var columnIndex = EnsureCurrentColumnIndex();
+            current = new FastTreeDataGridCellIndex(Math.Clamp(rowIndex, 0, rowCount - 1), Math.Clamp(columnIndex, 0, columnCount - 1));
+        }
+
+        var targetRow = Math.Clamp(current.RowIndex + rowDelta, 0, Math.Max(0, rowCount - 1));
+        var targetColumn = Math.Clamp(current.ColumnIndex + columnDelta, 0, Math.Max(0, columnCount - 1));
+
+        MoveCellSelectionTo(targetRow, targetColumn, modifiers);
+    }
+
+    private void MoveCellSelectionTo(int targetRow, int targetColumn, KeyModifiers modifiers)
+    {
+        if (_itemsSource is null || CellSelectionModel is not { } cellModel)
+        {
+            return;
+        }
+
+        var rowCount = _itemsSource.RowCount;
+        var columnCount = _columns.Count;
+
+        if (rowCount <= 0 || columnCount <= 0)
+        {
+            return;
+        }
+
+        targetRow = Math.Clamp(targetRow, 0, rowCount - 1);
+        targetColumn = Math.Clamp(targetColumn, 0, columnCount - 1);
+
+        var targetCell = new FastTreeDataGridCellIndex(targetRow, targetColumn);
+        var hasShift = (modifiers & KeyModifiers.Shift) == KeyModifiers.Shift;
+        var hasControl = HasControlModifier(modifiers);
+
+        if (_selectionMode == FastTreeDataGridSelectionMode.None)
+        {
+            cellModel.Clear();
+        }
+        else if (_selectionMode == FastTreeDataGridSelectionMode.Single)
+        {
+            cellModel.SelectCell(targetCell);
+        }
+        else if (hasShift && (_selectionMode == FastTreeDataGridSelectionMode.Extended || _selectionMode == FastTreeDataGridSelectionMode.Multiple))
+        {
+            var anchorCell = cellModel.AnchorCell.IsValid
+                ? cellModel.AnchorCell
+                : (cellModel.PrimaryCell.IsValid ? cellModel.PrimaryCell : targetCell);
+
+            cellModel.SelectCellRange(anchorCell, targetCell, keepExisting: hasControl);
+        }
+        else if (hasControl)
+        {
+            cellModel.ToggleCell(targetCell);
+        }
+        else
+        {
+            cellModel.SelectCell(targetCell);
+        }
+
+        if (!hasShift)
+        {
+            cellModel.SetCellAnchor(targetCell);
+        }
+
+        _selectionModel.SetAnchor(targetRow);
+        SetCurrentColumnForRow(targetColumn);
+        EnsureRowVisible(targetRow);
+        EnsureColumnVisible(targetRow, targetColumn);
     }
 
     private bool HandleCollapseKey(KeyModifiers modifiers)
@@ -4167,6 +4380,47 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
     }
 
+    private void EnsureColumnVisible(int rowIndex, int columnIndex)
+    {
+        if (_scrollViewer is null || _presenter is null || columnIndex < 0 || columnIndex >= _columns.Count || rowIndex < 0)
+        {
+            return;
+        }
+
+        if (!_presenter.TryGetCell(rowIndex, _columns[columnIndex], out _, out var cellInfo) || cellInfo is null)
+        {
+            return;
+        }
+
+        var viewportWidth = _scrollViewer.Viewport.Width > 0 ? _scrollViewer.Viewport.Width : Bounds.Width;
+        if (double.IsNaN(viewportWidth) || viewportWidth <= 0)
+        {
+            return;
+        }
+
+        var offset = _scrollViewer.Offset;
+        var cellLeft = cellInfo.Bounds.X;
+        var cellRight = cellInfo.Bounds.X + cellInfo.Bounds.Width;
+        var viewportLeft = offset.X;
+        var viewportRight = viewportLeft + viewportWidth;
+
+        double? newOffsetX = null;
+
+        if (cellLeft < viewportLeft)
+        {
+            newOffsetX = Math.Max(0, cellLeft);
+        }
+        else if (cellRight > viewportRight)
+        {
+            newOffsetX = Math.Max(0, cellRight - viewportWidth);
+        }
+
+        if (newOffsetX.HasValue && !AreClose(newOffsetX.Value, offset.X))
+        {
+            _scrollViewer.Offset = new Vector(newOffsetX.Value, offset.Y);
+        }
+    }
+
     private void ToggleExpansionAt(int index, bool requestPrefetch = true)
     {
         if (_itemsSource is null || (uint)index >= (uint)_itemsSource.RowCount)
@@ -4328,9 +4582,23 @@ public partial class FastTreeDataGrid : TemplatedControl
         };
     }
 
-    private void UpdateRowSelectionIndicators()
+    private void UpdateSelectionIndicators()
     {
         _presenter?.UpdateSelection(_selectedIndices);
+
+        if (_presenter is null)
+        {
+            return;
+        }
+
+        if (IsCellSelection && CellSelectionModel is { } cellModel)
+        {
+            _presenter.UpdateCellSelection(cellModel.SelectedCells, cellModel.PrimaryCell);
+        }
+        else
+        {
+            _presenter.UpdateCellSelection(Array.Empty<FastTreeDataGridCellIndex>(), FastTreeDataGridCellIndex.Invalid);
+        }
     }
 
     private void RecalculateColumns()

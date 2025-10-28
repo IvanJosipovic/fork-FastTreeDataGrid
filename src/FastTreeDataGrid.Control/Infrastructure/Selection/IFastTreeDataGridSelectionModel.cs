@@ -8,6 +8,8 @@ namespace FastTreeDataGrid.Control.Infrastructure;
 
 public interface IFastTreeDataGridSelectionModel
 {
+    FastTreeDataGridSelectionUnit SelectionUnit { get; }
+
     FastTreeDataGridSelectionMode SelectionMode { get; set; }
 
     IReadOnlyList<int> SelectedIndices { get; }

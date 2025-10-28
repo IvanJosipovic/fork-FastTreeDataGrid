@@ -17,6 +17,8 @@ public class FastTreeDataGridSelectionModel : IFastTreeDataGridSelectionModel
 
     public event EventHandler<FastTreeDataGridSelectionChangedEventArgs>? SelectionChanged;
 
+    public virtual FastTreeDataGridSelectionUnit SelectionUnit => FastTreeDataGridSelectionUnit.Row;
+
     public FastTreeDataGridSelectionMode SelectionMode
     {
         get => _selectionMode;
@@ -70,7 +72,17 @@ public class FastTreeDataGridSelectionModel : IFastTreeDataGridSelectionModel
         _primaryIndex = -1;
         _anchorIndex = -1;
 
-        RaiseSelectionChanged(Array.Empty<int>(), removed, _cachedSelection, _primaryIndex, _anchorIndex);
+        RaiseSelectionChanged(
+            Array.Empty<int>(),
+            removed,
+            _cachedSelection,
+            _primaryIndex,
+            _anchorIndex,
+            Array.Empty<FastTreeDataGridCellIndex>(),
+            Array.Empty<FastTreeDataGridCellIndex>(),
+            Array.Empty<FastTreeDataGridCellIndex>(),
+            FastTreeDataGridCellIndex.Invalid,
+            FastTreeDataGridCellIndex.Invalid);
     }
 
     public virtual void SelectSingle(int index)
@@ -353,7 +365,7 @@ public class FastTreeDataGridSelectionModel : IFastTreeDataGridSelectionModel
 
         var addedArray = added.Count == 0 ? Array.Empty<int>() : added.ToArray();
         var removedArray = removed.Count == 0 ? Array.Empty<int>() : removed.ToArray();
-        RaiseSelectionChanged(addedArray, removedArray, _cachedSelection, _primaryIndex, _anchorIndex);
+        RaiseSelectionChanged(addedArray, removedArray, _cachedSelection, _primaryIndex, _anchorIndex, Array.Empty<FastTreeDataGridCellIndex>(), Array.Empty<FastTreeDataGridCellIndex>(), Array.Empty<FastTreeDataGridCellIndex>(), FastTreeDataGridCellIndex.Invalid, FastTreeDataGridCellIndex.Invalid);
     }
 
     protected void RaiseSelectionChanged(
@@ -361,13 +373,23 @@ public class FastTreeDataGridSelectionModel : IFastTreeDataGridSelectionModel
         IReadOnlyList<int> removedIndices,
         IReadOnlyList<int> selectedIndices,
         int primaryIndex,
-        int anchorIndex)
+        int anchorIndex,
+        IReadOnlyList<FastTreeDataGridCellIndex> addedCells,
+        IReadOnlyList<FastTreeDataGridCellIndex> removedCells,
+        IReadOnlyList<FastTreeDataGridCellIndex> selectedCells,
+        FastTreeDataGridCellIndex primaryCell,
+        FastTreeDataGridCellIndex anchorCell)
     {
         SelectionChanged?.Invoke(this, new FastTreeDataGridSelectionChangedEventArgs(
             addedIndices,
             removedIndices,
             selectedIndices,
             primaryIndex,
-            anchorIndex));
+            anchorIndex,
+            addedCells,
+            removedCells,
+            selectedCells,
+            primaryCell,
+            anchorCell));
     }
 }
