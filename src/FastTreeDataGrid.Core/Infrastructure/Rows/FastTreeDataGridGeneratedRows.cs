@@ -4,24 +4,27 @@ using System.Globalization;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-internal sealed class FastTreeDataGridGeneratedGroupRow : IFastTreeDataGridValueProvider, IFastTreeDataGridGroup
+internal sealed class FastTreeDataGridGeneratedGroupRow : IFastTreeDataGridValueProvider, IFastTreeDataGridGroupMetadata, IFastTreeDataGridGroupPathProvider
 {
     private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
     private readonly string _headerKey;
     private readonly string _headerText;
+    private readonly string _path;
 
     public FastTreeDataGridGeneratedGroupRow(
         string? columnKey,
         string headerText,
         object? key,
         int itemCount,
-        int level)
+        int level,
+        string path)
     {
         Key = key;
         ItemCount = itemCount;
         Level = level;
         _headerKey = columnKey ?? string.Empty;
         _headerText = headerText;
+        _path = path ?? string.Empty;
 
         if (!string.IsNullOrEmpty(_headerKey))
         {
@@ -40,6 +43,8 @@ internal sealed class FastTreeDataGridGeneratedGroupRow : IFastTreeDataGridValue
     public int Level { get; }
 
     public bool IsGroup => true;
+
+    public string GroupPath => _path;
 
     public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
 
@@ -77,6 +82,23 @@ internal sealed class FastTreeDataGridGeneratedGroupRow : IFastTreeDataGridValue
         }
 
         handler(this, new ValueInvalidatedEventArgs(this, key));
+    }
+
+    public void SetValue(string? columnKey, object? value, Func<object?, string?>? formatter)
+    {
+        var key = columnKey ?? string.Empty;
+        var formatted = formatter is null
+            ? value switch
+            {
+                null => string.Empty,
+                string s => s,
+                IFormattable formattable => formattable.ToString(null, CultureInfo.CurrentCulture),
+                _ => value.ToString() ?? string.Empty,
+            }
+            : formatter(value) ?? string.Empty;
+
+        _values[key] = formatted;
+        NotifyValueChanged(key);
     }
 }
 
@@ -145,4 +167,3 @@ internal sealed class FastTreeDataGridGeneratedSummaryRow : IFastTreeDataGridVal
         handler(this, new ValueInvalidatedEventArgs(this, key));
     }
 }
-

@@ -15,6 +15,8 @@
     <Pen x:Key="FastTreeDataGrid.FocusBorderPen" Brush="#FF3182CE" Thickness="1.5" />
     <SolidColorBrush x:Key="FastTreeDataGrid.FilterFlyoutBackground" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="FastTreeDataGrid.FilterFlyoutBorder" Color="#FFE0E0E0" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.GroupingBandBackground" Color="#FFF4F6FB" />
+    <SolidColorBrush x:Key="FastTreeDataGrid.GroupingBandBorder" Color="#FFE0E4EB" />
   </Styles.Resources>
 
   <Style Selector="FastTreeDataGrid">
@@ -32,6 +34,16 @@
                           Focusable="False">
               <Border x:Name="PART_HeaderHost" Classes="HeaderHost">
                 <StackPanel Spacing="0">
+                  <Border x:Name="PART_GroupingBandHost"
+                          Background="{DynamicResource FastTreeDataGrid.GroupingBandBackground}"
+                          BorderBrush="{DynamicResource FastTreeDataGrid.GroupingBandBorder}"
+                          BorderThickness="0,0,0,1"
+                          Padding="8,6"
+                          IsVisible="{Binding IsVisible, ElementName=PART_GroupingBand}"
+                          IsHitTestVisible="{Binding IsVisible, ElementName=PART_GroupingBand}">
+                    <controls:FastTreeDataGridGroupingBand x:Name="PART_GroupingBand"
+                                                          Height="36" />
+                  </Border>
                   <FastTreeDataGridHeaderPresenter x:Name="PART_HeaderPresenter" />
                   <controls:FastTreeDataGridFilterPresenter x:Name="PART_FilterPresenter" />
                 </StackPanel>

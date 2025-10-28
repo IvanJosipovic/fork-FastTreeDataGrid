@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
-public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider, IFastTreeDataGridGroupingController, IFastTreeDataGridRowReorderHandler
+public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeDataVirtualizationProvider, IFastTreeDataGridGroupingController, IFastTreeDataGridRowReorderHandler, IFastTreeDataGridGroupingNotificationSink
 {
     private readonly IFastTreeDataGridSource _source;
     private bool _disposed;
@@ -58,10 +59,26 @@ public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeData
     public Task InvalidateAsync(FastTreeDataGridInvalidationRequest request, CancellationToken cancellationToken) =>
         _source.InvalidateAsync(request, cancellationToken);
 
-    public Task ApplySortFilterAsync(FastTreeDataGridSortFilterRequest request, CancellationToken cancellationToken) =>
-        _source is IFastTreeDataGridSortFilterHandler handler
-            ? handler.ApplySortFilterAsync(request, cancellationToken)
-            : Task.CompletedTask;
+    public Task ApplySortFilterAsync(FastTreeDataGridSortFilterRequest request, CancellationToken cancellationToken)
+    {
+        if (_source is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_source is IFastTreeDataGridGroupingHandler groupingHandler)
+        {
+            var groupingRequest = FastTreeDataGridGroupingRequest.FromSortFilterRequest(request);
+            return groupingHandler.ApplyGroupingAsync(groupingRequest, cancellationToken);
+        }
+
+        if (_source is IFastTreeDataGridSortFilterHandler handler)
+        {
+            return handler.ApplySortFilterAsync(request, cancellationToken);
+        }
+
+        return Task.CompletedTask;
+    }
 
     public bool TryGetMaterializedRow(int index, out FastTreeDataGridRow row) =>
         _source.TryGetMaterializedRow(index, out row);
@@ -114,6 +131,14 @@ public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeData
         }
     }
 
+    public void ApplyGroupExpansionLayout(IEnumerable<FastTreeDataGridGroupingExpansionState> states, bool defaultExpanded)
+    {
+        if (_source is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.ApplyGroupExpansionLayout(states, defaultExpanded);
+        }
+    }
+
     bool IFastTreeDataGridRowReorderHandler.CanReorder(FastTreeDataGridRowReorderRequest request)
     {
         return _source is IFastTreeDataGridRowReorderHandler handler && handler.CanReorder(request);
@@ -124,6 +149,21 @@ public sealed class FastTreeDataGridSourceVirtualizationProvider : IFastTreeData
         return _source is IFastTreeDataGridRowReorderHandler handler
             ? handler.ReorderAsync(request, cancellationToken)
             : Task.FromResult(FastTreeDataGridRowReorderResult.Cancelled);
+    }
+
+    void IFastTreeDataGridGroupingNotificationSink.OnGroupingStateChanged(FastTreeDataGridGroupingStateChangedEventArgs args)
+    {
+        var handler = Invalidated;
+        if (handler is null)
+        {
+            return;
+        }
+
+        var request = args.Kind == FastTreeDataGridGroupingChangeKind.GroupStateChanged
+            ? new FastTreeDataGridInvalidationRequest(FastTreeDataGridInvalidationKind.MetadataOnly)
+            : new FastTreeDataGridInvalidationRequest(FastTreeDataGridInvalidationKind.Full);
+
+        handler(this, new FastTreeDataGridInvalidatedEventArgs(request));
     }
 
     public void Dispose()

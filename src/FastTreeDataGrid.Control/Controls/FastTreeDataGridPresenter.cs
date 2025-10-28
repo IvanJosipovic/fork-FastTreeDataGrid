@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -32,6 +33,8 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
     private readonly Dictionary<AvaloniaControl, Rect> _controlLayouts = new();
     private readonly List<AvaloniaControl> _controlChildren = new();
     private readonly Dictionary<AvaloniaControl, FastTreeDataGridColumn> _controlColumnMap = new();
+    private readonly Stack<FastTreeDataGridGroupRowPresenter> _groupHeaderPool = new();
+    private readonly Stack<FastTreeDataGridGroupSummaryPresenter> _groupSummaryPool = new();
     private AvaloniaControl? _editingControl;
     private Rect _editingControlBounds;
     private RowReorderOverlayState? _rowReorderOverlay;
@@ -302,7 +305,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
-    private static void ReturnRowWidgets(IEnumerable<RowRenderInfo> rows)
+    private void ReturnRowWidgets(IEnumerable<RowRenderInfo> rows)
     {
         if (rows is null)
         {
@@ -313,12 +316,32 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         {
             foreach (var cell in row.Cells)
             {
-                if (cell.Widget is FormattedTextWidget textWidget)
+                switch (cell.Widget)
                 {
-                    cell.Column.ReturnTextWidget(textWidget);
+                    case FormattedTextWidget textWidget:
+                        cell.Column.ReturnTextWidget(textWidget);
+                        break;
+                    case FastTreeDataGridGroupRowPresenter groupPresenter:
+                        groupPresenter.Update(null, 0, 0, 0);
+                        _groupHeaderPool.Push(groupPresenter);
+                        break;
+                    case FastTreeDataGridGroupSummaryPresenter summaryPresenter:
+                        summaryPresenter.Update(null, 0, 0);
+                        _groupSummaryPool.Push(summaryPresenter);
+                        break;
                 }
             }
         }
+    }
+
+    internal FastTreeDataGridGroupRowPresenter RentGroupRowPresenter()
+    {
+        return _groupHeaderPool.Count > 0 ? _groupHeaderPool.Pop() : new FastTreeDataGridGroupRowPresenter();
+    }
+
+    internal FastTreeDataGridGroupSummaryPresenter RentGroupSummaryPresenter()
+    {
+        return _groupSummaryPool.Count > 0 ? _groupSummaryPool.Pop() : new FastTreeDataGridGroupSummaryPresenter();
     }
 
     internal bool TryGetCell(int rowIndex, FastTreeDataGridColumn column, out RowRenderInfo? rowInfo, out CellRenderInfo? cellInfo)
@@ -742,6 +765,11 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
 
         var pointerProps = e.GetCurrentPoint(this).Properties;
+        if (pointerProps.IsRightButtonPressed)
+        {
+            return _owner?.HandlePresenterContextMenu(row, point) ?? false;
+        }
+
         if (!pointerProps.IsLeftButtonPressed)
         {
             return false;

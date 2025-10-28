@@ -38,6 +38,12 @@ public static class FastTreeDataGridVirtualizationDiagnostics
     public static readonly Counter<long> ResetCount =
         s_meter.CreateCounter<long>("fasttree_datagrid_resets", description: "Number of datasource resets processed by the grid.");
 
+    public static readonly Counter<long> CacheHits =
+        s_meter.CreateCounter<long>("fasttree_datagrid_cache_hits", description: "Number of cache hits in the grouping/aggregate pipeline.");
+
+    public static readonly Counter<long> CacheMisses =
+        s_meter.CreateCounter<long>("fasttree_datagrid_cache_misses", description: "Number of cache misses in the grouping/aggregate pipeline.");
+
     public static Action<FastTreeDataGridVirtualizationLogEntry>? LogCallback { get; set; }
         = entry => Debug.WriteLine($"[FastTreeDataGrid] {entry.Category}: {entry.Message}");
 

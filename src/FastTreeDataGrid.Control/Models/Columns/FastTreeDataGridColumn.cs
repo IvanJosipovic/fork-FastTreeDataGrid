@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalonia;
+using Avalonia.Collections;
 using Avalonia.Controls.Templates;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
@@ -8,8 +9,20 @@ using AvaloniaControl = Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Models;
 
+internal enum FastTreeDataGridColumnControlRole
+{
+    Default,
+    GroupHeader,
+    GroupFooter,
+}
+
 public class FastTreeDataGridColumn : AvaloniaObject
 {
+    internal static readonly AttachedProperty<FastTreeDataGridColumnControlRole> ControlRoleProperty =
+        AvaloniaProperty.RegisterAttached<FastTreeDataGridColumn, AvaloniaObject, FastTreeDataGridColumnControlRole>(
+            "ControlRole",
+            FastTreeDataGridColumnControlRole.Default);
+
     public static readonly StyledProperty<object?> HeaderProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, object?>(nameof(Header));
 
@@ -73,6 +86,30 @@ public class FastTreeDataGridColumn : AvaloniaObject
     public static readonly StyledProperty<IDataTemplate?> CellControlTemplateProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(CellControlTemplate));
 
+    public static readonly StyledProperty<Func<IFastTreeDataGridValueProvider?, object?, Widget?>?> GroupHeaderWidgetFactoryProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, Func<IFastTreeDataGridValueProvider?, object?, Widget?>?>(nameof(GroupHeaderWidgetFactory));
+
+    public static readonly StyledProperty<IWidgetTemplate?> GroupHeaderTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IWidgetTemplate?>(nameof(GroupHeaderTemplate));
+
+    public static readonly StyledProperty<IDataTemplate?> GroupHeaderControlTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(GroupHeaderControlTemplate));
+
+    public static readonly StyledProperty<Func<IFastTreeDataGridValueProvider?, object?, Widget?>?> GroupFooterWidgetFactoryProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, Func<IFastTreeDataGridValueProvider?, object?, Widget?>?>(nameof(GroupFooterWidgetFactory));
+
+    public static readonly StyledProperty<IWidgetTemplate?> GroupFooterTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IWidgetTemplate?>(nameof(GroupFooterTemplate));
+
+    public static readonly StyledProperty<IDataTemplate?> GroupFooterControlTemplateProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(GroupFooterControlTemplate));
+
+    public static readonly StyledProperty<string?> GroupHeaderStyleKeyProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, string?>(nameof(GroupHeaderStyleKey));
+
+    public static readonly StyledProperty<string?> GroupSummaryStyleKeyProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, string?>(nameof(GroupSummaryStyleKey));
+
     public static readonly StyledProperty<IDataTemplate?> EditTemplateProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, IDataTemplate?>(nameof(EditTemplate));
 
@@ -81,6 +118,12 @@ public class FastTreeDataGridColumn : AvaloniaObject
 
     public static readonly StyledProperty<bool> IsReadOnlyProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(IsReadOnly));
+
+    public static readonly StyledProperty<bool> CanUserGroupProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(CanUserGroup), true);
+
+    public static readonly StyledProperty<IFastTreeDataGridGroupAdapter?> GroupAdapterProperty =
+        AvaloniaProperty.Register<FastTreeDataGridColumn, IFastTreeDataGridGroupAdapter?>(nameof(GroupAdapter));
 
     public static readonly StyledProperty<string?> ValidationKeyProperty =
         AvaloniaProperty.Register<FastTreeDataGridColumn, string?>(nameof(ValidationKey));
@@ -95,8 +138,9 @@ public class FastTreeDataGridColumn : AvaloniaObject
         AvaloniaProperty.Register<FastTreeDataGridColumn, bool>(nameof(IsFilterActive));
 
     private int _sortOrder;
-    private readonly Stack<AvaloniaControl> _controlPool = new();
+    private readonly Dictionary<FastTreeDataGridColumnControlRole, Stack<AvaloniaControl>> _controlPools = new();
     private readonly Stack<FormattedTextWidget> _textWidgetPool = new();
+    private readonly AvaloniaList<FastTreeDataGridAggregateDescriptor> _aggregateDescriptors = new();
 
     public object? Header
     {
@@ -158,6 +202,54 @@ public class FastTreeDataGridColumn : AvaloniaObject
         set => SetValue(CellControlTemplateProperty, value);
     }
 
+    public Func<IFastTreeDataGridValueProvider?, object?, Widget?>? GroupHeaderWidgetFactory
+    {
+        get => GetValue(GroupHeaderWidgetFactoryProperty);
+        set => SetValue(GroupHeaderWidgetFactoryProperty, value);
+    }
+
+    public IWidgetTemplate? GroupHeaderTemplate
+    {
+        get => GetValue(GroupHeaderTemplateProperty);
+        set => SetValue(GroupHeaderTemplateProperty, value);
+    }
+
+    public IDataTemplate? GroupHeaderControlTemplate
+    {
+        get => GetValue(GroupHeaderControlTemplateProperty);
+        set => SetValue(GroupHeaderControlTemplateProperty, value);
+    }
+
+    public Func<IFastTreeDataGridValueProvider?, object?, Widget?>? GroupFooterWidgetFactory
+    {
+        get => GetValue(GroupFooterWidgetFactoryProperty);
+        set => SetValue(GroupFooterWidgetFactoryProperty, value);
+    }
+
+    public IWidgetTemplate? GroupFooterTemplate
+    {
+        get => GetValue(GroupFooterTemplateProperty);
+        set => SetValue(GroupFooterTemplateProperty, value);
+    }
+
+    public IDataTemplate? GroupFooterControlTemplate
+    {
+        get => GetValue(GroupFooterControlTemplateProperty);
+        set => SetValue(GroupFooterControlTemplateProperty, value);
+    }
+
+    public string? GroupHeaderStyleKey
+    {
+        get => GetValue(GroupHeaderStyleKeyProperty);
+        set => SetValue(GroupHeaderStyleKeyProperty, value);
+    }
+
+    public string? GroupSummaryStyleKey
+    {
+        get => GetValue(GroupSummaryStyleKeyProperty);
+        set => SetValue(GroupSummaryStyleKeyProperty, value);
+    }
+
     public IDataTemplate? EditTemplate
     {
         get => GetValue(EditTemplateProperty);
@@ -181,6 +273,20 @@ public class FastTreeDataGridColumn : AvaloniaObject
         get => GetValue(IsReadOnlyProperty);
         set => SetValue(IsReadOnlyProperty, value);
     }
+
+    public bool CanUserGroup
+    {
+        get => GetValue(CanUserGroupProperty);
+        set => SetValue(CanUserGroupProperty, value);
+    }
+
+    public IFastTreeDataGridGroupAdapter? GroupAdapter
+    {
+        get => GetValue(GroupAdapterProperty);
+        set => SetValue(GroupAdapterProperty, value);
+    }
+
+    public AvaloniaList<FastTreeDataGridAggregateDescriptor> AggregateDescriptors => _aggregateDescriptors;
 
     public bool CanUserResize
     {
@@ -270,9 +376,18 @@ public class FastTreeDataGridColumn : AvaloniaObject
 
     internal double CachedAutoWidth { get; set; } = 120d;
 
-    internal AvaloniaControl? RentControl()
+    internal AvaloniaControl? RentControl() => RentControl(FastTreeDataGridColumnControlRole.Default);
+
+    internal AvaloniaControl? RentControl(FastTreeDataGridColumnControlRole role)
     {
-        return _controlPool.Count > 0 ? _controlPool.Pop() : null;
+        if (_controlPools.TryGetValue(role, out var pool) && pool.Count > 0)
+        {
+            var control = pool.Pop();
+            SetControlRole(control, role);
+            return control;
+        }
+
+        return null;
     }
 
     internal void ReturnControl(AvaloniaControl control)
@@ -282,8 +397,27 @@ public class FastTreeDataGridColumn : AvaloniaObject
             return;
         }
 
+        var role = GetControlRole(control);
+        ReturnControl(control, role);
+    }
+
+    internal void ReturnControl(AvaloniaControl control, FastTreeDataGridColumnControlRole role)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
         control.DataContext = null;
-        _controlPool.Push(control);
+        SetControlRole(control, role);
+
+        if (!_controlPools.TryGetValue(role, out var pool))
+        {
+            pool = new Stack<AvaloniaControl>();
+            _controlPools[role] = pool;
+        }
+
+        pool.Push(control);
     }
 
     internal FormattedTextWidget RentTextWidget()
@@ -305,5 +439,51 @@ public class FastTreeDataGridColumn : AvaloniaObject
         widget.Margin = default;
         widget.CornerRadius = default;
         _textWidgetPool.Push(widget);
+    }
+
+    internal AvaloniaControl? RentGroupHeaderControl() => RentControl(FastTreeDataGridColumnControlRole.GroupHeader);
+
+    internal AvaloniaControl? RentGroupFooterControl() => RentControl(FastTreeDataGridColumnControlRole.GroupFooter);
+
+    internal static FastTreeDataGridColumnControlRole GetControlRole(AvaloniaObject target)
+    {
+        return target.GetValue(ControlRoleProperty);
+    }
+
+    internal static void SetControlRole(AvaloniaObject target, FastTreeDataGridColumnControlRole role)
+    {
+        target.SetValue(ControlRoleProperty, role);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == CellControlTemplateProperty)
+        {
+            ClearControlPool(FastTreeDataGridColumnControlRole.Default);
+        }
+        else if (change.Property == GroupHeaderControlTemplateProperty)
+        {
+            ClearControlPool(FastTreeDataGridColumnControlRole.GroupHeader);
+        }
+        else if (change.Property == GroupFooterControlTemplateProperty)
+        {
+            ClearControlPool(FastTreeDataGridColumnControlRole.GroupFooter);
+        }
+    }
+
+    private void ClearControlPool(FastTreeDataGridColumnControlRole role)
+    {
+        if (!_controlPools.TryGetValue(role, out var pool))
+        {
+            return;
+        }
+
+        while (pool.Count > 0)
+        {
+            var control = pool.Pop();
+            control.DataContext = null;
+        }
     }
 }

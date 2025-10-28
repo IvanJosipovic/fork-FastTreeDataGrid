@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Infrastructure;
 
@@ -24,6 +25,36 @@ public sealed class FastTreeDataGridGroupDescriptor
     /// When omitted, the key is converted to a string and formatted with the item count.
     /// </summary>
     public Func<FastTreeDataGridGroupHeaderContext, string>? HeaderFormatter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the adapter that extracts group keys and labels.
+    /// </summary>
+    public IFastTreeDataGridGroupAdapter? Adapter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the direction used to sort group keys.
+    /// </summary>
+    public FastTreeDataGridSortDirection SortDirection { get; set; } = FastTreeDataGridSortDirection.Ascending;
+
+    /// <summary>
+    /// Gets or sets the comparer used to order group keys.
+    /// </summary>
+    public IComparer<object?>? Comparer { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether new groups are expanded by default.
+    /// </summary>
+    public bool IsExpanded { get; set; } = true;
+
+    /// <summary>
+    /// Gets the aggregate descriptors associated with this group level.
+    /// </summary>
+    public IList<FastTreeDataGridAggregateDescriptor> AggregateDescriptors { get; } = new List<FastTreeDataGridAggregateDescriptor>();
+
+    /// <summary>
+    /// Gets a metadata bag for custom extensions.
+    /// </summary>
+    public IDictionary<string, object?> Properties { get; } = new Dictionary<string, object?>();
 }
 
 /// <summary>
@@ -78,6 +109,11 @@ public sealed class FastTreeDataGridAggregateDescriptor
     public Func<IEnumerable<FastTreeDataGridRow>, object?>? Aggregator { get; set; }
 
     /// <summary>
+    /// Gets or sets the aggregate provider used to compute results.
+    /// </summary>
+    public IFastTreeDataGridAggregateProvider? Provider { get; set; }
+
+    /// <summary>
     /// Gets or sets an optional formatter invoked with the aggregate result.
     /// When omitted, <see cref="object.ToString"/> with the current culture is used.
     /// </summary>
@@ -88,4 +124,3 @@ public sealed class FastTreeDataGridAggregateDescriptor
     /// </summary>
     public string? Label { get; set; }
 }
-

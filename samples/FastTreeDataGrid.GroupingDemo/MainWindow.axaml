@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.GroupingDemo.ViewModels"
+        mc:Ignorable="d"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1200"
+        d:DesignHeight="800"
+        x:Class="FastTreeDataGrid.GroupingDemo.MainWindow"
+        Title="FastTreeDataGrid Grouping Demo">
+  <Grid RowDefinitions="Auto,*" Margin="16">
+    <StackPanel Spacing="10">
+      <TextBlock Text="Pivot-style Grouping"
+                 FontSize="22"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="Drag headers into the band to group, reorder chips to change nesting, and explore aggregate summaries generated per level."
+                 TextWrapping="Wrap"
+                 Foreground="#555" />
+      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <TextBlock Text="Preset:" VerticalAlignment="Center" />
+        <ComboBox x:Name="PresetSelector"
+                  Width="260"
+                  ItemsSource="{Binding Presets}"
+                  SelectedItem="{Binding Showcase.SelectedPreset, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:GroupPreset">
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="Apply Preset" Click="OnApplyPresetClicked" />
+        <Button Content="Clear Grouping" Click="OnClearGroupingClicked" />
+        <Button Content="Save Layout" Click="OnSaveLayoutClicked" />
+        <Button Content="Restore Layout" Click="OnRestoreLayoutClicked" IsEnabled="{Binding Showcase.HasSavedLayout}" />
+        <Button Content="Clear Saved Layout" Click="OnClearSavedLayoutClicked" IsEnabled="{Binding Showcase.HasSavedLayout}" />
+      </StackPanel>
+      <Border Background="#F5F7FB" Padding="12" CornerRadius="6" BorderBrush="#E0E6F1" BorderThickness="1">
+        <TextBlock Text="{Binding Showcase.SelectedPreset.Description}"
+                   TextWrapping="Wrap"
+                   Foreground="#445" />
+      </Border>
+      <StackPanel Spacing="4">
+        <TextBlock Text="Saved Layout (JSON)" FontWeight="SemiBold" />
+        <TextBox Text="{Binding Showcase.SavedLayoutJson}"
+                 Height="120"
+                 AcceptsReturn="True"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+      </StackPanel>
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Margin="0,18,0,0"
+            BorderBrush="#D5DAE4"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="0">
+      <controls:FastTreeDataGrid x:Name="GroupingGrid"
+                                 ItemsSource="{Binding Showcase.Source}"
+                                 RowHeight="30"
+                                 IndentWidth="20"
+                                 HeaderHeight="34"
+                                 IsFilterRowVisible="True">
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</Window>

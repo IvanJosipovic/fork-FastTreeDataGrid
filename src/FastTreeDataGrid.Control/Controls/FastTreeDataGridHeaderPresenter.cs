@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -19,6 +20,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
 {
     private const double GripWidth = 8;
     private const double DragActivationThreshold = 4;
+    private const double GroupDropActivationThreshold = -16;
 
     private readonly List<ContentControl> _cells = new();
     private readonly List<Thumb> _grips = new();
@@ -48,6 +50,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     private int _reorderInsertIndex;
     private bool _hasPointerMoved;
     private bool _suppressSort;
+    private bool _isGroupingDragActive;
 
     public FastTreeDataGridHeaderPresenter()
     {
@@ -70,6 +73,9 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
     public event Action<bool>? AutoSizeAllRequested;
     public event Action<int, ContentControl>? ColumnFilterRequested;
     public event Action<int>? ColumnFilterCleared;
+    public event Action<int>? ColumnGroupRequested;
+    public event Action<int>? ColumnUngroupRequested;
+    public event Action? ColumnGroupingCleared;
 
     public void BindColumns(
         IReadOnlyList<FastTreeDataGridColumn> columns,
@@ -426,6 +432,14 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         AddMenuItem("Clear Sort", ColumnMenuAction.ClearSort, column.SortDirection != FastTreeDataGridSortDirection.None || column.SortOrder > 0);
         menuItems.Add(new Separator());
 
+        if (column.CanUserGroup)
+        {
+            AddMenuItem("Group By This Column", ColumnMenuAction.Group, column.CanUserGroup);
+            AddMenuItem("Remove Group", ColumnMenuAction.Ungroup);
+            AddMenuItem("Clear Grouping", ColumnMenuAction.ClearGrouping);
+            menuItems.Add(new Separator());
+        }
+
         AddMenuItem("Expand All", ColumnMenuAction.ExpandAll);
         AddMenuItem("Collapse All", ColumnMenuAction.CollapseAll);
         menuItems.Add(new Separator());
@@ -494,6 +508,17 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         }
 
         var position = e.GetPosition(this);
+
+        if (!_isGroupingDragActive &&
+            _columns[index].CanUserGroup &&
+            position.Y <= GroupDropActivationThreshold)
+        {
+            _hasPointerMoved = true;
+            _suppressSort = true;
+            _ = StartColumnGroupingDragAsync(index, e);
+            return;
+        }
+
         var delta = position - _pressPoint;
 
         if (!_hasPointerMoved && (Math.Abs(delta.X) > 1 || Math.Abs(delta.Y) > 1))
@@ -527,6 +552,37 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         }
     }
 
+    private async Task StartColumnGroupingDragAsync(int columnIndex, PointerEventArgs triggerEvent)
+    {
+        if (_isGroupingDragActive)
+        {
+            return;
+        }
+
+        if ((uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserGroup)
+        {
+            return;
+        }
+
+        _isGroupingDragActive = true;
+        _isReordering = false;
+        UpdateReorderIndicator(visible: false);
+
+        triggerEvent.Pointer.Capture(null);
+
+        var data = new DataObject();
+        data.Set(FastTreeDataGridDragFormats.ColumnIndex, columnIndex);
+
+        await DragDrop.DoDragDrop(triggerEvent, data, DragDropEffects.Move);
+        ResetInteractionState();
+    }
+
     private void HeaderCellOnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (sender is not ContentControl cell || cell.Tag is not int index)
@@ -544,6 +600,8 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             e.Pointer.Capture(null);
         }
         var modifiers = e.KeyModifiers;
+
+        var pointerPosition = e.GetPosition(this);
 
         if (_isReordering)
         {
@@ -576,6 +634,7 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         _hasPointerMoved = false;
         _suppressSort = false;
         _reorderInsertIndex = -1;
+        _isGroupingDragActive = false;
         UpdateReorderIndicator(visible: false);
     }
 
@@ -958,6 +1017,15 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
             case ColumnMenuAction.Hide:
                 ColumnHideRequested?.Invoke(command.ColumnIndex);
                 break;
+            case ColumnMenuAction.Group:
+                ColumnGroupRequested?.Invoke(command.ColumnIndex);
+                break;
+            case ColumnMenuAction.Ungroup:
+                ColumnUngroupRequested?.Invoke(command.ColumnIndex);
+                break;
+            case ColumnMenuAction.ClearGrouping:
+                ColumnGroupingCleared?.Invoke();
+                break;
         }
     }
 
@@ -980,6 +1048,9 @@ internal sealed class FastTreeDataGridHeaderPresenter : Canvas
         MoveLeft,
         MoveRight,
         Hide,
+        Group,
+        Ungroup,
+        ClearGrouping,
     }
 
     private readonly record struct ColumnMenuCommand(int ColumnIndex, ColumnMenuAction Action, ContentControl Cell);

@@ -9,6 +9,7 @@ FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that rende
 | Flat source engine | Flattens hierarchical data, tracks expansion, sorting, and filtering. | `FastTreeDataGridFlatSource<T>`, `IFastTreeDataGridSource` | [Flat source engine](#feature-flat-source-engine) |
 | Immediate-mode widgets | Draw text, icons, gauges, and inputs without templated controls. | `Widget`, `WidgetTemplate`, `IFastTreeDataGridValueProvider` | [Immediate-mode widgets](#feature-immediate-mode-widgets) |
 | Items & navigation widgets | Drop-in ListBox/TreeView replacements on the widget renderer. | `ItemsControlWidget`, `ListBoxWidget`, `TreeViewWidget` | [Items & navigation widgets](#feature-items--navigation-widgets) |
+| Column grouping & pivot | Drag headers into a grouping band, layer descriptors, and surface pivot-style aggregates with persistence. | `FastTreeDataGrid.GroupDescriptors`, `FastTreeDataGridGroupingBand`, `FastTreeDataGridGroupingLayout` | [Column grouping & pivot](#feature-column-grouping--pivot) |
 | Flexible column system | Combine pixel/star sizing, templates, and selection hooks. | `FastTreeDataGridColumn`, `ColumnSizingMode` | [Flexible column system](#feature-flexible-column-system) |
 | Row layouts & data sources | Mix uniform/variable heights with static or streaming feeds. | `IFastTreeDataGridRowLayout`, `FastTreeDataGridHybridSource<T>` | [Row layouts & data sources](#feature-row-layouts--data-sources) |
 | Row reorder | Pointer-driven drag & drop with live preview, configurable visuals, and events. | `FastTreeDataGridRowReorderSettings`, `IFastTreeDataGridRowReorderHandler` | [Row reorder](#feature-row-reorder) |
@@ -245,6 +246,21 @@ tree.ExpandToLevel(1);
 - `TreeViewWidget` – handles hierarchical data with pooled expander glyphs, indentation, and lazy loading helpers.
 - `TabControlWidget` + `TabStripWidget` – delivers tab navigation with Alt/arrow/Home/End keys and indicator styling sourced from the widget palette.
 - `MenuBarWidget` + `MenuWidget` – builds command surfaces with access keys, accelerators, and overlay hosting without templated controls.
+
+## Feature: Column Grouping & Pivot
+The grid now supports a pivot-style grouping band, so users can drag headers above the grid to reshape datasets without writing code. Grouping works with both flat and hierarchical sources and uses the same value-provider pipeline that powers body cells.
+
+### Quick usage
+- Enable grouping by populating `FastTreeDataGrid.GroupDescriptors` or by letting users drag headers into the built-in grouping band (`PART_GroupingBand`).
+- Reorder grouping levels via drag, Alt+Ctrl+Up/Down, or the grouping chip context menu; removal and "clear all" share the same gestures as the header menu.
+- Attach aggregates by populating `FastTreeDataGrid.AggregateDescriptors` or per-column `AggregateDescriptors`; summaries render as footer rows out of the box.
+
+### Customization hooks
+- Persist layouts with `GetGroupingLayout()`/`ApplyGroupingLayout(layout)`—column order, sort direction, and expansion state are captured in a compact JSON contract (`FastTreeDataGridGroupingLayout`).
+- Swap visuals by overriding `FastTreeDataGrid.GroupingBandBackground`, chip styles, or by supplying `GroupHeaderTemplate` / `GroupFooterTemplate` on individual columns.
+- Implement `IFastTreeDataGridGroupAdapter` for custom key projection (e.g., date bucketing) or `IFastTreeDataGridAggregateProvider` for complex or async aggregates.
+
+> **Migration notes**: The grouping band is opt-in; existing layouts continue to work until descriptors are supplied. If you provide a custom control template for `FastTreeDataGrid`, ensure it includes the new `PART_GroupingBandHost` placeholder to surface the band.
 
 ## Feature: Flexible Column System
 Columns support pixel, star, and auto sizing, hierarchical indentation, selection hooks, and custom editing templates. You can pin columns, opt in to sorting or filtering, or pool widgets by supplying a `WidgetFactory`, and all sizing is computed analytically to avoid Avalonia layout passes.

@@ -109,6 +109,8 @@ public partial class FastTreeDataGrid : TemplatedControl
     private Border? _headerHost;
     private FastTreeDataGridHeaderPresenter? _headerPresenter;
     private FastTreeDataGridFilterPresenter? _filterPresenter;
+    private FastTreeDataGridGroupingBand? _groupingBand;
+    private Border? _groupingBandHost;
     private FastTreeDataGridColumnFilterFlyout? _columnFilterFlyout;
     private bool _updatingHeaderFromBody;
     private FastTreeDataGridPresenter? _presenter;
@@ -127,6 +129,7 @@ public partial class FastTreeDataGrid : TemplatedControl
     private readonly List<FastTreeDataGridSortDescription> _sortDescriptions = new();
     private readonly AvaloniaList<FastTreeDataGridGroupDescriptor> _groupDescriptors = new();
     private readonly AvaloniaList<FastTreeDataGridAggregateDescriptor> _aggregateDescriptors = new();
+    private readonly FastTreeDataGridGroupingStateStore _groupingStateStore = new();
     private readonly Dictionary<FastTreeDataGridColumn, FastTreeDataGridFilterDescriptor> _activeFilters = new();
     private readonly List<FastTreeDataGridFilterDescriptor> _filterDescriptorCache = new();
     private readonly Dictionary<FastTreeDataGridColumn, string> _filterTextCache = new();
@@ -146,6 +149,8 @@ public partial class FastTreeDataGrid : TemplatedControl
     private static readonly TimeSpan s_typeSearchResetInterval = TimeSpan.FromSeconds(1.5);
     private bool _isLoading;
     private double _loadingProgress = double.NaN;
+    private int _lastGroupPrefetchIndex = -1;
+    private DateTime _lastGroupPrefetchTimestamp = DateTime.MinValue;
     private AvaloniaControl? _loadingOverlay;
     private ProgressBar? _loadingProgressBar;
     private TextBlock? _loadingText;
@@ -162,11 +167,111 @@ public partial class FastTreeDataGrid : TemplatedControl
         _columns.CollectionChanged += OnColumnsChanged;
         _groupDescriptors.CollectionChanged += OnGroupDescriptorsChanged;
         _aggregateDescriptors.CollectionChanged += OnAggregateDescriptorsChanged;
+        _groupingStateStore.GroupingStateChanged += OnGroupingStateChanged;
         SetRowLayout(new FastTreeDataGridUniformRowLayout());
         ResetThrottleDispatcher();
         SetSelectionModel(new FastTreeDataGridSelectionModel());
         _rowReorderSettings.SettingsChanged += OnRowReorderSettingsChanged;
         _rowReorderController = new RowReorderController(this);
+    }
+
+    public FastTreeDataGridGroupingLayout GetGroupingLayout()
+    {
+        var layout = new FastTreeDataGridGroupingLayout();
+
+        foreach (var descriptor in _groupDescriptors)
+        {
+            var entry = new FastTreeDataGridGroupingLayoutDescriptor
+            {
+                ColumnKey = GetDescriptorColumnKey(descriptor),
+                SortDirection = descriptor.SortDirection,
+                IsExpanded = descriptor.IsExpanded,
+            };
+
+            foreach (var pair in descriptor.Properties)
+            {
+                if (pair.Value is string stringValue)
+                {
+                    entry.Metadata[pair.Key] = stringValue;
+                }
+            }
+
+            layout.Groups.Add(entry);
+        }
+
+        var snapshot = _groupingStateStore.CreateSnapshot();
+        foreach (var state in snapshot.Groups)
+        {
+            layout.ExpansionStates.Add(new FastTreeDataGridGroupingExpansionState
+            {
+                Path = state.Path,
+                IsExpanded = state.IsExpanded,
+            });
+        }
+
+        return layout;
+    }
+
+    public void ApplyGroupingLayout(FastTreeDataGridGroupingLayout layout)
+    {
+        if (layout is null)
+        {
+            throw new ArgumentNullException(nameof(layout));
+        }
+
+        if (layout.Version > 1)
+        {
+            throw new NotSupportedException($"Unsupported grouping layout version: {layout.Version}. Update the control to a newer version.");
+        }
+
+        _groupDescriptors.Clear();
+
+        foreach (var entry in layout.Groups)
+        {
+            if (string.IsNullOrEmpty(entry.ColumnKey))
+            {
+                continue;
+            }
+
+            var column = FindColumnByKey(entry.ColumnKey);
+            if (column is null)
+            {
+                continue;
+            }
+
+            var descriptor = FastTreeDataGridGroupingDescriptorFactory.CreateFromColumn(column);
+            descriptor.SortDirection = entry.SortDirection;
+            descriptor.IsExpanded = entry.IsExpanded;
+
+            foreach (var pair in entry.Metadata)
+            {
+                descriptor.Properties[pair.Key] = pair.Value;
+            }
+
+            _groupDescriptors.Add(descriptor);
+
+            if (column.SortDirection != entry.SortDirection)
+            {
+                column.SortDirection = entry.SortDirection;
+            }
+        }
+
+        _groupingStateStore.Clear();
+        foreach (var state in layout.ExpansionStates)
+        {
+            if (string.IsNullOrEmpty(state.Path))
+            {
+                continue;
+            }
+
+            _groupingStateStore.SetExpanded(state.Path, state.IsExpanded);
+        }
+
+        var defaultExpanded = DetermineDefaultGroupExpansion();
+        ApplyGroupExpansionLayout(layout.ExpansionStates, defaultExpanded);
+
+        UpdateGroupingBandDescriptors();
+        ApplyDataOperationsToProvider();
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() =>
@@ -201,6 +306,8 @@ public partial class FastTreeDataGrid : TemplatedControl
     public AvaloniaList<FastTreeDataGridGroupDescriptor> GroupDescriptors => _groupDescriptors;
 
     public AvaloniaList<FastTreeDataGridAggregateDescriptor> AggregateDescriptors => _aggregateDescriptors;
+
+    internal FastTreeDataGridGroupingStateStore GroupingStateStore => _groupingStateStore;
 
     public bool IsLoading => _isLoading;
 
@@ -585,6 +692,15 @@ public partial class FastTreeDataGrid : TemplatedControl
             _columnsDirty = true;
             RequestViewportUpdate();
         }
+        else if (e.Property == FastTreeDataGridColumn.GroupHeaderTemplateProperty ||
+                 e.Property == FastTreeDataGridColumn.GroupHeaderWidgetFactoryProperty ||
+                 e.Property == FastTreeDataGridColumn.GroupHeaderControlTemplateProperty ||
+                 e.Property == FastTreeDataGridColumn.GroupFooterTemplateProperty ||
+                 e.Property == FastTreeDataGridColumn.GroupFooterWidgetFactoryProperty ||
+                 e.Property == FastTreeDataGridColumn.GroupFooterControlTemplateProperty)
+        {
+            RequestViewportUpdate();
+        }
     }
 
     private double GetViewportWidth()
@@ -632,6 +748,8 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _headerScrollViewer = e.NameScope.Find<ScrollViewer>("PART_HeaderScrollViewer");
         _headerHost = e.NameScope.Find<Border>("PART_HeaderHost");
+        _groupingBandHost = e.NameScope.Find<Border>("PART_GroupingBandHost");
+        _groupingBand = e.NameScope.Find<FastTreeDataGridGroupingBand>("PART_GroupingBand");
         _headerPresenter = e.NameScope.Find<FastTreeDataGridHeaderPresenter>("PART_HeaderPresenter");
         _filterPresenter = e.NameScope.Find<FastTreeDataGridFilterPresenter>("PART_FilterPresenter");
         _scrollViewer = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
@@ -660,6 +778,15 @@ public partial class FastTreeDataGrid : TemplatedControl
         if (_headerPresenter is not null)
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
+        }
+
+        if (_groupingBand is not null)
+        {
+            _groupingBand.UpdateDescriptors(_groupDescriptors, GetGroupingLabel);
+            _groupingBand.RemoveRequested += OnGroupingBandRemoveRequested;
+            _groupingBand.ReorderRequested += OnGroupingBandReorderRequested;
+            _groupingBand.ColumnDropRequested += OnGroupingBandColumnDropRequested;
+            _groupingBand.KeyboardCommandRequested += OnGroupingBandKeyboardCommandRequested;
         }
 
         if (_filterPresenter is not null)
@@ -1069,6 +1196,12 @@ public partial class FastTreeDataGrid : TemplatedControl
                     }
                     column.IsFilterActive = false;
                     _filterPresenter?.SetFilterValue(column, string.Empty);
+
+                    var groupingIndex = FindGroupingDescriptorIndex(column);
+                    if (groupingIndex >= 0)
+                    {
+                        _groupDescriptors.RemoveAt(groupingIndex);
+                    }
                 }
             }
 
@@ -1084,6 +1217,8 @@ public partial class FastTreeDataGrid : TemplatedControl
         _columnsDirty = true;
         RequestViewportUpdate();
 
+        UpdateGroupingBandDescriptors();
+
         if (filtersRemoved)
         {
             ApplyDataOperationsToProvider();
@@ -1092,12 +1227,237 @@ public partial class FastTreeDataGrid : TemplatedControl
 
     private void OnGroupDescriptorsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        _groupingStateStore.SetDescriptors(_groupDescriptors);
+        UpdateGroupingBandDescriptors();
         ApplyDataOperationsToProvider();
     }
 
     private void OnAggregateDescriptorsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         ApplyDataOperationsToProvider();
+    }
+
+    private void OnGroupingStateChanged(object? sender, FastTreeDataGridGroupingStateChangedEventArgs e)
+    {
+        if (_virtualizationProvider is IFastTreeDataGridGroupingNotificationSink sink)
+        {
+            sink.OnGroupingStateChanged(e);
+        }
+
+        RequestViewportUpdate();
+    }
+
+    private void OnGroupingBandRemoveRequested(int index)
+    {
+        if ((uint)index >= (uint)_groupDescriptors.Count)
+        {
+            return;
+        }
+
+        _groupDescriptors.RemoveAt(index);
+    }
+
+    private void OnGroupingBandReorderRequested(int fromIndex, int insertIndex)
+    {
+        if ((uint)fromIndex >= (uint)_groupDescriptors.Count)
+        {
+            return;
+        }
+
+        insertIndex = Math.Clamp(insertIndex, 0, _groupDescriptors.Count);
+        var descriptor = _groupDescriptors[fromIndex];
+        _groupDescriptors.RemoveAt(fromIndex);
+        if (insertIndex > fromIndex)
+        {
+            insertIndex--;
+        }
+        _groupDescriptors.Insert(insertIndex, descriptor);
+    }
+
+    private void OnGroupingBandKeyboardCommandRequested(int index, KeyModifiers modifiers)
+    {
+        _ = index;
+        _ = modifiers;
+    }
+
+    private void OnGroupingBandColumnDropRequested(int columnIndex, int insertIndex)
+    {
+        if ((uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserGroup)
+        {
+            return;
+        }
+
+        insertIndex = Math.Clamp(insertIndex, 0, _groupDescriptors.Count);
+        var existingIndex = FindGroupingDescriptorIndex(column);
+        if (existingIndex >= 0)
+        {
+            if (insertIndex > existingIndex)
+            {
+                insertIndex--;
+            }
+
+            if (insertIndex == existingIndex || insertIndex == existingIndex + 1)
+            {
+                return;
+            }
+
+            var descriptor = _groupDescriptors[existingIndex];
+            _groupDescriptors.RemoveAt(existingIndex);
+            _groupDescriptors.Insert(insertIndex, descriptor);
+            return;
+        }
+
+        var newDescriptor = FastTreeDataGridGroupingDescriptorFactory.CreateFromColumn(column);
+        _groupDescriptors.Insert(insertIndex, newDescriptor);
+    }
+
+    private void OnHeaderColumnGroupRequested(int columnIndex)
+    {
+        if ((uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        if (!column.CanUserGroup)
+        {
+            return;
+        }
+
+        if (FindGroupingDescriptorIndex(column) >= 0)
+        {
+            return;
+        }
+
+        var descriptor = FastTreeDataGridGroupingDescriptorFactory.CreateFromColumn(column);
+        _groupDescriptors.Add(descriptor);
+    }
+
+    private void OnHeaderColumnUngroupRequested(int columnIndex)
+    {
+        if ((uint)columnIndex >= (uint)_columns.Count)
+        {
+            return;
+        }
+
+        var column = _columns[columnIndex];
+        var index = FindGroupingDescriptorIndex(column);
+        if (index >= 0)
+        {
+            _groupDescriptors.RemoveAt(index);
+        }
+    }
+
+    private void OnHeaderColumnGroupingCleared()
+    {
+        if (_groupDescriptors.Count > 0)
+        {
+            _groupDescriptors.Clear();
+        }
+    }
+
+    private void UpdateGroupingBandDescriptors()
+    {
+        if (_groupingBand is null)
+        {
+            return;
+        }
+
+        _groupingBand.UpdateDescriptors(_groupDescriptors, GetGroupingLabel);
+    }
+
+    private string GetGroupingLabel(FastTreeDataGridGroupDescriptor descriptor)
+    {
+        if (descriptor.Properties.TryGetValue("ColumnHeader", out var header) && header is string headerText && !string.IsNullOrWhiteSpace(headerText))
+        {
+            return headerText;
+        }
+
+        var column = FindColumnForDescriptor(descriptor);
+        if (column?.Header is string headerString && !string.IsNullOrWhiteSpace(headerString))
+        {
+            return headerString;
+        }
+
+        return descriptor.ColumnKey ?? "Group";
+    }
+
+    private FastTreeDataGridColumn? FindColumnForDescriptor(FastTreeDataGridGroupDescriptor descriptor)
+    {
+        if (descriptor.Properties.TryGetValue("ColumnReference", out var stored) && stored is FastTreeDataGridColumn storedColumn)
+        {
+            if (_columns.Contains(storedColumn))
+            {
+                return storedColumn;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(descriptor.ColumnKey))
+        {
+            for (var i = 0; i < _columns.Count; i++)
+            {
+                if (string.Equals(_columns[i].ValueKey, descriptor.ColumnKey, StringComparison.Ordinal))
+                {
+                    return _columns[i];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private int FindGroupingDescriptorIndex(FastTreeDataGridColumn column)
+    {
+        for (var i = 0; i < _groupDescriptors.Count; i++)
+        {
+            var descriptor = _groupDescriptors[i];
+            if (descriptor.Properties.TryGetValue("ColumnReference", out var stored) && ReferenceEquals(stored, column))
+            {
+                return i;
+            }
+
+            if (!string.IsNullOrEmpty(descriptor.ColumnKey) && !string.IsNullOrEmpty(column.ValueKey) && string.Equals(descriptor.ColumnKey, column.ValueKey, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private FastTreeDataGridColumn? FindColumnByKey(string columnKey)
+    {
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            var column = _columns[i];
+            if (!string.IsNullOrEmpty(column.ValueKey) && string.Equals(column.ValueKey, columnKey, StringComparison.Ordinal))
+            {
+                return column;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetDescriptorColumnKey(FastTreeDataGridGroupDescriptor descriptor)
+    {
+        if (!string.IsNullOrEmpty(descriptor.ColumnKey))
+        {
+            return descriptor.ColumnKey;
+        }
+
+        if (descriptor.Properties.TryGetValue("ColumnKey", out var value) && value is string key)
+        {
+            return key;
+        }
+
+        return null;
     }
 
     private void AttachTemplatePartHandlers()
@@ -1134,6 +1494,9 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.CollapseAllRequested += OnCollapseAllRequested;
             _headerPresenter.ColumnFilterRequested += OnColumnFilterRequested;
             _headerPresenter.ColumnFilterCleared += OnColumnFilterCleared;
+            _headerPresenter.ColumnGroupRequested += OnHeaderColumnGroupRequested;
+            _headerPresenter.ColumnUngroupRequested += OnHeaderColumnUngroupRequested;
+            _headerPresenter.ColumnGroupingCleared += OnHeaderColumnGroupingCleared;
         }
 
         _templateHandlersAttached = true;
@@ -1173,6 +1536,9 @@ public partial class FastTreeDataGrid : TemplatedControl
             _headerPresenter.CollapseAllRequested -= OnCollapseAllRequested;
             _headerPresenter.ColumnFilterRequested -= OnColumnFilterRequested;
             _headerPresenter.ColumnFilterCleared -= OnColumnFilterCleared;
+            _headerPresenter.ColumnGroupRequested -= OnHeaderColumnGroupRequested;
+            _headerPresenter.ColumnUngroupRequested -= OnHeaderColumnUngroupRequested;
+            _headerPresenter.ColumnGroupingCleared -= OnHeaderColumnGroupingCleared;
         }
 
         _templateHandlersAttached = false;
@@ -1189,6 +1555,18 @@ public partial class FastTreeDataGrid : TemplatedControl
             _presenter.SetOwner(null);
         }
         AttachPresenterForEditing(null);
+
+        if (_groupingBand is not null)
+        {
+            _groupingBand.RemoveRequested -= OnGroupingBandRemoveRequested;
+            _groupingBand.ReorderRequested -= OnGroupingBandReorderRequested;
+            _groupingBand.ColumnDropRequested -= OnGroupingBandColumnDropRequested;
+            _groupingBand.KeyboardCommandRequested -= OnGroupingBandKeyboardCommandRequested;
+            if (clearReferences)
+            {
+                _groupingBand = null;
+            }
+        }
 
         if (_filterPresenter is not null)
         {
@@ -1208,6 +1586,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         _headerScrollViewer = null;
         _headerHost = null;
         _headerPresenter = null;
+        _groupingBandHost = null;
         _presenter = null;
         if (clearReferences)
         {
@@ -1389,6 +1768,10 @@ public partial class FastTreeDataGrid : TemplatedControl
             return;
         }
 
+        var groupDescriptors = _groupDescriptors.Count == 0 ? Array.Empty<FastTreeDataGridGroupDescriptor>() : _groupDescriptors.ToArray();
+
+        SynchronizeGroupSortWithColumns(groupDescriptors);
+
         IReadOnlyList<FastTreeDataGridSortDescriptor> sortDescriptors;
         if (_sortDescriptions.Count == 0)
         {
@@ -1415,11 +1798,29 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             SortDescriptors = sortDescriptors,
             FilterDescriptors = BuildFilterDescriptors(),
-            GroupDescriptors = _groupDescriptors.Count == 0 ? Array.Empty<FastTreeDataGridGroupDescriptor>() : _groupDescriptors.ToArray(),
+            GroupDescriptors = groupDescriptors,
             AggregateDescriptors = _aggregateDescriptors.Count == 0 ? Array.Empty<FastTreeDataGridAggregateDescriptor>() : _aggregateDescriptors.ToArray(),
         };
 
         _ = _virtualizationProvider.ApplySortFilterAsync(request, CancellationToken.None);
+    }
+
+    private void SynchronizeGroupSortWithColumns(FastTreeDataGridGroupDescriptor[] groupDescriptors)
+    {
+        for (var i = 0; i < groupDescriptors.Length; i++)
+        {
+            var descriptor = groupDescriptors[i];
+            if (!descriptor.Properties.TryGetValue("ColumnReference", out var stored) || stored is not FastTreeDataGridColumn column)
+            {
+                continue;
+            }
+
+            descriptor.SortDirection = column.SortDirection is FastTreeDataGridSortDirection.None
+                ? FastTreeDataGridSortDirection.Ascending
+                : column.SortDirection;
+
+            descriptor.Comparer = column.GroupAdapter?.Comparer;
+        }
     }
 
     private IReadOnlyList<FastTreeDataGridFilterDescriptor> BuildFilterDescriptors()
@@ -1700,7 +2101,7 @@ public partial class FastTreeDataGrid : TemplatedControl
                 return;
             }
 
-            _itemsSource.ToggleExpansion(rowIndex);
+            ToggleExpansionAt(rowIndex);
         }, DispatcherPriority.Background);
     }
 
@@ -2437,7 +2838,16 @@ public partial class FastTreeDataGrid : TemplatedControl
                 double indentOffset = 0d;
                 if (columnIndex == hierarchyColumnIndex)
                 {
-                    indentOffset = row.Level * IndentWidth + toggleSize + (togglePadding * 2);
+                    indentOffset = row.Level * IndentWidth;
+                    if (rowInfo.HasChildren || rowInfo.IsGroup)
+                    {
+                        indentOffset += toggleSize + (togglePadding * 2);
+                    }
+                    else if (row.Level > 0)
+                    {
+                        indentOffset += togglePadding;
+                    }
+
                     if (rowInfo.ToggleBounds is null)
                     {
                         rowInfo.ToggleBounds = bounds;
@@ -2452,33 +2862,185 @@ public partial class FastTreeDataGrid : TemplatedControl
                 FormattedText? formatted = null;
                 Point textOrigin = new(contentBounds.X, contentBounds.Y + (rowHeight / 2));
 
+                var hasGroupHeaderCustomization =
+                    column.GroupHeaderControlTemplate is not null ||
+                    column.GroupHeaderWidgetFactory is not null ||
+                    column.GroupHeaderTemplate is not null;
+
+                var hasGroupFooterCustomization =
+                    column.GroupFooterControlTemplate is not null ||
+                    column.GroupFooterWidgetFactory is not null ||
+                    column.GroupFooterTemplate is not null;
+
+                var hasCellCustomization =
+                    column.CellControlTemplate is not null ||
+                    column.CellTemplate is not null ||
+                    column.WidgetFactory is not null;
+
                 if (!isPlaceholder)
                 {
-                    if (column.CellControlTemplate is { } controlTemplate)
+                    if (rowInfo.IsGroup)
                     {
-                        control = column.RentControl() ?? controlTemplate.Build(row.Item);
-                        if (control is not null)
+                        if (hasGroupHeaderCustomization)
                         {
-                            if (row.Item is not null)
+                            if (column.GroupHeaderControlTemplate is { } headerControlTemplate)
                             {
-                                control.DataContext = row.Item;
+                                control = column.RentGroupHeaderControl() ?? headerControlTemplate.Build(row.Item);
+                                if (control is not null)
+                                {
+                                    FastTreeDataGridColumn.SetControlRole(control, FastTreeDataGridColumnControlRole.GroupHeader);
+                                    if (row.Item is not null)
+                                    {
+                                        control.DataContext = row.Item;
+                                    }
+
+                                    if (column.SizingMode == ColumnSizingMode.Auto)
+                                    {
+                                        var measureSize = new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height));
+                                        control.Measure(measureSize);
+                                    }
+                                }
                             }
 
-                            if (column.SizingMode == ColumnSizingMode.Auto)
+                            if (control is null)
                             {
-                                var measureSize = new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height));
-                                control.Measure(measureSize);
+                                if (column.GroupHeaderWidgetFactory is { } headerFactory)
+                                {
+                                    widget = headerFactory(row.ValueProvider, row.Item);
+                                }
+                                else if (column.GroupHeaderTemplate is { } headerTemplate)
+                                {
+                                    widget = headerTemplate.Build();
+                                }
+                            }
+                        }
+                        else if (columnIndex == hierarchyColumnIndex)
+                        {
+                            if (!hasCellCustomization)
+                            {
+                                var presenterWidget = _presenter?.RentGroupRowPresenter() ?? new FastTreeDataGridGroupRowPresenter();
+                                var headerText = ResolveCellText(row, column, culture);
+                                var itemCount = row.Item is IFastTreeDataGridGroupMetadata groupMetadata ? groupMetadata.ItemCount : 0;
+                                var groupIndent = indentOffset + cellPadding;
+
+                                presenterWidget.StyleKey = column.GroupHeaderStyleKey;
+                                presenterWidget.Update(headerText, itemCount, groupIndent, cellPadding);
+                                widget = presenterWidget;
+
+                                var headerFontSize = CalculateCellFontSize(rowHeight);
+                                formatted = new FormattedText(
+                                    headerText,
+                                    culture,
+                                    FlowDirection.LeftToRight,
+                                    typeface,
+                                    headerFontSize,
+                                    textBrush)
+                                {
+                                    MaxTextWidth = contentWidth,
+                                    Trimming = TextTrimming.CharacterEllipsis,
+                                };
+                                textOrigin = new Point(
+                                    contentBounds.X,
+                                    contentBounds.Y + Math.Max(0, (rowHeight - formatted.Height) / 2));
                             }
                         }
                     }
 
-                    if (control is null && column.WidgetFactory is { } factory)
+                    if (rowInfo.IsSummary && widget is null && control is null)
                     {
-                        widget = factory(row.ValueProvider, row.Item);
+                        if (hasGroupFooterCustomization)
+                        {
+                            if (column.GroupFooterControlTemplate is { } footerControlTemplate)
+                            {
+                                control = column.RentGroupFooterControl() ?? footerControlTemplate.Build(row.Item);
+                                if (control is not null)
+                                {
+                                    FastTreeDataGridColumn.SetControlRole(control, FastTreeDataGridColumnControlRole.GroupFooter);
+                                    if (row.Item is not null)
+                                    {
+                                        control.DataContext = row.Item;
+                                    }
+
+                                    if (column.SizingMode == ColumnSizingMode.Auto)
+                                    {
+                                        var measureSize = new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height));
+                                        control.Measure(measureSize);
+                                    }
+                                }
+                            }
+
+                            if (control is null)
+                            {
+                                if (column.GroupFooterWidgetFactory is { } footerFactory)
+                                {
+                                    widget = footerFactory(row.ValueProvider, row.Item);
+                                }
+                                else if (column.GroupFooterTemplate is { } footerTemplate)
+                                {
+                                    widget = footerTemplate.Build();
+                                }
+                            }
+                        }
+                        else if (columnIndex == hierarchyColumnIndex)
+                        {
+                            if (!hasCellCustomization)
+                            {
+                                var summaryWidget = _presenter?.RentGroupSummaryPresenter() ?? new FastTreeDataGridGroupSummaryPresenter();
+                                var labelText = ResolveCellText(row, column, culture);
+                                summaryWidget.StyleKey = column.GroupSummaryStyleKey;
+                                summaryWidget.Update(labelText, indentOffset + cellPadding, cellPadding);
+                                summaryWidget.Arrange(bounds);
+                                widget = summaryWidget;
+
+                                var summaryFontSize = CalculateCellFontSize(rowHeight);
+                                formatted = new FormattedText(
+                                    labelText,
+                                    culture,
+                                    FlowDirection.LeftToRight,
+                                    typeface,
+                                    summaryFontSize,
+                                    textBrush)
+                                {
+                                    MaxTextWidth = contentWidth,
+                                    Trimming = TextTrimming.CharacterEllipsis,
+                                };
+                                formatted.SetFontWeight(FontWeight.SemiBold);
+                                textOrigin = new Point(
+                                    contentBounds.X,
+                                    contentBounds.Y + Math.Max(0, (rowHeight - formatted.Height) / 2));
+                            }
+                        }
                     }
-                    else if (control is null && column.CellTemplate is { } template)
+
+                    if (widget is null && control is null)
                     {
-                        widget = template.Build();
+                        if (column.CellControlTemplate is { } controlTemplate)
+                        {
+                            control = column.RentControl() ?? controlTemplate.Build(row.Item);
+                            if (control is not null)
+                            {
+                                FastTreeDataGridColumn.SetControlRole(control, FastTreeDataGridColumnControlRole.Default);
+                                if (row.Item is not null)
+                                {
+                                    control.DataContext = row.Item;
+                                }
+
+                                if (column.SizingMode == ColumnSizingMode.Auto)
+                                {
+                                    var measureSize = new Size(Math.Max(0, contentBounds.Width), Math.Max(0, contentBounds.Height));
+                                    control.Measure(measureSize);
+                                }
+                            }
+                        }
+
+                        if (control is null && column.WidgetFactory is { } factory)
+                        {
+                            widget = factory(row.ValueProvider, row.Item);
+                        }
+                        else if (control is null && column.CellTemplate is { } template)
+                        {
+                            widget = template.Build();
+                        }
                     }
                 }
 
@@ -2533,7 +3095,10 @@ public partial class FastTreeDataGrid : TemplatedControl
                     widget.Key ??= column.ValueKey;
                     widget.Foreground ??= GetImmutableBrush(textBrush);
                     widget.UpdateValue(row.ValueProvider, row.Item);
-                    widget.Arrange(contentBounds);
+                    var arrangeBounds = widget is FastTreeDataGridGroupRowPresenter
+                        ? bounds
+                        : contentBounds;
+                    widget.Arrange(arrangeBounds);
                 }
 
                 var validationState = GetCellValidationState(row, column);
@@ -2646,6 +3211,35 @@ public partial class FastTreeDataGrid : TemplatedControl
         };
     }
 
+    private const string GroupHeaderValueKey = "FastTreeDataGrid.Group.Header";
+
+    private static string ResolveCellText(FastTreeDataGridRow row, FastTreeDataGridColumn column, CultureInfo culture)
+    {
+        if (row.ValueProvider is null)
+        {
+            return row.Item switch
+            {
+                null => string.Empty,
+                string s => s,
+                IFormattable formattable => formattable.ToString(null, culture),
+                _ => row.Item?.ToString() ?? string.Empty,
+            };
+        }
+
+        var key = column.ValueKey ?? string.Empty;
+        var value = row.ValueProvider.GetValue(row.Item, key);
+
+        var text = FormatCellValue(value, culture);
+
+        if (string.IsNullOrEmpty(text) && row.IsGroup)
+        {
+            var headerValue = row.ValueProvider.GetValue(row.Item, GroupHeaderValueKey);
+            text = FormatCellValue(headerValue, culture);
+        }
+
+        return text;
+    }
+
     internal void HandlePresenterPointerPressed(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition, int clickCount, bool toggleHit, PointerPressedEventArgs args)
     {
         if (_itemsSource is null)
@@ -2726,7 +3320,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         var shouldToggle = rowInfo.HasChildren && (toggleHit || clickCount > 1);
         if (shouldToggle)
         {
-            _itemsSource.ToggleExpansion(rowInfo.RowIndex);
+            ToggleExpansionAt(rowInfo.RowIndex);
             return;
         }
 
@@ -2734,6 +3328,70 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             BeginEdit(FastTreeDataGridEditActivationReason.Pointer, null);
         }
+    }
+
+    internal bool HandlePresenterContextMenu(FastTreeDataGridPresenter.RowRenderInfo rowInfo, Point pointerPosition)
+    {
+        if (_presenter is null)
+        {
+            return false;
+        }
+
+        var row = rowInfo.Row;
+        var items = new List<object>();
+
+        bool hasChildren = row.IsGroup || row.HasChildren;
+        bool canExpand = hasChildren && !row.IsExpanded;
+        bool canCollapse = hasChildren && row.IsExpanded;
+
+        void AddMenuItem(string header, Action action, bool isEnabled)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                IsEnabled = isEnabled,
+            };
+
+            if (isEnabled)
+            {
+                item.Click += (_, _) => Dispatcher.UIThread.Post(action);
+            }
+
+            items.Add(item);
+        }
+
+        if (hasChildren)
+        {
+            AddMenuItem("Expand", () => SetGroupExpansionAt(rowInfo.RowIndex, expand: true, recursive: false), canExpand);
+            AddMenuItem("Collapse", () => SetGroupExpansionAt(rowInfo.RowIndex, expand: false, recursive: false), canCollapse);
+            AddMenuItem("Expand Descendants", () => SetGroupExpansionAt(rowInfo.RowIndex, expand: true, recursive: true), hasChildren && canExpand);
+            AddMenuItem("Collapse Descendants", () => SetGroupExpansionAt(rowInfo.RowIndex, expand: false, recursive: true), hasChildren && (canCollapse || row.IsExpanded));
+        }
+
+        var hasPrimaryActions = items.OfType<MenuItem>().Any(static mi => mi.IsEnabled);
+
+        if (hasPrimaryActions)
+        {
+            items.Add(new Separator());
+        }
+
+        AddMenuItem("Expand All Groups", ExpandAllGroups, true);
+        AddMenuItem("Collapse All Groups", CollapseAllGroups, true);
+
+        if (!items.OfType<MenuItem>().Any(mi => mi.IsEnabled) && !items.OfType<MenuItem>().Any())
+        {
+            return false;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = _presenter,
+            Placement = PlacementMode.Pointer,
+            ItemsSource = items,
+        };
+
+        menu.Open(_presenter);
+        return true;
     }
 
     internal bool HandlePresenterPointerMoved(FastTreeDataGridPresenter.RowRenderInfo? rowInfo, Point pointerPosition, PointerEventArgs args)
@@ -2835,6 +3493,31 @@ public partial class FastTreeDataGrid : TemplatedControl
             case Key.Right:
                 ResetTypeSearch();
                 return HandleExpandKey(modifiers);
+            case Key.Add:
+            {
+                ResetTypeSearch();
+                var recursive = (modifiers & KeyModifiers.Control) == KeyModifiers.Control;
+                var handled = SetGroupExpansionFromSelection(expand: true, recursive: recursive);
+                return handled;
+            }
+            case Key.Subtract:
+            {
+                ResetTypeSearch();
+                var recursive = (modifiers & KeyModifiers.Control) == KeyModifiers.Control;
+                var handled = SetGroupExpansionFromSelection(expand: false, recursive: recursive);
+                return handled;
+            }
+            case Key.Multiply:
+                ResetTypeSearch();
+                if ((modifiers & KeyModifiers.Shift) == KeyModifiers.Shift)
+                {
+                    CollapseAllGroups();
+                }
+                else
+                {
+                    ExpandAllGroups();
+                }
+                return true;
             default:
                 return false;
         }
@@ -3038,9 +3721,27 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         var row = _itemsSource.GetRow(index);
+        if (row.IsGroup)
+        {
+            if (row.IsExpanded)
+            {
+                ToggleExpansionAt(index, requestPrefetch: false);
+                return true;
+            }
+
+            var parentIndex = FindParentIndex(index, row.Level);
+            if (parentIndex >= 0)
+            {
+                NavigateToIndex(parentIndex, KeyModifiers.None);
+                return true;
+            }
+
+            return false;
+        }
+
         if (row.HasChildren && row.IsExpanded)
         {
-            _itemsSource.ToggleExpansion(index);
+            ToggleExpansionAt(index, requestPrefetch: false);
             return true;
         }
 
@@ -3081,6 +3782,30 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         var row = _itemsSource.GetRow(index);
+        if (row.IsGroup)
+        {
+            if (!row.IsExpanded)
+            {
+                ToggleExpansionAt(index);
+                return true;
+            }
+
+            var groupChildIndex = index + 1;
+            if (groupChildIndex >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(groupChildIndex))
+            {
+                return false;
+            }
+
+            var groupChildRow = _itemsSource.GetRow(groupChildIndex);
+            if (groupChildRow.Level > row.Level)
+            {
+                NavigateToIndex(groupChildIndex, KeyModifiers.None);
+                return true;
+            }
+
+            return false;
+        }
+
         if (!row.HasChildren)
         {
             return false;
@@ -3088,7 +3813,7 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         if (!row.IsExpanded)
         {
-            _itemsSource.ToggleExpansion(index);
+            ToggleExpansionAt(index);
             return true;
         }
 
@@ -3106,6 +3831,120 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
 
         return false;
+    }
+
+    private bool SetGroupExpansionFromSelection(bool expand, bool recursive)
+    {
+        if (_itemsSource is null || _selectionModel.PrimaryIndex < 0)
+        {
+            return false;
+        }
+
+        return SetGroupExpansionAt(_selectionModel.PrimaryIndex, expand, recursive);
+    }
+
+    private bool SetGroupExpansionAt(int index, bool expand, bool recursive)
+    {
+        if (_itemsSource is null || index < 0 || index >= _itemsSource.RowCount || _itemsSource.IsPlaceholder(index))
+        {
+            return false;
+        }
+
+        var row = _itemsSource.GetRow(index);
+        var changed = false;
+
+        if (row.IsGroup)
+        {
+            if (recursive && !expand && row.IsExpanded)
+            {
+                changed |= SetGroupExpansionRecursive(index, row.Level, expand);
+            }
+
+            if (row.IsExpanded != expand)
+            {
+                ToggleExpansionAt(index, requestPrefetch: !recursive && expand);
+                changed = true;
+                row = _itemsSource.GetRow(index);
+            }
+
+            if (recursive && expand)
+            {
+                changed |= SetGroupExpansionRecursive(index, row.Level, true);
+            }
+
+            return changed;
+        }
+
+        if (!row.HasChildren)
+        {
+            return false;
+        }
+
+        if (row.IsExpanded != expand)
+        {
+            ToggleExpansionAt(index, requestPrefetch: !recursive && expand);
+            changed = true;
+            row = _itemsSource.GetRow(index);
+        }
+
+        if (recursive)
+        {
+            changed |= SetGroupExpansionRecursive(index, row.Level, expand);
+        }
+
+        return changed;
+    }
+
+    private bool SetGroupExpansionRecursive(int startIndex, int level, bool expand)
+    {
+        if (_itemsSource is null)
+        {
+            return false;
+        }
+
+        var changed = false;
+
+        for (var i = startIndex + 1; i < _itemsSource.RowCount; i++)
+        {
+            if (_itemsSource.IsPlaceholder(i))
+            {
+                continue;
+            }
+
+            var row = _itemsSource.GetRow(i);
+            if (row.Level <= level)
+            {
+                break;
+            }
+
+            if (!row.IsGroup)
+            {
+                continue;
+            }
+
+            if (expand)
+            {
+                if (!row.IsExpanded)
+                {
+                    ToggleExpansionAt(i, requestPrefetch: false);
+                    row = _itemsSource.GetRow(i);
+                    changed = true;
+                }
+
+                changed |= SetGroupExpansionRecursive(i, row.Level, true);
+            }
+            else
+            {
+                if (row.IsExpanded)
+                {
+                    changed |= SetGroupExpansionRecursive(i, row.Level, false);
+                    ToggleExpansionAt(i, requestPrefetch: false);
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
     }
 
     private int FindParentIndex(int startIndex, int currentLevel)
@@ -3326,18 +4165,130 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
     }
 
+    private void ToggleExpansionAt(int index, bool requestPrefetch = true)
+    {
+        if (_itemsSource is null || (uint)index >= (uint)_itemsSource.RowCount)
+        {
+            return;
+        }
+
+        if (_itemsSource.IsPlaceholder(index))
+        {
+            return;
+        }
+
+        var row = _itemsSource.GetRow(index);
+        var hasGroupPath = TryGetGroupPath(row, out var groupPath);
+        var newExpandedState = hasGroupPath ? !row.IsExpanded : false;
+
+        _itemsSource.ToggleExpansion(index);
+
+        if (hasGroupPath)
+        {
+            _groupingStateStore.SetExpanded(groupPath, newExpandedState);
+        }
+
+        if (requestPrefetch)
+        {
+            TryPrefetchExpandedDescendants(index);
+        }
+    }
+
+    private static bool TryGetGroupPath(FastTreeDataGridRow row, out string path)
+    {
+        if (row.Item is IFastTreeDataGridGroupPathProvider provider && !string.IsNullOrEmpty(provider.GroupPath))
+        {
+            path = provider.GroupPath;
+            return true;
+        }
+
+        path = string.Empty;
+        return false;
+    }
+
+    private bool DetermineDefaultGroupExpansion()
+    {
+        if (_groupDescriptors.Count == 0)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < _groupDescriptors.Count; i++)
+        {
+            if (!_groupDescriptors[i].IsExpanded)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void ApplyGroupExpansionLayout(IReadOnlyList<FastTreeDataGridGroupingExpansionState> states, bool defaultExpanded)
+    {
+        if (_virtualizationProvider is IFastTreeDataGridGroupingController grouping)
+        {
+            grouping.ApplyGroupExpansionLayout(states ?? Array.Empty<FastTreeDataGridGroupingExpansionState>(), defaultExpanded);
+        }
+    }
+
+    private void TryPrefetchExpandedDescendants(int index)
+    {
+        if (_viewportScheduler is null || _itemsSource is null)
+        {
+            return;
+        }
+
+        if ((uint)index >= (uint)_itemsSource.RowCount)
+        {
+            return;
+        }
+
+        var row = _itemsSource.GetRow(index);
+        if (!row.IsExpanded)
+        {
+            return;
+        }
+
+        var startIndex = index + 1;
+        if (startIndex >= _itemsSource.RowCount)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (_lastGroupPrefetchIndex == index && (now - _lastGroupPrefetchTimestamp).TotalMilliseconds < 100)
+        {
+            return;
+        }
+
+        var radius = Math.Max(1, _virtualizationSettings.PrefetchRadius);
+        var count = Math.Min(_itemsSource.RowCount - startIndex, radius * 4);
+        if (count <= 0)
+        {
+            return;
+        }
+
+        _lastGroupPrefetchIndex = index;
+        _lastGroupPrefetchTimestamp = now;
+
+        _viewportScheduler.Request(new FastTreeDataGridViewportRequest(startIndex, count, radius));
+    }
+
     private string GetCellText(FastTreeDataGridRow row, FastTreeDataGridColumn column)
     {
         if (column.ValueKey is { } key && row.ValueProvider is { } provider)
         {
             var value = provider.GetValue(row.Item, key);
-            return value switch
+            var text = FormatCellValue(value, CultureInfo.InvariantCulture);
+
+            if (string.IsNullOrEmpty(text) && row.IsGroup)
             {
-                null => string.Empty,
-                string s => s,
-                IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-                _ => value.ToString() ?? string.Empty,
-            };
+                var headerValue = provider.GetValue(row.Item, GroupHeaderValueKey);
+                text = FormatCellValue(headerValue, CultureInfo.InvariantCulture);
+            }
+
+            return text;
         }
 
         return row.Item?.ToString() ?? string.Empty;
@@ -3362,6 +4313,17 @@ public partial class FastTreeDataGrid : TemplatedControl
     {
         var normalized = NormalizeKeyModifiers(modifiers);
         return (normalized & KeyModifiers.Control) == KeyModifiers.Control;
+    }
+
+    private static string FormatCellValue(object? value, CultureInfo culture)
+    {
+        return value switch
+        {
+            null => string.Empty,
+            string s => s,
+            IFormattable formattable => formattable.ToString(null, culture),
+            _ => value?.ToString() ?? string.Empty,
+        };
     }
 
     private void UpdateRowSelectionIndicators()

@@ -45,7 +45,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <TextBlock Text="Tip: Hold Shift or Ctrl while using arrows or clicks to build multi-selection. Use Left/Right to collapse or expand groups, and start typing to jump to a country."
+      <TextBlock Text="Tip: Drag a column header into the grouping band to organize by that field. Hold Shift or Ctrl while using arrows or clicks to build multi-selection, use Left/Right to collapse or expand groups, and start typing to jump to a country."
                  TextWrapping="Wrap"
                  Foreground="#666" />
       <TextBlock Text="{Binding ReorderStatus}"
