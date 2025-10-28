@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\\FastTreeDataGrid.Core\\FastTreeDataGrid.Core.csproj" />
+    <ProjectReference Include="..\\FastTreeDataGrid.Engine\\FastTreeDataGrid.Engine.csproj" />
     <AvaloniaResource Include="Themes\**\*.xaml" />
   </ItemGroup>
 

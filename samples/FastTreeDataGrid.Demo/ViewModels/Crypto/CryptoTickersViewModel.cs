@@ -7,8 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Collections;
 using Avalonia.Threading;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crypto;
 

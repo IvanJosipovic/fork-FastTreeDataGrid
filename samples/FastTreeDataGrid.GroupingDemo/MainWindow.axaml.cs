@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Widgets;
 using FastTreeDataGrid.GroupingDemo.Adapters;
 using FastTreeDataGrid.GroupingDemo.ViewModels;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.GroupingDemo;
 

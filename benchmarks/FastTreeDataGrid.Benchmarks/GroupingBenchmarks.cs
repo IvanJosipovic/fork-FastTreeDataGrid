@@ -4,8 +4,8 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using BenchmarkDotNet.Attributes;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 
 namespace FastTreeDataGrid.Benchmarks;
 

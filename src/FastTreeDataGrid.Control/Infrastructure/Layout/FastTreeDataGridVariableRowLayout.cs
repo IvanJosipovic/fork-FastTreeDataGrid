@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 using ControlsFastTreeDataGrid = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
 

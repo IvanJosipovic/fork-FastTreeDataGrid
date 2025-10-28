@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels"
              xmlns:data="clr-namespace:FastTreeDataGrid.VirtualizationDemo.ViewModels.Data"
-             xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Core"
+             xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
              xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
              xmlns:model="clr-namespace:FastTreeDataGrid.Control.Models;assembly=FastTreeDataGrid.Control"
              mc:Ignorable="d"

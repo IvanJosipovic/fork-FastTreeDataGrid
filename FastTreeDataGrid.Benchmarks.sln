@@ -7,6 +7,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.Benchmarks", "benchmarks\FastTreeDataGrid.Benchmarks\FastTreeDataGrid.Benchmarks.csproj", "{4296D952-AF6A-4CDA-AC9A-CCD5BE143EE6}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F319180E-8C57-44D0-8942-6BCC276415E5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.Engine", "src\FastTreeDataGrid.Engine\FastTreeDataGrid.Engine.csproj", "{5BB3E249-B8E0-4B70-AE72-54881E5CE905}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,8 +24,13 @@ Global
 		{4296D952-AF6A-4CDA-AC9A-CCD5BE143EE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4296D952-AF6A-4CDA-AC9A-CCD5BE143EE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4296D952-AF6A-4CDA-AC9A-CCD5BE143EE6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5BB3E249-B8E0-4B70-AE72-54881E5CE905}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5BB3E249-B8E0-4B70-AE72-54881E5CE905}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5BB3E249-B8E0-4B70-AE72-54881E5CE905}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5BB3E249-B8E0-4B70-AE72-54881E5CE905}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{4296D952-AF6A-4CDA-AC9A-CCD5BE143EE6} = {7EAD6C23-DC33-4D12-8D42-0C20063E4E52}
+		{5BB3E249-B8E0-4B70-AE72-54881E5CE905} = {F319180E-8C57-44D0-8942-6BCC276415E5}
 	EndGlobalSection
 EndGlobal

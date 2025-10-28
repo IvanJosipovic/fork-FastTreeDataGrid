@@ -2,6 +2,16 @@
 
 FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that renders hierarchical datasets directly onto a canvas-backed surface. The control pairs a pluggable FlatTreeDataGrid engine with an immediate-mode widget system so large trees stay responsive while delivering rich cell visuals.
 
+## Packages
+
+FastTreeDataGrid is split into a few NuGet packages:
+
+- `FastTreeDataGrid.Engine` – the platform-neutral flattening, grouping, and virtualization engine. Reference this package from view models, services, or back-end components that manipulate tree data sources.
+- `FastTreeDataGrid.Control` – the Avalonia control that renders the engine output. Include this package in UI projects and XAML.
+- `FastTreeDataGrid.Widgets` – the immediate-mode widget library used by the control’s templates and samples.
+
+The legacy `FastTreeDataGrid.Core` package has been collapsed into the control. Existing `using FastTreeDataGrid.Control.Infrastructure` statements targeting datasource/virtualization types should now point to `FastTreeDataGrid.Engine.Infrastructure`.
+
 ## Feature Overview
 | Feature | Highlights | Primary APIs | More info |
 | --- | --- | --- | --- |
@@ -452,6 +462,13 @@ FastTreeDataGrid prioritises frame time predictability:
 - [Benchmarks](docs/virtualization/benchmarks.md)
 - [Virtualization Migration Guide](docs/virtualization/migration.md)
 - [Changelog](docs/changelog.md)
+
+## Migration Guidance
+
+- Replace any `FastTreeDataGrid.Core` PackageReference with `FastTreeDataGrid.Engine` (engine primitives) and/or `FastTreeDataGrid.Control` (Avalonia control).
+- Update `using FastTreeDataGrid.Control.Infrastructure;` statements that reference datasource, grouping, or virtualization contracts to `using FastTreeDataGrid.Engine.Infrastructure;`.
+- Adjust XAML namespace references from `clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Core` to `clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control`.
+- Re-run `dotnet build` and `dotnet test` after the namespace updates to ensure the engine/control split is applied consistently across your solution.
 
 ## Getting started
 

@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using Avalonia.Media;
 using FastTreeDataGrid.Control.Theming;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
 

@@ -4,8 +4,8 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.ComponentModel;
 using Avalonia.Collections;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.GroupingDemo.Adapters;
 
 namespace FastTreeDataGrid.GroupingDemo.ViewModels;

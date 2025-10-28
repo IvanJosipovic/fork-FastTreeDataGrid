@@ -8,7 +8,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 using FastTreeDataGrid.Control.Widgets;
 using FastTreeDataGrid.Control.Widgets.Samples;
 

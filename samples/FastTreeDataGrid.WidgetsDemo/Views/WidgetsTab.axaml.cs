@@ -3,10 +3,11 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using FastTreeDataGrid.Control.Controls;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Widgets;
 using FastTreeDataGrid.Control.Widgets.Samples;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.WidgetsDemo.Views;
 

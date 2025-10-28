@@ -4,10 +4,11 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using Xunit;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Tests;
 

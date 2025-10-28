@@ -7,8 +7,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Controls;
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using Avalonia.Threading;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
 

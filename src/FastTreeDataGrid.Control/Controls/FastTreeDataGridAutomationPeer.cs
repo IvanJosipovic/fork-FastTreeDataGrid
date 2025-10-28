@@ -4,8 +4,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 
 namespace FastTreeDataGrid.Control.Controls;
 

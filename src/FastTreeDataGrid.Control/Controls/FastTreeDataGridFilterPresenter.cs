@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Controls;

@@ -5,7 +5,7 @@ using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
 

@@ -5,9 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using Xunit;
+using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Control.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Tests;
 

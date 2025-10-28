@@ -1,4 +1,5 @@
 using Avalonia.Controls.Templates;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Models;
 

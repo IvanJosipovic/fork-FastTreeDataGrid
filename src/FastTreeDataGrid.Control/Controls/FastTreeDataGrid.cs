@@ -16,6 +16,8 @@ using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
 using Avalonia.Automation.Peers;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Infrastructure;
 using FastTreeDataGrid.Control.Models;
 using FastTreeDataGrid.Control.Widgets;
@@ -1097,7 +1099,7 @@ public partial class FastTreeDataGrid : TemplatedControl
                 _rowLayout?.Reset();
                 RequestViewportUpdate();
                 await RestoreSelectionAsync(CancellationToken.None);
-            }, _virtualizationSettings.DispatcherPriority);
+            }, _virtualizationSettings.DispatcherPriority.ToAvaloniaPriority());
             return;
         }
 
@@ -1113,7 +1115,7 @@ public partial class FastTreeDataGrid : TemplatedControl
                 FastTreeDataGridVirtualizationDiagnostics.ResetCount.Add(1, CreateControlTags());
                 _rowLayout?.Reset();
                 RequestViewportUpdate();
-            }, _virtualizationSettings.DispatcherPriority);
+            }, _virtualizationSettings.DispatcherPriority.ToAvaloniaPriority());
 
             await RestoreSelectionAsync(ct).ConfigureAwait(false);
         });
@@ -1157,7 +1159,7 @@ public partial class FastTreeDataGrid : TemplatedControl
             }
 
             SetValue(SelectedIndexProperty, index);
-        }, _virtualizationSettings.DispatcherPriority);
+        }, _virtualizationSettings.DispatcherPriority.ToAvaloniaPriority());
     }
 
     private void ResetThrottleDispatcher()

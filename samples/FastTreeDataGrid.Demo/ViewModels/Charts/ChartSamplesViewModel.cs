@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Charts;
 

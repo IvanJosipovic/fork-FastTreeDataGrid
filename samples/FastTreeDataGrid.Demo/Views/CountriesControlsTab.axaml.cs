@@ -1,8 +1,8 @@
 using System.Globalization;
 using Avalonia.Controls;
 using FastTreeDataGrid.Control.Controls;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Demo.ViewModels;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
 

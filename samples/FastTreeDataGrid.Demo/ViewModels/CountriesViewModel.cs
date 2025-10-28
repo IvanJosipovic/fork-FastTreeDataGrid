@@ -4,8 +4,9 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Demo.ViewModels;
 

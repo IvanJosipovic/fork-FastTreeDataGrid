@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Benchmarks;
 

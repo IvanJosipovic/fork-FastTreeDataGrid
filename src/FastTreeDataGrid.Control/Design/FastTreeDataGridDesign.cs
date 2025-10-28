@@ -8,9 +8,10 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeGridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Design;
 

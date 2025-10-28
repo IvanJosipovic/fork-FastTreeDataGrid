@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls.Templates;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Widgets;
 using AvaloniaControl = Avalonia.Controls.Control;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Models;
 

@@ -31,7 +31,7 @@ the metrics.
 
 ```csharp
 using System.Diagnostics.Metrics;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 var listener = new MeterListener();
 listener.InstrumentPublished = (instrument, l) =>

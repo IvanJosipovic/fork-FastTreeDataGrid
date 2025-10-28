@@ -14,7 +14,7 @@ Applications can register additional factories at startup:
 
 ```csharp
 using FastTreeDataGrid.Control.Controls;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 
 // Typically during app startup/DI container configuration
 IDisposable registration = FastTreeDataGridVirtualizationProviderRegistry.Register(
@@ -174,7 +174,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 using Microsoft.Data.Sqlite;
 
 public static class SqliteVirtualizationBootstrapper

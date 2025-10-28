@@ -1,8 +1,9 @@
 using System;
 using Avalonia.Controls;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using AvaloniaControl = Avalonia.Controls.Control;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Controls;
 

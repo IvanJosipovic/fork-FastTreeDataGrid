@@ -1,10 +1,11 @@
 using System;
 using Avalonia.Controls;
 using FastTreeDataGrid.Control.Controls;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Demo.ViewModels;
 using FastTreeDataGrid.Demo.ViewModels.FileSystem;
 using GridControl = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Demo.Views;
 

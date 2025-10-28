@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using FastTreeDataGrid.Control.Infrastructure;
+using FastTreeDataGrid.Engine.Infrastructure;
 using FastTreeDataGrid.Demo.ViewModels;
 
 namespace FastTreeDataGrid.Demo.ViewModels.Crud;

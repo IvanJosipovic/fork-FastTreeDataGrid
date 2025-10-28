@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using ControlsFastTreeDataGrid = FastTreeDataGrid.Control.Controls.FastTreeDataGrid;
 
+using FastTreeDataGrid.Engine.Infrastructure;
+
 namespace FastTreeDataGrid.Control.Infrastructure;
 
 public interface IFastTreeDataGridSelectionModel

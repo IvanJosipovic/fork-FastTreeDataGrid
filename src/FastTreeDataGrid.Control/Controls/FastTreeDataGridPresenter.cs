@@ -11,10 +11,11 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Avalonia.Styling;
-using FastTreeDataGrid.Control.Infrastructure;
-using FastTreeDataGrid.Control.Models;
+using FastTreeDataGrid.Engine.Infrastructure;
+using FastTreeDataGrid.Engine.Models;
 using FastTreeDataGrid.Control.Widgets;
 using AvaloniaControl = Avalonia.Controls.Control;
+using FastTreeDataGrid.Control.Models;
 
 namespace FastTreeDataGrid.Control.Controls;
 
