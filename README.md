@@ -1278,9 +1278,6 @@ Additional sample applications:
 - Run `dotnet test tests/FastTreeDataGrid.Control.Tests/FastTreeDataGrid.Control.Tests.csproj` to exercise widget layout regressions (expander toggles, scroll viewer viewport notifications, and existing picker coverage).
 - Run `dotnet run --project benchmarks/FastTreeDataGrid.Benchmarks -c Release` to execute the BenchmarkDotNet suite, including the new `WidgetInteractionBenchmarks` that stress tab switching, menu refreshes, expander toggles, and scroll viewport updates.
 
-## Next steps
+## License
 
-- Add column resizing and reordering interactions.
-- Support variable row templates and dynamic presenter composition.
-- Integrate keyboard navigation (arrow keys, space/enter, multi-select).
-- Investigate deferred data loading hooks for deep or infinite trees.
+FastTreeDataGrid is licensed under the [MIT License](LICENSE.TXT).
