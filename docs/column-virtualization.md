@@ -15,29 +15,34 @@ In short, row virtualization is backed by an async pipeline with background fetc
 
 Extending column virtualization to match the row pipeline would require significant refactoring:
 
-1. [ ] Define a column provider abstraction (`IFastTreeDataGridColumnSource`) to page column metadata independently of the control.
-2. [ ] Add a column viewport scheduler to monitor horizontal scrolling, issue prefetch/load requests, and handle placeholders/throttled invalidations.
-3. [ ] Extend the presenter to cache cell render info keyed by `(rowIndex, columnIndex)` so columns brought into view can reuse cached widgets instead of rebuilding everything.
-4. [ ] Update selection, editing, and virtualization glue so delayed column realization preserves user interaction, including keyboard navigation and editing.
+1. [x] Define a column provider abstraction (`IFastTreeDataGridColumnSource`) to page column metadata independently of the control.
+2. [x] Add a column viewport scheduler to monitor horizontal scrolling, issue prefetch/load requests, and handle placeholders/throttled invalidations.
+3. [x] Extend the presenter to cache cell render info keyed by `(rowIndex, columnIndex)` so columns brought into view can reuse cached widgets instead of rebuilding everything.
+4. [x] Update selection, editing, and virtualization glue so delayed column realization preserves user interaction, including keyboard navigation and editing.
 
 ## Implementation Plan
 
-1. [ ] **Column Provider API**
-   - [ ] Create `IFastTreeDataGridColumnSource` mirroring the row source contract (count, page fetch, placeholder support).
-   - [ ] Implement a concrete provider that wraps the existing `_columns` collection while supporting incremental materialization.
+1. [x] **Column Provider API**
+   - [x] Create `IFastTreeDataGridColumnSource` mirroring the row source contract (count, page fetch, placeholder support).
+   - [x] Implement a concrete provider that wraps the existing `_columns` collection while supporting incremental materialization.
 
-2. [ ] **Column Viewport Scheduler**
-   - [ ] Introduce `FastTreeDataGridColumnViewportScheduler` that watches horizontal offset changes, computes visible ranges, and issues prefetch/reset requests at throttled intervals.
-   - [ ] Integrate the scheduler with the new column provider and the main control lifecycle (attach/detach, invalidation events).
+2. [x] **Column Viewport Scheduler**
+   - [x] Introduce `FastTreeDataGridColumnViewportScheduler` that watches horizontal offset changes, computes visible ranges, and issues prefetch/reset requests at throttled intervals.
+   - [x] Integrate the scheduler with the new column provider and the main control lifecycle (attach/detach, invalidation events).
 
-3. [ ] **Presenter Caching**
-   - [ ] Update `FastTreeDataGridPresenter` to maintain a cache of `CellRenderInfo` keyed by `(rowIndex, columnIndex)`.
-   - [ ] Rework the render/update path to reuse cached widgets when columns enter the viewport, falling back to placeholders until data is ready.
+3. [x] **Presenter Caching**
+   - [x] Update `FastTreeDataGridPresenter` to maintain a cache of `CellRenderInfo` keyed by `(rowIndex, columnIndex)`.
+   - [x] Rework the render/update path to reuse cached widgets when columns enter the viewport, falling back to placeholders until data is ready.
 
 4. [ ] **Control Integration**
-   - [ ] Replace direct column iteration in `FastTreeDataGrid` with scheduler-driven realization.
-   - [ ] Ensure selection, editing, automation, and type search respect temporarily unavailable columns while placeholders are displayed.
+   - [x] Replace direct column iteration in `FastTreeDataGrid` with scheduler-driven realization.
+   - [x] Subscribe to column scheduler events to request column pages and refresh placeholders.
+   - [x] Teach `FastTreeDataGrid` to manage column placeholders and issue invalidations when columns materialize.
+   - [x] Update row/column coordination so the presenter receives synchronized row+column viewports.
+   - [x] Ensure selection, editing, automation, and type search respect temporarily unavailable columns while placeholders are displayed.
 
 5. [ ] **Performance & Testing**
-   - [ ] Add instrumentation to measure column prefetch latency and horizontal scroll responsiveness.
+   - [x] Add instrumentation to measure column prefetch latency and horizontal scroll responsiveness.
+   - [ ] Capture diagnostics that correlate row/column fetch timing for regression tracking.
+   - [ ] Expand tests to cover column placeholder interactions, keyboard navigation, and editing across delayed columns.
    - [ ] Create unit/integration tests covering placeholder rendering, invalidation, editing, and selection across column virtualization boundaries.

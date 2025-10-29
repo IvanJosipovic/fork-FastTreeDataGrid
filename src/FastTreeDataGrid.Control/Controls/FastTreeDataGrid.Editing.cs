@@ -227,7 +227,7 @@ public partial class FastTreeDataGrid
 
             if (columnIndex >= 0 && columnIndex < _columns.Count)
             {
-                if (!_columns[columnIndex].IsReadOnly)
+                if (!_columns[columnIndex].IsReadOnly && !IsColumnPlaceholder(columnIndex))
                 {
                     SetCurrentColumnForRow(columnIndex);
                     return true;
@@ -243,6 +243,11 @@ public partial class FastTreeDataGrid
 
                 _selectionModel.SelectSingle(rowIndex);
                 EnsureRowVisible(rowIndex);
+                if (_virtualizationProvider?.IsPlaceholder(rowIndex) == true)
+                {
+                    visited++;
+                    continue;
+                }
                 columnIndex = forward ? -1 : _columns.Count;
             }
 
@@ -423,9 +428,21 @@ public partial class FastTreeDataGrid
 
                     if (_presenter.TryGetCell(rowIndex, column, out var refreshedRow, out var refreshedCell))
                     {
+                        if (refreshedRow is null || refreshedRow.IsPlaceholder || refreshedCell is null || refreshedCell.IsPlaceholder)
+                        {
+                            _owner.RequestViewportUpdate();
+                            return;
+                        }
+
                         BeginEditCore(rowIndex, column, row, refreshedRow, refreshedCell, reason, initialText);
                     }
                 }, DispatcherPriority.Render);
+                return false;
+            }
+
+            if (rowInfo is null || rowInfo.IsPlaceholder || cellInfo is null || cellInfo.IsPlaceholder)
+            {
+                _owner.RequestViewportUpdate();
                 return false;
             }
 
@@ -441,6 +458,12 @@ public partial class FastTreeDataGrid
             FastTreeDataGridEditActivationReason reason,
             string? initialText)
         {
+            if (rowInfo.IsPlaceholder || cellInfo.IsPlaceholder)
+            {
+                _owner.RequestViewportUpdate();
+                return false;
+            }
+
             var editor = BuildEditor(column, row, initialText);
             if (editor is null)
             {
@@ -582,7 +605,7 @@ public partial class FastTreeDataGrid
             }
 
             var cellInfo = rowInfo.Cells.FirstOrDefault(c => ReferenceEquals(c.Column, session.Column));
-            if (cellInfo is null)
+            if (cellInfo is null || cellInfo.IsPlaceholder)
             {
                 CancelEdit(FastTreeDataGridEditCancelReason.Recycled);
                 return;

@@ -167,7 +167,8 @@ public class FastTreeDataGridEditingTests
                 textOrigin: new Point(cellBounds.X, cellBounds.Y),
                 control: null,
                 validationState: FastTreeDataGridCellValidationState.None,
-                isSelected: true);
+                isSelected: true,
+                isPlaceholder: false);
 
             rowInfo.Cells.Add(cellInfo);
 

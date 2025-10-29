@@ -7,21 +7,21 @@ using System.Threading.Tasks;
 
 namespace FastTreeDataGrid.Engine.Infrastructure;
 
-public sealed class FastTreeDataGridViewportScheduler : IDisposable
+public sealed class FastTreeDataGridColumnViewportScheduler : IDisposable
 {
-    private readonly IFastTreeDataVirtualizationProvider _provider;
+    private readonly IFastTreeDataGridColumnSource _source;
     private FastTreeDataGridVirtualizationSettings _settings;
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _inFlightPages = new();
     private readonly object _requestLock = new();
-    private FastTreeDataGridViewportRequest _lastRequest;
+    private FastTreeDataGridColumnViewportRequest _lastRequest;
     private bool _disposed;
     private int _currentRequestId;
     private int _currentTargetCount;
     private int _currentCompletedCount;
 
-    public FastTreeDataGridViewportScheduler(IFastTreeDataVirtualizationProvider provider, FastTreeDataGridVirtualizationSettings settings)
+    public FastTreeDataGridColumnViewportScheduler(IFastTreeDataGridColumnSource source, FastTreeDataGridVirtualizationSettings settings)
     {
-        _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _source = source ?? throw new ArgumentNullException(nameof(source));
         _settings = settings ?? new FastTreeDataGridVirtualizationSettings();
     }
 
@@ -32,7 +32,7 @@ public sealed class FastTreeDataGridViewportScheduler : IDisposable
         _settings = settings ?? new FastTreeDataGridVirtualizationSettings();
     }
 
-    public void Request(FastTreeDataGridViewportRequest request)
+    public void Request(FastTreeDataGridColumnViewportRequest request)
     {
         if (_disposed)
         {
@@ -41,7 +41,7 @@ public sealed class FastTreeDataGridViewportScheduler : IDisposable
 
         lock (_requestLock)
         {
-            if (request == _lastRequest)
+            if (request.Equals(_lastRequest))
             {
                 return;
             }
@@ -90,27 +90,7 @@ public sealed class FastTreeDataGridViewportScheduler : IDisposable
 
         Volatile.Write(ref _currentTargetCount, scheduledPages);
         RaiseLoadingStateChanged();
-
-        void TicketDisposed()
-        {
-            requestStopwatch.Stop();
-            var tags = new KeyValuePair<string, object?>[]
-            {
-                new("start_index", request.StartIndex),
-                new("count", request.Count),
-            };
-            FastTreeDataGridVirtualizationDiagnostics.ViewportTicketLifetime.Record(requestStopwatch.Elapsed.TotalMilliseconds, tags);
-        }
-
-        ThreadPool.QueueUserWorkItem(_ =>
-        {
-            while (Volatile.Read(ref _currentRequestId) == requestId && Volatile.Read(ref _currentCompletedCount) < Volatile.Read(ref _currentTargetCount))
-            {
-                Thread.Sleep(10);
-            }
-
-            TicketDisposed();
-        });
+        _ = MonitorTicketAsync(requestId, request, requestStopwatch);
     }
 
     public void CancelAll()
@@ -210,34 +190,76 @@ public sealed class FastTreeDataGridViewportScheduler : IDisposable
 
         try
         {
-            await _provider.PrefetchAsync(request, cts.Token).ConfigureAwait(false);
-            await _provider.GetPageAsync(request, cts.Token).ConfigureAwait(false);
+            await _source.PrefetchAsync(request, cts.Token).ConfigureAwait(false);
+            var page = await _source.GetPageAsync(request, cts.Token).ConfigureAwait(false);
+            if (page.Completion is { } completionTask)
+            {
+                await completionTask.ConfigureAwait(false);
+            }
             counted = true;
         }
         catch (OperationCanceledException)
         {
             cancelled = true;
-            FastTreeDataGridVirtualizationDiagnostics.Log("Scheduler", $"Page request cancelled ({request.StartIndex},{request.Count})", null, tags);
+            FastTreeDataGridVirtualizationDiagnostics.Log("ColumnScheduler", $"Page request cancelled ({request.StartIndex},{request.Count})", null, tags);
         }
         catch (Exception ex)
         {
-            counted = true;
-            FastTreeDataGridVirtualizationDiagnostics.Log("Scheduler", "Page request failed", ex, tags);
+            FastTreeDataGridVirtualizationDiagnostics.Log("ColumnScheduler", ex.Message, ex, tags);
         }
         finally
         {
             stopwatch.Stop();
-            FastTreeDataGridVirtualizationDiagnostics.PageFetchDuration.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
             FastTreeDataGridVirtualizationDiagnostics.InFlightRequests.Add(-1, tags);
-            _inFlightPages.TryRemove(request.StartIndex, out _);
-            cts.Dispose();
+            FastTreeDataGridVirtualizationDiagnostics.PageFetchDuration.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
 
-            if (!cancelled && counted && requestId == Volatile.Read(ref _currentRequestId))
+            if (_inFlightPages.TryRemove(request.StartIndex, out var existingCts))
+            {
+                existingCts.Dispose();
+            }
+
+            if (counted && requestId == Volatile.Read(ref _currentRequestId))
             {
                 Interlocked.Increment(ref _currentCompletedCount);
             }
 
-            RaiseLoadingStateChanged();
+            if (!cancelled)
+            {
+                RaiseLoadingStateChanged();
+            }
+        }
+    }
+
+    private async Task MonitorTicketAsync(int requestId, FastTreeDataGridColumnViewportRequest request, Stopwatch requestStopwatch)
+    {
+        try
+        {
+            while (true)
+            {
+                if (Volatile.Read(ref _currentRequestId) != requestId)
+                {
+                    break;
+                }
+
+                var target = Math.Max(0, Volatile.Read(ref _currentTargetCount));
+                var completed = Math.Min(Volatile.Read(ref _currentCompletedCount), target);
+                if (target == 0 || completed >= target)
+                {
+                    break;
+                }
+
+                await Task.Delay(10).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            requestStopwatch.Stop();
+            var tags = new KeyValuePair<string, object?>[]
+            {
+                new("start_index", request.StartIndex),
+                new("count", request.Count),
+            };
+            FastTreeDataGridVirtualizationDiagnostics.ColumnTicketLifetime.Record(requestStopwatch.Elapsed.TotalMilliseconds, tags);
         }
     }
 
@@ -274,7 +296,7 @@ public sealed class FastTreeDataGridViewportScheduler : IDisposable
             return;
         }
 
-        CancelAll();
         _disposed = true;
+        CancelAll();
     }
 }

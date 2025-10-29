@@ -23,8 +23,20 @@ public static class FastTreeDataGridVirtualizationDiagnostics
     public static readonly Histogram<double> PageFetchDuration =
         s_meter.CreateHistogram<double>("fasttree_datagrid_page_fetch_duration_ms", unit: "ms", description: "Duration of virtualization page fetches.");
 
+    public static readonly Histogram<double> ColumnPrefetchLatency =
+        s_meter.CreateHistogram<double>("fasttree_datagrid_column_prefetch_latency_ms", unit: "ms", description: "Latency between column prefetch requests and materialization.");
+
     public static readonly UpDownCounter<long> InFlightRequests =
         s_meter.CreateUpDownCounter<long>("fasttree_datagrid_inflight_requests", description: "Current number of in-flight page requests.");
+
+    public static readonly Histogram<double> ViewportTicketLifetime =
+        s_meter.CreateHistogram<double>("fasttree_datagrid_viewport_ticket_lifetime_ms", unit: "ms", description: "Time from viewport scheduler request to completion.");
+
+    public static readonly Histogram<double> ColumnTicketLifetime =
+        s_meter.CreateHistogram<double>("fasttree_datagrid_column_ticket_lifetime_ms", unit: "ms", description: "Time from column scheduler request to completion.");
+
+    public static readonly Histogram<double> ColumnPlaceholderDuration =
+        s_meter.CreateHistogram<double>("fasttree_datagrid_column_placeholder_duration_ms", unit: "ms", description: "How long a column remains in placeholder state before materialization.");
 
     public static readonly Histogram<double> ViewportUpdateDuration =
         s_meter.CreateHistogram<double>("fasttree_datagrid_viewport_update_duration_ms", unit: "ms", description: "Duration of viewport update passes.");
@@ -43,6 +55,9 @@ public static class FastTreeDataGridVirtualizationDiagnostics
 
     public static readonly Counter<long> CacheMisses =
         s_meter.CreateCounter<long>("fasttree_datagrid_cache_misses", description: "Number of cache misses in the grouping/aggregate pipeline.");
+
+    public static readonly Histogram<double> HorizontalScrollUpdateDuration =
+        s_meter.CreateHistogram<double>("fasttree_datagrid_horizontal_scroll_update_duration_ms", unit: "ms", description: "Elapsed time from horizontal offset change to completed viewport update.");
 
     public static Action<FastTreeDataGridVirtualizationLogEntry>? LogCallback { get; set; }
         = entry => Debug.WriteLine($"[FastTreeDataGrid] {entry.Category}: {entry.Message}");
