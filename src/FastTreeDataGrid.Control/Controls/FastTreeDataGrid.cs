@@ -905,7 +905,11 @@ public partial class FastTreeDataGrid : TemplatedControl
     {
         base.OnDetachedFromVisualTree(e);
         _isAttachedToVisualTree = false;
-        _columnScheduler?.CancelAll();
+        if (_columnScheduler is not null)
+        {
+            _columnScheduler.CancelAll();
+            _columnScheduler.ResetLastRequest();
+        }
         DetachTemplateParts(clearReferences: false);
     }
 
@@ -1169,7 +1173,11 @@ public partial class FastTreeDataGrid : TemplatedControl
             return;
         }
 
-        _columnScheduler?.CancelAll();
+        if (_columnScheduler is not null)
+        {
+            _columnScheduler.CancelAll();
+            _columnScheduler.ResetLastRequest();
+        }
         QueueColumnReset();
     }
 
@@ -1182,7 +1190,11 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         if (e.Request.Kind == FastTreeDataGridInvalidationKind.Full)
         {
-            _columnScheduler?.CancelAll();
+            if (_columnScheduler is not null)
+            {
+                _columnScheduler.CancelAll();
+                _columnScheduler.ResetLastRequest();
+            }
         }
 
         QueueColumnInvalidation(e.Request);
@@ -3865,6 +3877,7 @@ public partial class FastTreeDataGrid : TemplatedControl
             else
             {
                 _columnScheduler.CancelAll();
+                _columnScheduler.ResetLastRequest();
             }
         }
 
@@ -4508,25 +4521,40 @@ public partial class FastTreeDataGrid : TemplatedControl
         var contentBounds = new Rect(columnPosition + indentOffset + context.CellPadding, rowInfo.Top, contentWidth, rowInfo.Height);
         var textOrigin = new Point(contentBounds.X, rowInfo.Top + (rowInfo.Height / 2));
 
+        var rebuild = BuildCell(
+            rowInfo,
+            row,
+            rowInfo.RowIndex,
+            column,
+            columnIndex,
+            columnPosition,
+            columnWidth,
+            rowInfo.Top,
+            rowInfo.Height,
+            rowInfo.IsPlaceholder,
+            cellIsPlaceholder,
+            isCellSelected,
+            hierarchyColumnIndex,
+            context,
+            cell);
+
         cell.Update(
             bounds,
             contentBounds,
-            cell.Widget,
-            cell.FormattedText,
-            textOrigin,
-            cell.Control,
-            cell.ValidationState,
-            isCellSelected,
-            cellIsPlaceholder);
+            rebuild.Cell.Widget,
+            rebuild.Cell.FormattedText,
+            rebuild.Cell.TextOrigin,
+            rebuild.Cell.Control,
+            rebuild.Cell.ValidationState,
+            rebuild.Cell.IsSelected,
+            rebuild.Cell.IsPlaceholder);
 
-        if (cell.Control is { } control)
+        if (rebuild.AutoWidthUpdated)
         {
-            var controlSelected = IsCellSelection ? isCellSelected : rowInfo.IsSelected;
-            control.SetValue(SelectingItemsControl.IsSelectedProperty, controlSelected);
-            _presenter.UpdateControlLayout(cell, contentBounds);
+            _autoWidthChanged = true;
         }
 
-        if (cell.Control is null && cell.Widget is Widget widget)
+        if (rebuild.Cell.Widget is Widget widget)
         {
             widget.Arrange(contentBounds);
             if (widget is FormattedTextWidget formattedTextWidget)
@@ -4534,6 +4562,32 @@ public partial class FastTreeDataGrid : TemplatedControl
                 formattedTextWidget.Invalidate();
             }
         }
+        else if (rebuild.Cell.Control is { } control)
+        {
+            var controlSelected = IsCellSelection ? rebuild.Cell.IsSelected : rowInfo.IsSelected;
+            control.SetValue(SelectingItemsControl.IsSelectedProperty, controlSelected);
+            _presenter.UpdateControlLayout(rebuild.Cell, contentBounds);
+            if (!Equals(control.DataContext, row.Item))
+            {
+                control.DataContext = row.Item;
+            }
+        }
+    }
+
+    private static void InsertCellOrdered(FastTreeDataGridPresenter.RowRenderInfo rowInfo, FastTreeDataGridPresenter.CellRenderInfo cell)
+    {
+        var cells = rowInfo.Cells;
+        var insertIndex = cells.Count;
+        for (var i = 0; i < cells.Count; i++)
+        {
+            if (cell.ColumnIndex < cells[i].ColumnIndex)
+            {
+                insertIndex = i;
+                break;
+            }
+        }
+
+        cells.Insert(insertIndex, cell);
     }
 
     private bool TryApplyRowPatch(
@@ -4854,10 +4908,6 @@ public partial class FastTreeDataGrid : TemplatedControl
 
             var column = _columns[columnIndex];
             var existingCell = rowInfo.TryGetCell(columnIndex);
-            if (existingCell is null)
-            {
-                return;
-            }
 
             if (!currentEntries.TryGetValue(columnIndex, out var currentEntry))
             {
@@ -4876,7 +4926,6 @@ public partial class FastTreeDataGrid : TemplatedControl
             }
 
             var cellIsPlaceholder = rowInfo.IsPlaceholder || columnPlaceholder;
-            var existingIsPlaceholder = existingCell.IsPlaceholder;
 
             var placeholderChanged = !hasPreviousEntry || previousEntry.IsPlaceholder != currentEntry.IsPlaceholder;
 
@@ -4897,6 +4946,33 @@ public partial class FastTreeDataGrid : TemplatedControl
             }
 
             var widthChanged = !hasPreviousEntry || Math.Abs(previousEntry.Width - currentEntry.Width) > widthEpsilon;
+
+            if (existingCell is null)
+            {
+                var created = BuildCell(
+                    rowInfo,
+                    row,
+                    rowInfo.RowIndex,
+                    column,
+                    columnIndex,
+                    columnPosition,
+                    columnWidth,
+                    rowInfo.Top,
+                    rowInfo.Height,
+                    rowInfo.IsPlaceholder,
+                    columnPlaceholder,
+                    isCellSelected,
+                    hierarchyColumnIndex,
+                    context,
+                    reusableCell: null);
+
+                InsertCellOrdered(rowInfo, created.Cell);
+                patchedCells++;
+                autoWidthChanged |= created.AutoWidthUpdated;
+                return;
+            }
+
+            var existingIsPlaceholder = existingCell.IsPlaceholder;
 
             var canReuse =
                 hasPreviousEntry &&
@@ -5151,7 +5227,7 @@ public partial class FastTreeDataGrid : TemplatedControl
                 }
                 else
                 {
-                    cellModel.SelectCell(cell);
+                    cellModel.SetCellSelection(new[] { cell }, primaryCell: cell, anchorCell: cell);
                 }
 
                 if (!hasShift)

@@ -112,6 +112,14 @@ public sealed class FastTreeDataGridColumnViewportScheduler : IDisposable
         RaiseLoadingStateChanged();
     }
 
+    public void ResetLastRequest()
+    {
+        lock (_requestLock)
+        {
+            _lastRequest = default;
+        }
+    }
+
     private bool QueuePage(int startIndex, int count, int requestId)
     {
         if (count <= 0)
