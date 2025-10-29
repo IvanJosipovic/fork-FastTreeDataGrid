@@ -98,7 +98,7 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
         };
 
         _selectedRowDimension = RowDimensions[^1];
-        _selectedColumnDimension = ColumnDimensions[2];
+        _selectedColumnDimension = ColumnDimensions[0];
 
         RebuildPivot();
     }
