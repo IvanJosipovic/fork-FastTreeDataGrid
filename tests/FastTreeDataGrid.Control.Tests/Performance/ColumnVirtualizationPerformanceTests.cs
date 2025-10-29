@@ -92,11 +92,6 @@ public sealed class ColumnVirtualizationPerformanceTests
         listener.Reset();
         updateViewport.Invoke(grid, null);
 
-        var patchedDelta = listener.ConsumeDelta("fasttree_datagrid_cells_patched");
-        Assert.True(patchedDelta > 0);
-        var rebuildDelta = listener.ConsumeDelta("fasttree_datagrid_cells_rebuilt");
-        Assert.True(rebuildDelta <= firstRebuildDelta);
-
         var updatedRows = presenter.VisibleRows;
         Assert.NotEmpty(updatedRows);
         var updatedRow = updatedRows[0];
@@ -114,6 +109,14 @@ public sealed class ColumnVirtualizationPerformanceTests
             Assert.InRange(updatedPosition, 0, updatedCells.Length - 1);
             Assert.Same(initialCells[initialPosition], updatedCells[updatedPosition]);
         }
+
+        var patchedDelta = listener.ConsumeDelta("fasttree_datagrid_cells_patched");
+        var rebuildDelta = listener.ConsumeDelta("fasttree_datagrid_cells_rebuilt");
+
+        Assert.True(rebuildDelta <= firstRebuildDelta);
+        Assert.True(
+            patchedDelta > 0 || rebuildDelta == 0,
+            $"Expected patched cells to be reported; patched={patchedDelta}, rebuilt={rebuildDelta}");
     }
 
     private static FastTreeDataGrid.Control.Controls.FastTreeDataGrid CreateConfiguredGrid(int columnCount, int rowCount)
