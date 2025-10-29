@@ -38,6 +38,7 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
     private bool _includeProfit = true;
     private bool _includeMargin = true;
     private bool _includeAveragePrice = true;
+    private bool _powerFxEnabled = true;
 
     private PivotResult? _currentResult;
     private IReadOnlyList<FastTreeDataGridColumn> _columns = Array.Empty<FastTreeDataGridColumn>();
@@ -240,6 +241,18 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
         private set => SetProperty(ref _columnCount, value);
     }
 
+    public bool PowerFxEnabled
+    {
+        get => _powerFxEnabled;
+        set
+        {
+            if (SetProperty(ref _powerFxEnabled, value) && Source is ExcelVirtualizationSource excelSource)
+            {
+                excelSource.SetPowerFxEnabled(value);
+            }
+        }
+    }
+
     private void RebuildPivot()
     {
         _currentResult = _pivotEngine.Build(_selectedRowDimension, _selectedColumnDimension);
@@ -264,7 +277,7 @@ public sealed class ExcelPivotViewModel : INotifyPropertyChanged
         }
 
         Columns = new ReadOnlyCollection<FastTreeDataGridColumn>(columnList);
-        Source = new ExcelVirtualizationSource(_currentResult, new ReadOnlyCollection<ExcelColumnDescriptor>(_activeDescriptors.ToList()), _formulaEvaluator);
+        Source = new ExcelVirtualizationSource(_currentResult, new ReadOnlyCollection<ExcelColumnDescriptor>(_activeDescriptors.ToList()), _formulaEvaluator, _powerFxEnabled);
         RowCount = _currentResult.RowCount;
         ColumnCount = _activeDescriptors.Count;
 

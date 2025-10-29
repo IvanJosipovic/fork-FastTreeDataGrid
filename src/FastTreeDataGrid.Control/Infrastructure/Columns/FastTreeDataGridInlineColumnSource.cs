@@ -575,6 +575,7 @@ internal sealed class FastTreeDataGridInlineColumnSource : IFastTreeDataGridColu
         double latencyMs = 0;
         bool shouldRaise = false;
 
+        bool previousPlaceholder;
         lock (_gate)
         {
             if ((uint)index >= (uint)_entries.Count)
@@ -588,6 +589,7 @@ internal sealed class FastTreeDataGridInlineColumnSource : IFastTreeDataGridColu
                 return;
             }
 
+            previousPlaceholder = entry.CurrentDescriptor is null;
             entry.CurrentDescriptor = descriptor;
             entry.PendingSnapshot = null;
             entry.MaterializationTask = null;
@@ -622,6 +624,12 @@ internal sealed class FastTreeDataGridInlineColumnSource : IFastTreeDataGridColu
         void Raise()
         {
             ColumnMaterialized?.Invoke(this, new FastTreeDataGridColumnMaterializedEventArgs(index, descriptor));
+
+            if (!previousPlaceholder)
+            {
+                return;
+            }
+
             Invalidated?.Invoke(
                 this,
                 new FastTreeDataGridInvalidatedEventArgs(

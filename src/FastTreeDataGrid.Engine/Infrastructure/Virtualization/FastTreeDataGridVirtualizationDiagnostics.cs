@@ -47,6 +47,12 @@ public static class FastTreeDataGridVirtualizationDiagnostics
     public static readonly Counter<long> PlaceholderRowsRendered =
         s_meter.CreateCounter<long>("fasttree_datagrid_placeholder_rows_rendered", description: "Number of placeholder rows rendered during viewport updates.");
 
+    public static readonly Counter<long> CellsRebuilt =
+        s_meter.CreateCounter<long>("fasttree_datagrid_cells_rebuilt", description: "Number of cell visuals rebuilt during column viewport updates.");
+
+    public static readonly Counter<long> CellsPatched =
+        s_meter.CreateCounter<long>("fasttree_datagrid_cells_patched", description: "Number of cell visuals patched in-place during column viewport updates.");
+
     public static readonly Counter<long> ResetCount =
         s_meter.CreateCounter<long>("fasttree_datagrid_resets", description: "Number of datasource resets processed by the grid.");
 

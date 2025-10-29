@@ -12,6 +12,7 @@ internal sealed class ExcelPivotRowValueProvider : IFastTreeDataGridValueProvide
     private readonly int _rowIndex;
     private readonly Dictionary<string, ExcelColumnDescriptor> _columnLookup;
     private readonly Dictionary<string, object?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _cacheLock = new();
 
     public ExcelPivotRowValueProvider(
         PivotResult result,
@@ -40,7 +41,7 @@ internal sealed class ExcelPivotRowValueProvider : IFastTreeDataGridValueProvide
             return null;
         }
 
-        if (_cache.TryGetValue(key, out var cached))
+        if (TryGetCachedValue(key, out var cached))
         {
             return cached;
         }
@@ -65,8 +66,32 @@ internal sealed class ExcelPivotRowValueProvider : IFastTreeDataGridValueProvide
             _ => null,
         };
 
-        _cache[key] = value;
+        SetCachedValue(key, value);
         return value;
+    }
+
+    public void ClearCache()
+    {
+        lock (_cacheLock)
+        {
+            _cache.Clear();
+        }
+    }
+
+    private bool TryGetCachedValue(string key, out object? value)
+    {
+        lock (_cacheLock)
+        {
+            return _cache.TryGetValue(key, out value);
+        }
+    }
+
+    private void SetCachedValue(string key, object? value)
+    {
+        lock (_cacheLock)
+        {
+            _cache[key] = value;
+        }
     }
 
     private string FormatRowIndex()

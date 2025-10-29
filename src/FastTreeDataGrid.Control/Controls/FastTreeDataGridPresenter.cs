@@ -321,7 +321,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         }
     }
 
-    private void UpdateControlSelectionState(RowRenderInfo row)
+    internal void UpdateControlSelectionState(RowRenderInfo row)
     {
         if (row is null)
         {
@@ -392,10 +392,48 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 LogicalChildren.Add(logical);
             }
 
-            _controlChildren.Add(control);
+        _controlChildren.Add(control);
         }
 
         _controlColumnMap[control] = column;
+    }
+
+    internal void UpdateControlLayout(CellRenderInfo cell, Rect bounds)
+    {
+        if (cell.Control is not { } control)
+        {
+            return;
+        }
+
+        _controlLayouts[control] = bounds;
+    }
+
+    private void DetachControl(AvaloniaControl control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.RemoveHandler(InputElement.PointerPressedEvent, ControlOnPointerPressed);
+        Avalonia.Controls.ToolTip.SetTip(control, null);
+
+        if (_controlChildren.Remove(control))
+        {
+            VisualChildren.Remove(control);
+            if (control is ILogical logical)
+            {
+                LogicalChildren.Remove(logical);
+            }
+        }
+
+        _controlLayouts.Remove(control);
+
+        if (_controlColumnMap.TryGetValue(control, out var column))
+        {
+            _controlColumnMap.Remove(control);
+            column.ReturnControl(control);
+        }
     }
 
     private void ClearControlChildren()
@@ -409,19 +447,7 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         for (var i = _controlChildren.Count - 1; i >= 0; i--)
         {
             var control = _controlChildren[i];
-            control.RemoveHandler(InputElement.PointerPressedEvent, ControlOnPointerPressed);
-            VisualChildren.Remove(control);
-            if (control is ILogical logical)
-            {
-                LogicalChildren.Remove(logical);
-            }
-
-            Avalonia.Controls.ToolTip.SetTip(control, null);
-            if (_controlColumnMap.TryGetValue(control, out var column))
-            {
-                _controlColumnMap.Remove(control);
-                column.ReturnControl(control);
-            }
+            DetachControl(control);
         }
 
         _controlChildren.Clear();
@@ -501,6 +527,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             return;
         }
 
+        if (cell.Control is { } control)
+        {
+            DetachControl(control);
+            cell.Control = null;
+        }
+
         switch (cell.Widget)
         {
             case FormattedTextWidget textWidget:
@@ -514,6 +546,12 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
                 summaryPresenter.Update(null, 0, 0);
                 _groupSummaryPool.Push(summaryPresenter);
                 break;
+        }
+
+        cell.Widget = null;
+        if (cell.FormattedText is not null)
+        {
+            cell.FormattedText = null;
         }
     }
 
@@ -532,7 +570,6 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             }
         }
 
-        ClearControlChildren();
         AttachControlsForRows(_rows);
 
         _columnOffsets.Clear();
@@ -545,10 +582,52 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         InvalidateVisual();
     }
 
+    internal bool RefreshColumns(FastTreeDataGrid.ColumnViewportDelta delta, Action<RowRenderInfo, int> updateCell)
+    {
+        if (delta is null || !delta.HasChanges)
+        {
+            return false;
+        }
+
+        var indices = delta.GetAffectedIndices();
+        if (indices.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var row in _rows)
+        {
+            foreach (var columnIndex in indices)
+            {
+                updateCell(row, columnIndex);
+            }
+        }
+
+        return indices.Length > 0;
+    }
+
     internal void FinalizeColumnPatch(double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
     {
-        ClearControlChildren();
         AttachControlsForRows(_rows);
+
+        _columnOffsets.Clear();
+        _columnOffsets.AddRange(columnOffsets);
+        Width = totalWidth;
+        Height = totalHeight;
+
+        InvalidateMeasure();
+        InvalidateArrange();
+        InvalidateVisual();
+    }
+
+    internal void CommitRowPatch(IReadOnlyList<RowRenderInfo> rows, double totalWidth, double totalHeight, IReadOnlyList<double> columnOffsets)
+    {
+        if (rows is null || rows.Count == 0)
+        {
+            return;
+        }
+
+        AttachControlsForRows(rows);
 
         _columnOffsets.Clear();
         _columnOffsets.AddRange(columnOffsets);
@@ -1876,20 +1955,44 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
             Validation = FastTreeDataGridRowValidationState.None;
         }
 
-        public FastTreeDataGridRow Row { get; }
+        public FastTreeDataGridRow Row { get; private set; }
         public int RowIndex { get; }
-        public double Top { get; }
-        public double Height { get; }
+        public double Top { get; private set; }
+        public double Height { get; private set; }
         public bool IsSelected { get; set; }
-        public bool HasChildren { get; }
-        public bool IsExpanded { get; }
-        public Rect ToggleRect { get; }
+        public bool HasChildren { get; private set; }
+        public bool IsExpanded { get; private set; }
+        public Rect ToggleRect { get; private set; }
         public Rect? ToggleBounds { get; set; }
-        public bool IsGroup { get; }
-        public bool IsSummary { get; }
-        public bool IsPlaceholder { get; }
+        public bool IsGroup { get; private set; }
+        public bool IsSummary { get; private set; }
+        public bool IsPlaceholder { get; private set; }
         public List<CellRenderInfo> Cells { get; } = new();
         public FastTreeDataGridRowValidationState Validation { get; set; }
+
+        public void Update(
+            FastTreeDataGridRow row,
+            double top,
+            double height,
+            bool isSelected,
+            bool hasChildren,
+            bool isExpanded,
+            Rect toggleRect,
+            bool isGroup,
+            bool isSummary,
+            bool isPlaceholder)
+        {
+            Row = row;
+            Top = top;
+            Height = height;
+            IsSelected = isSelected;
+            HasChildren = hasChildren;
+            IsExpanded = isExpanded;
+            ToggleRect = toggleRect;
+            IsGroup = isGroup;
+            IsSummary = isSummary;
+            IsPlaceholder = isPlaceholder;
+        }
 
         public CellRenderInfo? TryGetCell(int columnIndex)
         {
@@ -1927,10 +2030,10 @@ internal sealed class FastTreeDataGridPresenter : Avalonia.Controls.Control, IWi
         public FastTreeDataGridColumn Column { get; }
         public Rect Bounds { get; private set; }
         public Rect ContentBounds { get; private set; }
-        public Widget? Widget { get; private set; }
-        public FormattedText? FormattedText { get; private set; }
+        public Widget? Widget { get; internal set; }
+        public FormattedText? FormattedText { get; internal set; }
         public Point TextOrigin { get; private set; }
-        public AvaloniaControl? Control { get; private set; }
+        public AvaloniaControl? Control { get; internal set; }
         public FastTreeDataGridCellValidationState ValidationState { get; private set; }
         public bool IsSelected { get; set; }
         public bool IsCached { get; set; }

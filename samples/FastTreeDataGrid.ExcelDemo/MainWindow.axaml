@@ -60,6 +60,9 @@
           <CheckBox Content="Profit" IsChecked="{Binding Pivot.IncludeProfit, Mode=TwoWay}" />
           <CheckBox Content="Margin %" IsChecked="{Binding Pivot.IncludeMargin, Mode=TwoWay}" />
           <CheckBox Content="Avg Price" IsChecked="{Binding Pivot.IncludeAveragePrice, Mode=TwoWay}" />
+          <CheckBox Content="Power Fx"
+                    IsChecked="{Binding Pivot.PowerFxEnabled, Mode=TwoWay}"
+                    ToolTip.Tip="Uncheck to pause Power Fx recomputation and keep the last calculated values." />
         </StackPanel>
 
         <StackPanel Grid.Row="1"
