@@ -164,8 +164,11 @@ public sealed class ColumnVirtualizationPerformanceTests
         var scrollViewer = new ScrollViewer();
         SetPrivateField(grid, "_scrollViewer", scrollViewer);
         scrollViewer.Offset = Vector.Zero;
-        typeof(ScrollViewer).GetProperty("Viewport", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(scrollViewer, new Vector(grid.Width, grid.Height));
+        var viewportProperty = typeof(ScrollViewer).GetProperty(
+            "Viewport",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.NotNull(viewportProperty);
+        viewportProperty!.SetValue(scrollViewer, new Size(grid.Width, grid.Height));
 
         InvokePrivateMethod(grid, "RecalculateColumns");
 
