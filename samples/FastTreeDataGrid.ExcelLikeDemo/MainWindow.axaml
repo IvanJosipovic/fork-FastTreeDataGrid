@@ -1,0 +1,167 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+        xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.ExcelLikeDemo.ViewModels"
+        x:Class="FastTreeDataGrid.ExcelLikeDemo.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        mc:Ignorable="d"
+        Width="1400"
+        Height="900"
+        MinWidth="960"
+        MinHeight="640"
+        Title="{Binding WorkbookTitle}">
+  <Design.DataContext>
+    <vm:MainWindowViewModel />
+  </Design.DataContext>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto"
+        ColumnDefinitions="*"
+        Background="#F3F5F9">
+    <!-- Command bar -->
+    <Border Background="#FFFFFF"
+            BorderBrush="#D4DAE5"
+            BorderThickness="0,0,0,1"
+            Padding="12,10"
+            Grid.Row="0">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto"
+            ColumnSpacing="12"
+            VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Open Workbook…"
+                  Click="OnOpenWorkbookClick"
+                  Padding="14,6" />
+          <Button Content="Generate Sample"
+                  Click="OnLoadSampleClick"
+                  Padding="14,6" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="16"
+                    VerticalAlignment="Center">
+          <TextBlock Text="{Binding ActiveWorksheet.RowCount, StringFormat=Rows: {0:N0}}"
+                     Foreground="#334155"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="{Binding ActiveWorksheet.ColumnCount, StringFormat=Columns: {0:N0}}"
+                     Foreground="#334155"
+                     FontWeight="SemiBold" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    Spacing="12"
+                    VerticalAlignment="Center">
+          <TextBlock Text="{Binding StatusMessage}"
+                     Foreground="#475569"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+
+        <ProgressBar Grid.Column="3"
+                     Minimum="0"
+                     Maximum="1"
+                     IsIndeterminate="True"
+                     Width="160"
+                     IsVisible="{Binding IsBusy}" />
+      </Grid>
+    </Border>
+
+    <!-- Formula bar -->
+    <Border Grid.Row="1"
+            Background="#FFFFFF"
+            BorderBrush="#D4DAE5"
+            BorderThickness="0,0,0,1"
+            Padding="12,6">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto"
+            ColumnSpacing="12"
+            VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center">
+          <TextBlock Text="Cell"
+                     Foreground="#475569"
+                     VerticalAlignment="Center" />
+          <Border Background="#E2E8F0"
+                  CornerRadius="4"
+                  Padding="8,4">
+            <TextBlock Text="{Binding ActiveCellReference}"
+                       FontWeight="SemiBold"
+                       Foreground="#1E293B" />
+          </Border>
+        </StackPanel>
+
+        <TextBlock Grid.Column="1"
+                   Text="fx"
+                   FontStyle="Italic"
+                   FontWeight="SemiBold"
+                   Foreground="#2563EB"
+                   VerticalAlignment="Center" />
+
+        <TextBox Grid.Column="2"
+                 Text="{Binding FormulaText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 CornerRadius="4"
+                 Padding="10,6"
+                 Watermark="Enter value or formula (e.g. =SUM(A1:A5))" />
+
+        <Button Grid.Column="3"
+                Content="Apply"
+                Command="{Binding ApplyFormulaCommand}"
+                Padding="12,6"
+                Margin="4,0" />
+
+        <Button Grid.Column="4"
+                Content="Clear"
+                Command="{Binding ClearCellCommand}"
+                Padding="12,6"
+                Margin="4,0" />
+      </Grid>
+    </Border>
+
+    <!-- Worksheet grid -->
+    <Border Grid.Row="2"
+            Margin="12"
+            CornerRadius="10"
+            Background="#FFFFFF"
+            BorderBrush="#CBD5E1"
+            BorderThickness="1"
+            Padding="0">
+      <controls:FastTreeDataGrid x:Name="WorksheetGrid"
+                                 RowHeight="32"
+                                 HeaderHeight="36"
+                                 IndentWidth="18"
+                                 SelectionMode="Extended">
+        <controls:FastTreeDataGrid.RowLayout>
+          <infra:FastTreeDataGridAdaptiveRowLayout ChunkSize="512" />
+        </controls:FastTreeDataGrid.RowLayout>
+      </controls:FastTreeDataGrid>
+    </Border>
+
+    <!-- Worksheet tabs -->
+    <Border Grid.Row="3"
+            Background="#FFFFFF"
+            BorderBrush="#CBD5E1"
+            BorderThickness="1,1,1,0"
+            Margin="12,0,12,12"
+            CornerRadius="8,8,0,0"
+            Padding="10,4">
+      <TabStrip ItemsSource="{Binding Worksheets}"
+                SelectedItem="{Binding ActiveWorksheet, Mode=TwoWay}">
+        <TabStrip.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </TabStrip.ItemsPanel>
+        <TabStrip.ItemTemplate>
+          <DataTemplate x:DataType="vm:WorksheetViewModel">
+            <TextBlock Text="{Binding Name}"
+                       Margin="18,10"
+                       FontWeight="SemiBold" />
+          </DataTemplate>
+        </TabStrip.ItemTemplate>
+      </TabStrip>
+    </Border>
+  </Grid>
+</Window>
