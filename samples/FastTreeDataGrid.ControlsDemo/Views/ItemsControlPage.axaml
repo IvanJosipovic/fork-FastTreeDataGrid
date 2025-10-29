@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.ControlsDemo.ViewModels"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:models="clr-namespace:FastTreeDataGrid.Control.Models;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.ControlsDemo.Views.ItemsControlPage"
+             x:DataType="vm:ItemsControlPageViewModel">
+  <Grid RowDefinitions="Auto,*"
+        RowSpacing="12">
+    <TextBlock Text="Mirrors Avalonia ItemsControl: lightweight cards bound to a simple source."
+               TextWrapping="Wrap"
+               Foreground="#626262" />
+
+    <Border Grid.Row="1"
+            Background="#FFF"
+            BorderBrush="#D5D5D5"
+            BorderThickness="1"
+            CornerRadius="6">
+      <controls:FastTreeDataGrid ItemsSource="{Binding Source}"
+                                 SelectionMode="None"
+                                 RowHeight="156"
+                                 HeaderHeight="0"
+                                 IndentWidth="0"
+                                 Background="Transparent">
+        <controls:FastTreeDataGrid.Columns>
+          <models:FastTreeDataGridColumn Header="Card"
+                                         SizingMode="Star"
+                                         ValueKey="{x:Static vm:DashboardCard.KeyTitle}">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:DashboardCard">
+                <Border Background="#FAFAFA"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Margin="8"
+                        Padding="12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}"
+                                 FontWeight="SemiBold"
+                                 FontSize="16" />
+                      <Border Background="#303F51B5"
+                              Padding="4,2"
+                              CornerRadius="4">
+                        <TextBlock Text="{Binding TrendDirection}"
+                                   Foreground="#3F51B5" />
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Subtitle}"
+                               Opacity="0.7" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="12"
+                                VerticalAlignment="Center">
+                      <TextBlock Text="{Binding DisplayValue}"
+                                 FontSize="20"
+                                 FontWeight="Bold" />
+                      <Border Padding="6,2"
+                              CornerRadius="4"
+                              Background="{Binding TrendBackground}"
+                              BorderBrush="{Binding TrendBorder}"
+                              BorderThickness="1">
+                        <TextBlock Text="{Binding DisplayTrend}"
+                                   FontWeight="SemiBold" />
+                      </Border>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Tags}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="#1586EF1A"
+                                  BorderBrush="#1A73E8"
+                                  BorderThickness="1"
+                                  Padding="6,2"
+                                  CornerRadius="4"
+                                  Margin="0,0,6,6">
+                            <TextBlock Text="{Binding}" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8">
+                      <Button Content="Inspect"
+                              HorizontalAlignment="Left" />
+                      <ToggleSwitch Content="Live alerts"
+                                    IsChecked="{Binding IsTrendPositive, Mode=OneWay}"
+                                    IsHitTestVisible="False" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>

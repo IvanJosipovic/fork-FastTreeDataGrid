@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.ExcelDemo"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.ExcelLikeDemo", "samples\FastTreeDataGrid.ExcelLikeDemo\FastTreeDataGrid.ExcelLikeDemo.csproj", "{DF2C23BF-C288-445F-849C-B03B2973BE81}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastTreeDataGrid.ControlsDemo", "samples\FastTreeDataGrid.ControlsDemo\FastTreeDataGrid.ControlsDemo.csproj", "{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -217,6 +219,18 @@ Global
 		{DF2C23BF-C288-445F-849C-B03B2973BE81}.Release|x64.Build.0 = Release|Any CPU
 		{DF2C23BF-C288-445F-849C-B03B2973BE81}.Release|x86.ActiveCfg = Release|Any CPU
 		{DF2C23BF-C288-445F-849C-B03B2973BE81}.Release|x86.Build.0 = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|x64.Build.0 = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Debug|x86.Build.0 = Debug|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|x64.ActiveCfg = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|x64.Build.0 = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|x86.ActiveCfg = Release|Any CPU
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -236,5 +250,6 @@ Global
 		{16BDF6FE-DB44-40E3-AFA1-ACE3D8753D69} = {6DB1ACB8-5D2B-4330-9F06-A485AACF7C6F}
 		{5DFC92F5-9A8D-43B5-A2DD-36C8F814D312} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 		{DF2C23BF-C288-445F-849C-B03B2973BE81} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{BCA6EFE3-55DF-43C2-ABC0-9FA7FBAD1FE1} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal

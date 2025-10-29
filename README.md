@@ -1270,6 +1270,7 @@ FastTreeDataGrid prioritises frame time predictability:
 Additional sample applications:
 - `samples/FastTreeDataGrid.VirtualizationDemo` dives deeper into virtualization strategies (adaptive rows, SQLite-backed paging, REST providers, and extensibility hooks).
 - `samples/FastTreeDataGrid.DataSourcesDemo` compares async, streaming, and hybrid providers with live mutation pipelines.
+- `samples/FastTreeDataGrid.ControlsDemo` mirrors Avalonia DataGrid/ListBox/TreeView/ItemsControl APIs using MVVM-first page view models and control-based column templates.
 - `samples/FastTreeDataGrid.WidgetsDemo` is a widget gallery explorer with interactive controls.
 - `samples/FastTreeDataGrid.ExcelDemo` delivers an Excel-style pivot grid with row/column virtualization, Power Fx formulas, and financial cell styling for analytics scenarios.
 

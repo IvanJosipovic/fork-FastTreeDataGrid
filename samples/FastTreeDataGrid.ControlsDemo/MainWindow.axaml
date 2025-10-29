@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.ControlsDemo.ViewModels"
+        xmlns:views="clr-namespace:FastTreeDataGrid.ControlsDemo.Views"
+        mc:Ignorable="d"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1280"
+        d:DesignHeight="720"
+        x:Class="FastTreeDataGrid.ControlsDemo.MainWindow"
+        Title="FastTreeDataGrid Controls Parity">
+  <Grid RowDefinitions="Auto,*"
+        Margin="16">
+    <StackPanel Orientation="Horizontal"
+                Spacing="12">
+      <TextBlock Text="FastTreeDataGrid Controls Parity"
+                 FontSize="20"
+                 FontWeight="SemiBold" />
+      <Border Background="#1F2F4E7A"
+              Padding="6,2"
+              CornerRadius="4">
+        <TextBlock Text="Demonstrates API alignment with common Avalonia controls"
+                   Foreground="#2F4E7A" />
+      </Border>
+    </StackPanel>
+
+    <TabControl Grid.Row="1"
+                Margin="0,12,0,0">
+      <TabItem Header="DataGrid API">
+        <views:DataGridPage DataContext="{Binding DataGridPage}" />
+      </TabItem>
+      <TabItem Header="ListBox API">
+        <views:ListBoxPage DataContext="{Binding ListBoxPage}" />
+      </TabItem>
+      <TabItem Header="TreeView API">
+        <views:TreeViewPage DataContext="{Binding TreeViewPage}" />
+      </TabItem>
+      <TabItem Header="ItemsControl API">
+        <views:ItemsControlPage DataContext="{Binding ItemsControlPage}" />
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.ControlsDemo.ViewModels"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:models="clr-namespace:FastTreeDataGrid.Control.Models;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.ControlsDemo.Views.TreeViewPage"
+             x:DataType="vm:TreeViewPageViewModel">
+  <Grid RowDefinitions="Auto,*"
+        RowSpacing="12">
+    <TextBlock Text="Mirrors Avalonia TreeView: hierarchical navigation with progress indicators."
+               TextWrapping="Wrap"
+               Foreground="#626262" />
+
+    <Border Grid.Row="1"
+            Background="#FFF"
+            BorderBrush="#D5D5D5"
+            BorderThickness="1"
+            CornerRadius="6">
+      <controls:FastTreeDataGrid ItemsSource="{Binding Source}"
+                                 RowHeight="30"
+                                 HeaderHeight="36"
+                                 IndentWidth="18"
+                                 SelectionMode="Extended">
+        <controls:FastTreeDataGrid.Columns>
+          <models:FastTreeDataGridColumn Header="Name"
+                                         SizingMode="Star"
+                                         IsHierarchy="True"
+                                         ValueKey="{x:Static vm:TreeNode.KeyName}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:TreeNode">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                  <Border Width="8"
+                          Height="8"
+                          Background="{DynamicResource ThemeAccentBrush}"
+                          CornerRadius="4" />
+                  <TextBlock Text="{Binding Name}" />
+                </StackPanel>
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Kind"
+                                         SizingMode="Pixel"
+                                         PixelWidth="180"
+                                         ValueKey="{x:Static vm:TreeNode.KeyKind}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:TreeNode">
+                <Border Background="{DynamicResource ThemeControlMidBrush}"
+                        Padding="6,2"
+                        CornerRadius="4"
+                        HorizontalAlignment="Left">
+                  <TextBlock Text="{Binding Kind}" />
+                </Border>
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Progress"
+                                         SizingMode="Star"
+                                         ValueKey="{x:Static vm:TreeNode.KeyProgress}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:TreeNode">
+                <ProgressBar Minimum="0"
+                             Maximum="1"
+                             Value="{Binding Progress}"
+                             Height="10"
+                             CornerRadius="5" />
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>
