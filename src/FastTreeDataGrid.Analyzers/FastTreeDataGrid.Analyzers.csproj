@@ -10,6 +10,9 @@
     <PackageTags>$(PackageTags);analyzers;roslyn</PackageTags>
     <PackageType>Analyzer</PackageType>
     <DevelopmentDependency>true</DevelopmentDependency>
+    <IncludeSymbols>false</IncludeSymbols>
+    <SymbolPackageFormat></SymbolPackageFormat>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
