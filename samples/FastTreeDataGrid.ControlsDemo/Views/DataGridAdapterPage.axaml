@@ -1,0 +1,136 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FastTreeDataGrid.ControlsDemo.ViewModels"
+             xmlns:controls="clr-namespace:FastTreeDataGrid.Control.Controls;assembly=FastTreeDataGrid.Control"
+             xmlns:infra="clr-namespace:FastTreeDataGrid.Control.Infrastructure;assembly=FastTreeDataGrid.Control"
+             xmlns:models="clr-namespace:FastTreeDataGrid.Control.Models;assembly=FastTreeDataGrid.Control"
+             mc:Ignorable="d"
+             x:Class="FastTreeDataGrid.ControlsDemo.Views.DataGridAdapterPage"
+             x:DataType="vm:DataGridAdapterPageViewModel">
+  <UserControl.Resources>
+    <infra:FastTreeDataGridItemsAdapter x:Key="ProductsAdapter"
+                                        Items="{Binding Products}"
+                                        KeyMemberPath="Id" />
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*"
+        RowSpacing="12">
+    <TextBlock Text="Adapters: bind to any ItemsSource and let FastTreeDataGrid generate the source with value accessors."
+               TextWrapping="Wrap"
+               Foreground="#626262" />
+
+    <Border Grid.Row="1"
+            Background="#FFF"
+            BorderBrush="#D5D5D5"
+            BorderThickness="1"
+            CornerRadius="6">
+      <controls:FastTreeDataGrid ItemsSource="{Binding Source, Source={StaticResource ProductsAdapter}}"
+                                 RowHeight="36"
+                                 HeaderHeight="40"
+                                 SelectionMode="Extended">
+        <controls:FastTreeDataGrid.Columns>
+          <models:FastTreeDataGridColumn Header="Product"
+                                         SizingMode="Star"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyName}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <TextBox Text="{Binding Name, Mode=TwoWay}"
+                         Watermark="Name"
+                         BorderBrush="{DynamicResource ThemeAccentBrush}" />
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Category"
+                                         SizingMode="Star"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyCategory}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <ComboBox ItemsSource="{x:Static vm:DataGridPageViewModel.CategoryOptions}"
+                          SelectedItem="{Binding Category, Mode=TwoWay}"
+                          HorizontalContentAlignment="Stretch" />
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Price"
+                                         SizingMode="Pixel"
+                                         PixelWidth="160"
+                                         MinWidth="140"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyPrice}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <TextBlock Text="{Binding Price, StringFormat={}{0:C}, TargetNullValue=-}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center" />
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Stock"
+                                         SizingMode="Star"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyStock}"
+                                         CanUserSort="True">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="12"
+                      VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Stock}"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                  <ProgressBar Grid.Column="1"
+                               Minimum="0"
+                               Maximum="200"
+                               Value="{Binding Stock}"
+                               Height="12"
+                               CornerRadius="6" />
+                </Grid>
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Status"
+                                         SizingMode="Pixel"
+                                         PixelWidth="160"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyStatus}">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <ComboBox ItemsSource="{x:Static vm:DataGridPageViewModel.StatusOptions}"
+                          SelectedItem="{Binding Status, Mode=TwoWay}" />
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+
+          <models:FastTreeDataGridColumn Header="Rating"
+                                         SizingMode="Pixel"
+                                         PixelWidth="180"
+                                         ValueKey="{x:Static vm:InventoryProduct.KeyRating}">
+            <models:FastTreeDataGridColumn.CellControlTemplate>
+              <DataTemplate x:DataType="vm:InventoryProduct">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                  <Slider Minimum="1"
+                          Maximum="5"
+                          TickFrequency="0.5"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding Rating, Mode=TwoWay}"
+                          Width="100" />
+                  <TextBlock Text="{Binding Rating, StringFormat={}{0:F1}}"
+                             Width="40"
+                             HorizontalAlignment="Right" />
+                </StackPanel>
+              </DataTemplate>
+            </models:FastTreeDataGridColumn.CellControlTemplate>
+          </models:FastTreeDataGridColumn>
+        </controls:FastTreeDataGrid.Columns>
+      </controls:FastTreeDataGrid>
+    </Border>
+  </Grid>
+</UserControl>

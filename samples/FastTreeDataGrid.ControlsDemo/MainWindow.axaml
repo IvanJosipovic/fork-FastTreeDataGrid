@@ -30,8 +30,14 @@
       <TabItem Header="DataGrid API">
         <views:DataGridPage DataContext="{Binding DataGridPage}" />
       </TabItem>
+      <TabItem Header="DataGrid (Adapter)">
+        <views:DataGridAdapterPage DataContext="{Binding DataGridAdapterPage}" />
+      </TabItem>
       <TabItem Header="ListBox API">
         <views:ListBoxPage DataContext="{Binding ListBoxPage}" />
+      </TabItem>
+      <TabItem Header="ListBox (Adapter)">
+        <views:ListBoxAdapterPage DataContext="{Binding ListBoxAdapterPage}" />
       </TabItem>
       <TabItem Header="TreeView API">
         <views:TreeViewPage DataContext="{Binding TreeViewPage}" />
