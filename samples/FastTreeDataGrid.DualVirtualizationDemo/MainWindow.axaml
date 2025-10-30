@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:FastTreeDataGrid.DualVirtualizationDemo.ViewModels"
+        mc:Ignorable="d"
+        x:Class="FastTreeDataGrid.DualVirtualizationDemo.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        d:DesignWidth="1200"
+        d:DesignHeight="800"
+        Title="FastTreeDataGrid Dual Virtualization">
+  <Grid Margin="16" RowDefinitions="Auto,*" RowSpacing="12">
+    <Border Background="#F6F7FB"
+            BorderBrush="#D7D9E0"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="16">
+      <StackPanel Spacing="6"
+                  DataContext="{Binding DualVirtualization}">
+        <TextBlock Text="Dual-axis virtualization playground"
+                   FontSize="20"
+                   FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Summary}"
+                   TextWrapping="Wrap"
+                   Foreground="#60646F" />
+        <StackPanel Orientation="Horizontal" Spacing="18">
+          <TextBlock Text="{Binding RowDescription}" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding ColumnDescription}" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding LatencyDescription}" FontWeight="SemiBold" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="White"
+            BorderBrush="#D7D9E0"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="0">
+      <FastTreeDataGrid x:Name="MatrixGrid"
+                        ItemsSource="{Binding DualVirtualization.Source}"
+                        VirtualizationSettings="{Binding DualVirtualization.Settings}"
+                        RowHeight="30"
+                        IndentWidth="18"
+                        HeaderHeight="36"
+                        AreColumnHeadersVisible="True"
+                        IsFilterRowVisible="False" />
+    </Border>
+  </Grid>
+</Window>

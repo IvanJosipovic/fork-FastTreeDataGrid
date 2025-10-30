@@ -5,6 +5,7 @@ The repository now ships focused sample applications:
 - **`FastTreeDataGrid.Demo`** – core scenarios (file system explorer, country browsing, crypto tickers, chart gallery).
 - **`FastTreeDataGrid.DataSourcesDemo`** – compares async, streaming, and hybrid sources with live mutation pipelines and a drag-and-drop row reorder showcase.
 - **`FastTreeDataGrid.VirtualizationDemo`** – showcases variable row heights, adaptive layouts, adapters, and custom virtualization providers.
+- **`FastTreeDataGrid.DualVirtualizationDemo`** – pairs row data virtualization with column virtualization across hundreds of metrics.
 - **`FastTreeDataGrid.ControlsDemo`** – mirrors Avalonia DataGrid/ListBox/TreeView/ItemsControl APIs with MVVM-friendly templates, control-based cells, and ItemsSource adapter walk-throughs.
 - **`FastTreeDataGrid.ExcelDemo`** – Excel-inspired pivot analytics with row & column virtualization, Power Fx formulas, and financial styling.
 - **`FastTreeDataGrid.ExcelLikeDemo`** – workbook-style editor with adaptive row heights, cell editing, worksheet tabs, and XLSX loading via DocumentFormat.OpenXml.
