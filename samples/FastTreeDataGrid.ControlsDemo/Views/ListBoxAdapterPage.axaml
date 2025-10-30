@@ -27,7 +27,7 @@
       <controls:FastTreeDataGrid ItemsSource="{Binding Source, Source={StaticResource RemindersAdapter}}"
                                  SelectionMode="Single"
                                  RowHeight="112"
-                                 HeaderHeight="0"
+                                 AreColumnHeadersVisible="False"
                                  IndentWidth="0"
                                  Background="Transparent">
         <controls:FastTreeDataGrid.Columns>

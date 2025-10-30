@@ -22,7 +22,7 @@
       <controls:FastTreeDataGrid ItemsSource="{Binding Source}"
                                  SelectionMode="None"
                                  RowHeight="156"
-                                 HeaderHeight="0"
+                                 AreColumnHeadersVisible="False"
                                  IndentWidth="0"
                                  Background="Transparent">
         <controls:FastTreeDataGrid.Columns>
