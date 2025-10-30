@@ -21,7 +21,7 @@
             CornerRadius="6">
       <controls:FastTreeDataGrid ItemsSource="{Binding Source}"
                                  RowHeight="30"
-                                 HeaderHeight="36"
+                                 AreColumnHeadersVisible="False"
                                  IndentWidth="18"
                                  SelectionMode="Extended">
         <controls:FastTreeDataGrid.Columns>
@@ -41,38 +41,6 @@
                           CornerRadius="4" />
                   <TextBlock Text="{Binding Name}" />
                 </StackPanel>
-              </DataTemplate>
-            </models:FastTreeDataGridColumn.CellControlTemplate>
-          </models:FastTreeDataGridColumn>
-
-          <models:FastTreeDataGridColumn Header="Kind"
-                                         SizingMode="Pixel"
-                                         PixelWidth="180"
-                                         ValueKey="{x:Static vm:TreeNode.KeyKind}"
-                                         CanUserSort="True">
-            <models:FastTreeDataGridColumn.CellControlTemplate>
-              <DataTemplate x:DataType="vm:TreeNode">
-                <Border Background="{DynamicResource ThemeControlMidBrush}"
-                        Padding="6,2"
-                        CornerRadius="4"
-                        HorizontalAlignment="Left">
-                  <TextBlock Text="{Binding Kind}" />
-                </Border>
-              </DataTemplate>
-            </models:FastTreeDataGridColumn.CellControlTemplate>
-          </models:FastTreeDataGridColumn>
-
-          <models:FastTreeDataGridColumn Header="Progress"
-                                         SizingMode="Star"
-                                         ValueKey="{x:Static vm:TreeNode.KeyProgress}"
-                                         CanUserSort="True">
-            <models:FastTreeDataGridColumn.CellControlTemplate>
-              <DataTemplate x:DataType="vm:TreeNode">
-                <ProgressBar Minimum="0"
-                             Maximum="1"
-                             Value="{Binding Progress}"
-                             Height="10"
-                             CornerRadius="5" />
               </DataTemplate>
             </models:FastTreeDataGridColumn.CellControlTemplate>
           </models:FastTreeDataGridColumn>

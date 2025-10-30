@@ -39,6 +39,9 @@ public partial class FastTreeDataGrid : TemplatedControl
     public static readonly StyledProperty<double> HeaderHeightProperty =
         AvaloniaProperty.Register<FastTreeDataGrid, double>(nameof(HeaderHeight), 32d);
 
+    public static readonly StyledProperty<bool> AreColumnHeadersVisibleProperty =
+        AvaloniaProperty.Register<FastTreeDataGrid, bool>(nameof(AreColumnHeadersVisible), true);
+
     public static readonly StyledProperty<bool> IsFilterRowVisibleProperty =
         AvaloniaProperty.Register<FastTreeDataGrid, bool>(nameof(IsFilterRowVisible));
 
@@ -118,6 +121,7 @@ public partial class FastTreeDataGrid : TemplatedControl
 
     private ScrollViewer? _headerScrollViewer;
     private Border? _headerHost;
+    private Thickness _headerHostDefaultBorderThickness = new(0, 0, 0, 1);
     private FastTreeDataGridHeaderPresenter? _headerPresenter;
     private FastTreeDataGridFilterPresenter? _filterPresenter;
     private FastTreeDataGridGroupingBand? _groupingBand;
@@ -181,6 +185,7 @@ public partial class FastTreeDataGrid : TemplatedControl
     {
         AffectsMeasure<FastTreeDataGrid>(ItemsSourceProperty, RowHeightProperty, IndentWidthProperty);
         IsFilterRowVisibleProperty.Changed.AddClassHandler<FastTreeDataGrid>((x, e) => x.OnFilterRowVisibilityChanged(e));
+        AreColumnHeadersVisibleProperty.Changed.AddClassHandler<FastTreeDataGrid>((x, e) => x.OnAreColumnHeadersVisibleChanged(e));
     }
 
     public FastTreeDataGrid()
@@ -327,6 +332,12 @@ public partial class FastTreeDataGrid : TemplatedControl
     {
         get => GetValue(HeaderHeightProperty);
         set => SetValue(HeaderHeightProperty, value);
+    }
+
+    public bool AreColumnHeadersVisible
+    {
+        get => GetValue(AreColumnHeadersVisibleProperty);
+        set => SetValue(AreColumnHeadersVisibleProperty, value);
     }
 
     public AvaloniaList<FastTreeDataGridColumn> Columns => _columns;
@@ -824,6 +835,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         if (_headerHost is not null)
         {
             _headerHost.ClipToBounds = true;
+            _headerHostDefaultBorderThickness = _headerHost.BorderThickness;
         }
         if (_presenter is not null)
         {
@@ -850,8 +862,6 @@ public partial class FastTreeDataGrid : TemplatedControl
         if (_filterPresenter is not null)
         {
             _filterPresenter.FilterHeight = RowHeight;
-            _filterPresenter.IsVisible = IsFilterRowVisible;
-            _filterPresenter.IsHitTestVisible = IsFilterRowVisible;
             _filterPresenter.FilterChanged += OnFilterPresenterFilterChanged;
         }
 
@@ -860,6 +870,8 @@ public partial class FastTreeDataGrid : TemplatedControl
             _scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         }
+
+        UpdateHeaderVisibility();
 
         AttachTemplatePartHandlers();
         SynchronizeHeaderScroll();
@@ -893,6 +905,8 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             _headerPresenter.HeaderHeight = HeaderHeight;
         }
+
+        UpdateHeaderVisibility();
 
         SynchronizeHeaderScroll();
 
@@ -939,7 +953,7 @@ public partial class FastTreeDataGrid : TemplatedControl
         }
         else if (change.Property == HeaderHeightProperty && _headerPresenter is not null)
         {
-            _headerPresenter.HeaderHeight = HeaderHeight;
+            _headerPresenter.HeaderHeight = AreColumnHeadersVisible ? HeaderHeight : 0;
             RequestViewportUpdate();
         }
         else if (change.Property == RowHeightProperty)
@@ -1798,6 +1812,7 @@ public partial class FastTreeDataGrid : TemplatedControl
 
         _scrollViewer = null;
         _headerScrollViewer = null;
+        _headerHostDefaultBorderThickness = new Thickness(0, 0, 0, 1);
         _headerHost = null;
         _headerPresenter = null;
         _groupingBandHost = null;
@@ -2453,21 +2468,55 @@ public partial class FastTreeDataGrid : TemplatedControl
 
     private void OnFilterRowVisibilityChanged(AvaloniaPropertyChangedEventArgs e)
     {
+        UpdateFilterPresenterVisibility();
+
+        _columnsDirty = true;
+        RequestViewportUpdate();
+    }
+
+    private void OnAreColumnHeadersVisibleChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        UpdateHeaderVisibility();
+        _columnsDirty = true;
+        RequestViewportUpdate();
+    }
+
+    private void UpdateHeaderVisibility()
+    {
+        var showHeaders = AreColumnHeadersVisible;
+
+        if (_headerPresenter is not null)
+        {
+            _headerPresenter.IsVisible = showHeaders;
+            _headerPresenter.IsHitTestVisible = showHeaders;
+            _headerPresenter.HeaderHeight = showHeaders ? HeaderHeight : 0;
+        }
+
+        UpdateFilterPresenterVisibility();
+
+        if (_headerHost is not null)
+        {
+            _headerHost.BorderThickness = showHeaders ? _headerHostDefaultBorderThickness : new Thickness(0);
+        }
+    }
+
+    private void UpdateFilterPresenterVisibility()
+    {
         if (_filterPresenter is null)
         {
             return;
         }
 
-        var isVisible = IsFilterRowVisible;
-        _filterPresenter.IsVisible = isVisible;
-        _filterPresenter.IsHitTestVisible = isVisible;
-        if (!isVisible)
+        var wasVisible = _filterPresenter.IsVisible;
+        var shouldShow = AreColumnHeadersVisible && IsFilterRowVisible;
+
+        _filterPresenter.IsVisible = shouldShow;
+        _filterPresenter.IsHitTestVisible = shouldShow;
+
+        if (!shouldShow && wasVisible)
         {
             Focus();
         }
-
-        _columnsDirty = true;
-        RequestViewportUpdate();
     }
 
     private static FastTreeDataGridSortDirection GetNextSortDirection(FastTreeDataGridSortDirection current)
