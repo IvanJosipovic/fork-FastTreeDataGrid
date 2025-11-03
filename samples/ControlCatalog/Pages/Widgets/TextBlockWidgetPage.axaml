@@ -52,7 +52,8 @@
                           BorderBrush="#99000000">
               <StackLayoutWidget Spacing="8">
                 <TextBlockWidget Text="Multiline TextBlock with TextWrapping.&#x0A;&#x0A;Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus magna. Cras in mi at felis aliquet congue. Ut a est eget ligula molestie gravida. Curabitur massa. Donec eleifend, libero at sagittis mollis, tellus est malesuada tellus, at luctus turpis elit sit amet quam. Vivamus pretium ornare est."
-                                 DesiredWidth="200" />
+                                 DesiredWidth="200"
+                                 DesiredHeight="140" />
               </StackLayoutWidget>
             </BorderWidget>
 
@@ -85,11 +86,52 @@
                           BorderThickness="1"
                           BorderBrush="#99000000">
               <StackLayoutWidget Spacing="8">
-                <TextBlockWidget Text="Underline (text decorations pending)" />
-                <TextBlockWidget Text="Strikethrough (text decorations pending)" />
-                <TextBlockWidget Text="Overline (text decorations pending)" />
-                <TextBlockWidget Text="Baseline (text decorations pending)" />
-                <TextBlockWidget Text="Custom TextDecorations (not yet implemented)" />
+                <TextBlockWidget Text="Underline" TextDecorations="Underline" />
+                <TextBlockWidget Text="Strikethrough" TextDecorations="Strikethrough" />
+                <TextBlockWidget Text="Overline" TextDecorations="Overline" />
+                <TextBlockWidget Text="Baseline" TextDecorations="Baseline" />
+                <TextBlockWidget Text="Custom TextDecorations">
+                  <TextBlockWidget.TextDecorations>
+                    <TextDecorationCollection>
+                      <TextDecoration Location="Overline"
+                                      StrokeThickness="2"
+                                      StrokeThicknessUnit="Pixel">
+                        <TextDecoration.Stroke>
+                          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                            <LinearGradientBrush.GradientStops>
+                              <GradientStop Offset="0" Color="Red" />
+                              <GradientStop Offset="1" Color="Green" />
+                            </LinearGradientBrush.GradientStops>
+                          </LinearGradientBrush>
+                        </TextDecoration.Stroke>
+                      </TextDecoration>
+                      <TextDecoration Location="Strikethrough"
+                                      StrokeThickness="1"
+                                      StrokeThicknessUnit="Pixel">
+                        <TextDecoration.Stroke>
+                          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                            <LinearGradientBrush.GradientStops>
+                              <GradientStop Offset="0" Color="Green" />
+                              <GradientStop Offset="1" Color="Blue" />
+                            </LinearGradientBrush.GradientStops>
+                          </LinearGradientBrush>
+                        </TextDecoration.Stroke>
+                      </TextDecoration>
+                      <TextDecoration Location="Underline"
+                                      StrokeThickness="2"
+                                      StrokeThicknessUnit="Pixel">
+                        <TextDecoration.Stroke>
+                          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                            <LinearGradientBrush.GradientStops>
+                              <GradientStop Offset="0" Color="Blue" />
+                              <GradientStop Offset="1" Color="Red" />
+                            </LinearGradientBrush.GradientStops>
+                          </LinearGradientBrush>
+                        </TextDecoration.Stroke>
+                      </TextDecoration>
+                    </TextDecorationCollection>
+                  </TextBlockWidget.TextDecorations>
+                </TextBlockWidget>
               </StackLayoutWidget>
             </BorderWidget>
 

@@ -54,7 +54,7 @@ This plan tracks the work required to bring widget-rendered equivalents into the
 50. [ ] SplitView – recreate pane modes, adaptive behavior, and animations with widgets.
 51. [ ] TabControl – port tab headers, content transitions, and add/remove interactions to widgets.
 52. [ ] TabStrip – build widget version of tab strip sample including drag/reorder (if present).
-53. [ ] TextBox – implement text box behaviors (masking, watermark, validation) with widgets.
+53. [x] TextBox – implement text box behaviors (masking, watermark, validation) with widgets.
 54. [ ] Theme Variants – ensure theme switching manifests correctly across widget pages.
 55. [ ] ToggleSwitch – translate toggle visuals, animations, and bindings to widgets.
 56. [ ] ToolTip – provide tooltip triggers and placement using widget overlay helpers.

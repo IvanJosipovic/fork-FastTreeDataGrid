@@ -172,6 +172,17 @@
       <TabItem Header="TextBox">
         <pages:TextBoxPage />
       </TabItem>
+      <TabItem Header="TextBox (Widgets)">
+        <pages:SideBySideComparisonPage LeftHeader="TextBox (Avalonia Control)"
+                                        RightHeader="TextBox (Widgets)">
+          <pages:SideBySideComparisonPage.LeftContent>
+            <pages:TextBoxPage />
+          </pages:SideBySideComparisonPage.LeftContent>
+          <pages:SideBySideComparisonPage.RightContent>
+            <pages:TextBoxWidgetPage />
+          </pages:SideBySideComparisonPage.RightContent>
+        </pages:SideBySideComparisonPage>
+      </TabItem>
       <TabItem Header="TextBlock">
         <pages:TextBlockPage />
       </TabItem>
