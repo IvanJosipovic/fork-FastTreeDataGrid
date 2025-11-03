@@ -10,6 +10,7 @@ public class SurfaceWidget : Widget
 {
     private Widget? _pointerCapturedChild;
     private Widget? _pointerOverChild;
+    private Widget? _focusedChild;
 
     [Content]
     public IList<Widget> Children { get; } = new List<Widget>();
@@ -85,6 +86,17 @@ public class SurfaceWidget : Widget
     public override bool HandleKeyboardEvent(in WidgetKeyboardEvent e)
     {
         var handled = base.HandleKeyboardEvent(e);
+
+        if (_focusedChild is { } focused)
+        {
+            if (focused.HandleKeyboardEvent(e))
+            {
+                handled = true;
+            }
+
+            return handled;
+        }
+
         foreach (var child in Children)
         {
             if (!child.SupportsKeyboardInput)
@@ -95,6 +107,43 @@ public class SurfaceWidget : Widget
             if (child.HandleKeyboardEvent(e))
             {
                 handled = true;
+                break;
+            }
+        }
+
+        return handled;
+    }
+
+    public override bool HandleTextInput(string text)
+    {
+        var handled = base.HandleTextInput(text);
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return handled;
+        }
+
+        if (_focusedChild is { } focused && focused.SupportsTextInput)
+        {
+            if (focused.HandleTextInput(text))
+            {
+                handled = true;
+            }
+
+            return handled;
+        }
+
+        foreach (var child in Children)
+        {
+            if (!child.SupportsTextInput)
+            {
+                continue;
+            }
+
+            if (child.HandleTextInput(text))
+            {
+                handled = true;
+                break;
             }
         }
 
@@ -132,10 +181,24 @@ public class SurfaceWidget : Widget
 
         if (target is not null)
         {
-            handled |= RoutePointerToChild(target, e, WidgetPointerEventKind.Pressed);
-            if (handled)
+            var childHandled = RoutePointerToChild(target, e, WidgetPointerEventKind.Pressed);
+            if (childHandled)
             {
+                SetFocusedChild(target);
                 _pointerCapturedChild = target;
+            }
+            else if (!ReferenceEquals(_focusedChild, target))
+            {
+                ClearFocus();
+            }
+
+            handled |= childHandled;
+        }
+        else
+        {
+            if (_focusedChild is not null)
+            {
+                ClearFocus();
             }
         }
 
@@ -177,6 +240,43 @@ public class SurfaceWidget : Widget
         }
 
         return handled;
+    }
+
+    internal void ClearFocus()
+    {
+        if (_focusedChild is null)
+        {
+            return;
+        }
+
+        switch (_focusedChild)
+        {
+            case SurfaceWidget surface:
+                surface.ClearFocus();
+                break;
+            case TextInputWidget input:
+                input.Defocus();
+                break;
+        }
+
+        _focusedChild = null;
+    }
+
+    private void SetFocusedChild(Widget child)
+    {
+        if (ReferenceEquals(_focusedChild, child))
+        {
+            return;
+        }
+
+        if (child is not SurfaceWidget && !child.SupportsKeyboardInput && !child.SupportsTextInput)
+        {
+            ClearFocus();
+            return;
+        }
+
+        ClearFocus();
+        _focusedChild = child;
     }
 
     private bool HandlePointerExited(in WidgetPointerEvent e)

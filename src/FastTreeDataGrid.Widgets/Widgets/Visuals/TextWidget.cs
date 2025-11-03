@@ -151,6 +151,23 @@ public abstract class TextWidget : Widget
 
     public TextAlignment TextAlignment { get; set; } = TextAlignment.Left;
 
+    private TextDecorationCollection? _textDecorations;
+
+    public TextDecorationCollection? TextDecorations
+    {
+        get => _textDecorations;
+        set
+        {
+            if (ReferenceEquals(_textDecorations, value))
+            {
+                return;
+            }
+
+            _textDecorations = value;
+            Invalidate();
+        }
+    }
+
     public override void UpdateValue(IFastTreeDataGridValueProvider? provider, object? item)
     {
         if (provider is null || Key is null)

@@ -6,6 +6,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Metadata;
+using Avalonia.Interactivity;
+using FastTreeDataGrid.Control.Widgets;
 using AvaloniaControl = global::Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Widgets.Hosting;
@@ -303,6 +305,30 @@ public sealed class WidgetHostSurface : AvaloniaControl
             e.Handled = true;
             InvalidateVisual();
         }
+    }
+
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+        if (!string.IsNullOrEmpty(e.Text) && _root.HandleTextInput(e.Text))
+        {
+            e.Handled = true;
+            InvalidateVisual();
+        }
+    }
+
+    protected override void OnLostFocus(RoutedEventArgs e)
+    {
+        if (_root is SurfaceWidget surface)
+        {
+            surface.ClearFocus();
+        }
+        else if (_root is TextInputWidget input)
+        {
+            input.Defocus();
+        }
+
+        base.OnLostFocus(e);
     }
 
     private bool RoutePointer(PointerEventArgs? e, WidgetPointerEventKind kind, Point? positionOverride = null)

@@ -310,7 +310,12 @@ public class SelectableTextWidget : FormattedTextWidget
             return;
         }
 
-        Geometry? caretGeometry = formatted.BuildHighlightGeometry(origin, _caretIndex, 0);
+        Geometry? caretGeometry = null;
+        var textLength = Text?.Length ?? 0;
+        if (textLength > 0 && _caretIndex < textLength)
+        {
+            caretGeometry = formatted.BuildHighlightGeometry(origin, _caretIndex, 1);
+        }
 
         if (caretGeometry is { } g && g.Bounds.Width >= 0)
         {
@@ -320,7 +325,7 @@ public class SelectableTextWidget : FormattedTextWidget
             return;
         }
 
-        if (_caretIndex > 0)
+        if (_caretIndex > 0 && textLength > 0)
         {
             var geo = formatted.BuildHighlightGeometry(origin, _caretIndex - 1, 1);
             if (geo is not null)
@@ -333,7 +338,7 @@ public class SelectableTextWidget : FormattedTextWidget
         }
 
         var fallback = new Rect(origin.X, origin.Y, CaretWidth, Math.Max(1, formatted.Height));
-        if (_caretIndex >= Text.Length)
+        if (_caretIndex >= textLength)
         {
             fallback = fallback.WithX(origin.X + formatted.Width);
         }
@@ -364,15 +369,22 @@ public class SelectableTextWidget : FormattedTextWidget
 
             if (i == text.Length)
             {
-                var geo = formatted.BuildHighlightGeometry(origin, text.Length - 1, 1);
-                if (geo is null)
+                if (text.Length == 0)
                 {
-                    caretRect = new Rect(origin.X + formatted.Width, origin.Y, 0, formatted.Height);
+                    caretRect = new Rect(origin.X, origin.Y, 0, formatted.Height);
                 }
                 else
                 {
-                    var bounds = geo.Bounds;
-                    caretRect = new Rect(bounds.Right, bounds.Top, 0, bounds.Height);
+                    var geo = formatted.BuildHighlightGeometry(origin, text.Length - 1, 1);
+                    if (geo is null)
+                    {
+                        caretRect = new Rect(origin.X + formatted.Width, origin.Y, 0, formatted.Height);
+                    }
+                    else
+                    {
+                        var bounds = geo.Bounds;
+                        caretRect = new Rect(bounds.Right, bounds.Top, 0, bounds.Height);
+                    }
                 }
             }
             else

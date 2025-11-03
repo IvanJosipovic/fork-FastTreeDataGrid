@@ -74,6 +74,11 @@ public class FormattedTextWidget : TextWidget
             emSize,
             Foreground);
 
+        if (TextDecorations is { } decorations)
+        {
+            formatted.SetTextDecorations(decorations);
+        }
+
         UpdateFormattedMetrics(formatted);
         _cachedMaxWidth = formatted.MaxTextWidth;
         return formatted;
@@ -146,6 +151,11 @@ public class FormattedTextWidget : TextWidget
             emSize,
             Foreground);
 
+        if (TextDecorations is { } decorations)
+        {
+            formatted.SetTextDecorations(decorations);
+        }
+
         formatted.MaxTextWidth = double.IsFinite(availableWidth) && availableWidth > 0
             ? availableWidth
             : double.PositiveInfinity;
@@ -162,8 +172,7 @@ public class FormattedTextWidget : TextWidget
 
     protected virtual Point GetTextOrigin(FormattedText formatted)
     {
-        var textHeight = formatted.Height;
-        var originY = Bounds.Y + Math.Max(0, (Bounds.Height - textHeight) / 2);
+        var originY = Bounds.Y;
         return new Point(Bounds.X, originY);
     }
 

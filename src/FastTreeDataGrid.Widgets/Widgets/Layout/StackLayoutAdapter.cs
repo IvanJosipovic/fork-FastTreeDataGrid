@@ -97,7 +97,7 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
             }
 
             height = Math.Max(0, Math.Min(height, availableHeight));
-            var offsetY = inner.Y + Math.Max(0, (availableHeight - height) / 2);
+            var offsetY = inner.Y;
             child.Arrange(new Rect(currentX, offsetY, width, height));
 
             currentX += width;
@@ -161,7 +161,7 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
             }
 
             width = Math.Max(0, Math.Min(width, availableWidth));
-            var offsetX = inner.X + Math.Max(0, (availableWidth - width) / 2);
+            var offsetX = inner.X;
             child.Arrange(new Rect(offsetX, currentY, width, height));
 
             currentY += height;

@@ -123,9 +123,13 @@ public abstract class Widget
 
     public event Action<WidgetKeyboardEvent>? KeyboardInput;
 
+    public event Action<string>? TextInput;
+
     internal bool SupportsPointerInput => IsInteractive || PointerInput is not null;
 
-    internal bool SupportsKeyboardInput => KeyboardInput is not null;
+    internal bool SupportsKeyboardInput => IsInteractive || KeyboardInput is not null;
+
+    internal bool SupportsTextInput => IsInteractive || TextInput is not null;
 
     public virtual void Arrange(Rect bounds)
     {
@@ -261,6 +265,22 @@ public abstract class Widget
         if (KeyboardInput is not null)
         {
             KeyboardInput.Invoke(e);
+            return true;
+        }
+
+        return false;
+    }
+
+    public virtual bool HandleTextInput(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        if (TextInput is not null)
+        {
+            TextInput.Invoke(text);
             return true;
         }
 
