@@ -52,7 +52,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SampleControls\ControlSamples.csproj" />
+    <ProjectReference Include="..\..\src\FastTreeDataGrid.Widgets\FastTreeDataGrid.Widgets.csproj" />
   </ItemGroup>
 
 </Project>
-

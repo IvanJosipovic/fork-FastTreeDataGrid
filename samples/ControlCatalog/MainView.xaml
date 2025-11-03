@@ -175,6 +175,17 @@
       <TabItem Header="TextBlock">
         <pages:TextBlockPage />
       </TabItem>
+      <TabItem Header="TextBlock (Widgets)">
+        <pages:SideBySideComparisonPage LeftHeader="TextBlock (Avalonia Control)"
+                                        RightHeader="TextBlock (Widgets)">
+          <pages:SideBySideComparisonPage.LeftContent>
+            <pages:TextBlockPage />
+          </pages:SideBySideComparisonPage.LeftContent>
+          <pages:SideBySideComparisonPage.RightContent>
+            <pages:TextBlockWidgetPage />
+          </pages:SideBySideComparisonPage.RightContent>
+        </pages:SideBySideComparisonPage>
+      </TabItem>
       <TabItem Header="Theme Variants">
         <pages:ThemePage />
       </TabItem>
