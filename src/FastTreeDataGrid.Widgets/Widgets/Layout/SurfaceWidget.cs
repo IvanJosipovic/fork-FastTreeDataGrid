@@ -14,6 +14,21 @@ public class SurfaceWidget : Widget
     [Content]
     public IList<Widget> Children { get; } = new List<Widget>();
 
+    protected override Size MeasureCore(Size available)
+    {
+        double width = 0;
+        double height = 0;
+
+        foreach (var child in Children)
+        {
+            var childSize = child.Measure(available);
+            width = Math.Max(width, childSize.Width);
+            height = Math.Max(height, childSize.Height);
+        }
+
+        return new Size(width, height);
+    }
+
     public override void Draw(DrawingContext context)
     {
         using var clip = PushClip(context);

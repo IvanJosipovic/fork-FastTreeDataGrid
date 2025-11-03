@@ -101,6 +101,65 @@ public class FormattedTextWidget : TextWidget
         _cachedMaxWidth = maxWidth;
     }
 
+    protected override Size MeasureCore(Size available)
+    {
+        if (string.IsNullOrEmpty(Text))
+        {
+            return default;
+        }
+
+        return MeasureFormattedText(available.Width, available.Height);
+    }
+
+    public override double GetAutoWidth(double availableHeight)
+    {
+        if (string.IsNullOrEmpty(Text))
+        {
+            return 0;
+        }
+
+        var metrics = MeasureFormattedText(double.PositiveInfinity, availableHeight);
+        return metrics.Width;
+    }
+
+    public override double GetAutoHeight(double availableWidth)
+    {
+        if (string.IsNullOrEmpty(Text))
+        {
+            return 0;
+        }
+
+        var metrics = MeasureFormattedText(availableWidth, double.PositiveInfinity);
+        return metrics.Height;
+    }
+
+    private Size MeasureFormattedText(double availableWidth, double availableHeight)
+    {
+        var emSize = GetEffectiveEmSize();
+        var typeface = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
+
+        var formatted = new FormattedText(
+            Text ?? string.Empty,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            emSize,
+            Foreground);
+
+        formatted.MaxTextWidth = double.IsFinite(availableWidth) && availableWidth > 0
+            ? availableWidth
+            : double.PositiveInfinity;
+        formatted.MaxTextHeight = double.IsFinite(availableHeight) && availableHeight > 0
+            ? availableHeight
+            : double.PositiveInfinity;
+        formatted.Trimming = Trimming;
+        formatted.TextAlignment = TextAlignment;
+
+        return new Size(
+            Math.Min(formatted.WidthIncludingTrailingWhitespace, formatted.MaxTextWidth),
+            Math.Min(formatted.Height, formatted.MaxTextHeight));
+    }
+
     protected virtual Point GetTextOrigin(FormattedText formatted)
     {
         var textHeight = formatted.Height;

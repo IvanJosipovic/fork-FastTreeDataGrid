@@ -42,20 +42,54 @@ internal sealed class GridLayoutAdapter : IPanelLayoutAdapter
             var x = bounds.X + column * (cellWidth + spacing);
             var y = bounds.Y + row * (cellHeight + spacing);
 
-            var width = ResolveSize(child.DesiredWidth, cellWidth);
-            var height = ResolveSize(child.DesiredHeight, cellHeight);
+            var width = ResolveWidth(child, cellWidth);
+            var height = ResolveHeight(child, cellHeight);
 
             child.Arrange(new Rect(x, y, width, height));
         }
     }
 
-    private static double ResolveSize(double desired, double available)
+    private static double ResolveWidth(Widget child, double available)
     {
-        if (double.IsNaN(desired) || desired <= 0)
+        if (!double.IsNaN(child.DesiredWidth) && child.DesiredWidth > 0)
         {
-            return available;
+            return Math.Min(child.DesiredWidth, available);
         }
 
-        return Math.Min(desired, available);
+        var desired = GetDesiredContentWidth(child);
+        if (desired > 0)
+        {
+            return Math.Min(desired, available);
+        }
+
+        return available;
+    }
+
+    private static double ResolveHeight(Widget child, double available)
+    {
+        if (!double.IsNaN(child.DesiredHeight) && child.DesiredHeight > 0)
+        {
+            return Math.Min(child.DesiredHeight, available);
+        }
+
+        var desired = GetDesiredContentHeight(child);
+        if (desired > 0)
+        {
+            return Math.Min(desired, available);
+        }
+
+        return available;
+    }
+
+    private static double GetDesiredContentWidth(Widget child)
+    {
+        var margin = child.Margin;
+        return Math.Max(0, child.DesiredSize.Width - margin.Left - margin.Right);
+    }
+
+    private static double GetDesiredContentHeight(Widget child)
+    {
+        var margin = child.Margin;
+        return Math.Max(0, child.DesiredSize.Height - margin.Top - margin.Bottom);
     }
 }

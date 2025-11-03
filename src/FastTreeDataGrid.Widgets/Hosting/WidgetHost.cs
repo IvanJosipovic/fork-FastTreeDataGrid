@@ -5,6 +5,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Metadata;
 using AvaloniaControl = global::Avalonia.Controls.Control;
 
 namespace FastTreeDataGrid.Control.Widgets.Hosting;
@@ -38,6 +39,10 @@ public static class WidgetHost
         surface.Height = height;
 
         // Ensure the widget has initial layout data before it renders.
+        var measureWidth = double.IsNaN(width) ? double.PositiveInfinity : width;
+        var measureHeight = double.IsNaN(height) ? double.PositiveInfinity : height;
+        root.Measure(new Size(measureWidth, measureHeight));
+
         if (!double.IsNaN(width) && !double.IsNaN(height))
         {
             root.Arrange(new Rect(0, 0, width, height));
@@ -55,6 +60,9 @@ public sealed class WidgetHostPresenter : ContentControl
     public static readonly StyledProperty<AvaloniaControl?> HostProperty =
         AvaloniaProperty.Register<WidgetHostPresenter, AvaloniaControl?>(nameof(Host));
 
+    public static readonly StyledProperty<Widget?> WidgetRootProperty =
+        AvaloniaProperty.Register<WidgetHostPresenter, Widget?>(nameof(WidgetRoot));
+
     /// <summary>
     /// Gets or sets the hosted control (typically the result of <see cref="WidgetHost.Create"/>).
     /// </summary>
@@ -64,6 +72,16 @@ public sealed class WidgetHostPresenter : ContentControl
         set => SetValue(HostProperty, value);
     }
 
+    /// <summary>
+    /// Gets or sets the root widget tree to host. When specified, <see cref="WidgetHost.Create(Widget, double, double, IBrush?)"/> is used to generate the surface automatically.
+    /// </summary>
+    [Content]
+    public Widget? WidgetRoot
+    {
+        get => GetValue(WidgetRootProperty);
+        set => SetValue(WidgetRootProperty, value);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -71,6 +89,10 @@ public sealed class WidgetHostPresenter : ContentControl
         if (change.Property == HostProperty)
         {
             UpdateSurface();
+        }
+        else if (change.Property == WidgetRootProperty)
+        {
+            UpdateWidgetRoot();
         }
     }
 
@@ -94,6 +116,18 @@ public sealed class WidgetHostPresenter : ContentControl
         }
 
         Content = host;
+    }
+
+    private void UpdateWidgetRoot()
+    {
+        if (WidgetRoot is { } widget)
+        {
+            Host = WidgetHost.Create(widget);
+        }
+        else if (GetValue(HostProperty) != null && WidgetRoot is null)
+        {
+            Host = null;
+        }
     }
 
     private static void DetachFromParent(AvaloniaControl control, StyledElement parent)
@@ -158,8 +192,29 @@ public sealed class WidgetHostSurface : AvaloniaControl
             context.FillRectangle(Background, new Rect(Bounds.Size));
         }
 
-        _root.Arrange(new Rect(new Point(0, 0), Bounds.Size));
         _root.Draw(context);
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var measured = _root.Measure(availableSize);
+        if (!double.IsNaN(Width) && Width > 0)
+        {
+            measured = measured.WithWidth(Width);
+        }
+
+        if (!double.IsNaN(Height) && Height > 0)
+        {
+            measured = measured.WithHeight(Height);
+        }
+
+        return measured;
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        _root.Arrange(new Rect(finalSize));
+        return finalSize;
     }
 
     protected override void OnPointerEntered(PointerEventArgs e)

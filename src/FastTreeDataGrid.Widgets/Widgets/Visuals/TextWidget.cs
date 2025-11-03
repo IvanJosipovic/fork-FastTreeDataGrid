@@ -9,6 +9,7 @@ namespace FastTreeDataGrid.Control.Widgets;
 public abstract class TextWidget : Widget
 {
     private const double DefaultEmSize = 12;
+    private string _text = string.Empty;
 
     static TextWidget()
     {
@@ -47,7 +48,11 @@ public abstract class TextWidget : Widget
             }));
     }
 
-    public string? Text { get; protected set; }
+    public string? Text
+    {
+        get => _text;
+        set => SetText(value);
+    }
 
     public double EmSize { get; set; } = DefaultEmSize;
 
@@ -130,8 +135,16 @@ public abstract class TextWidget : Widget
 
     public void SetText(string? text)
     {
-        Text = text ?? string.Empty;
+        var newText = text ?? string.Empty;
+        if (string.Equals(_text, newText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var old = _text;
+        _text = newText;
         Invalidate();
+        OnTextChanged(old, _text);
     }
 
     public TextTrimming Trimming { get; set; } = TextTrimming.None;
@@ -142,20 +155,24 @@ public abstract class TextWidget : Widget
     {
         if (provider is null || Key is null)
         {
-            Text = item?.ToString() ?? string.Empty;
+            SetText(item?.ToString());
             return;
         }
 
         var value = provider.GetValue(item, Key);
 
-        Text = value switch
+        SetText(value switch
         {
             null => string.Empty,
             string s => s,
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString()
-        };
+        });
     }
 
     public abstract void Invalidate();
+
+    protected virtual void OnTextChanged(string? oldValue, string? newValue)
+    {
+    }
 }

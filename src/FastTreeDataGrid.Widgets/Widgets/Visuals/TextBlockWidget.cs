@@ -39,6 +39,10 @@ public class SelectableTextWidget : FormattedTextWidget
     private static readonly ImmutableSolidColorBrush DefaultSelectionBrush = new(Color.FromArgb(96, 99, 102, 241));
     private static readonly ImmutableSolidColorBrush DefaultCaretBrush = new(Color.FromRgb(30, 64, 175));
 
+    private int? _requestedSelectionStart;
+    private int? _requestedSelectionLength;
+    private bool _applyingSelectionRequest;
+
     static SelectableTextWidget()
     {
         WidgetStyleManager.Register(string.Empty, new WidgetStyleRule(
@@ -80,22 +84,48 @@ public class SelectableTextWidget : FormattedTextWidget
 
     public double CaretWidth { get; set; } = 1.5;
 
-    public int SelectionStart => Math.Min(_anchorIndex, _selectionIndex);
+    public int SelectionStart
+    {
+        get => Math.Min(_anchorIndex, _selectionIndex);
+        set
+        {
+            _requestedSelectionStart = value;
+            ApplyRequestedSelection();
+        }
+    }
 
     public int SelectionEnd => Math.Max(_anchorIndex, _selectionIndex);
 
-    public int SelectionLength => Math.Max(0, SelectionEnd - SelectionStart);
+    public int SelectionLength
+    {
+        get => Math.Max(0, SelectionEnd - SelectionStart);
+        set
+        {
+            _requestedSelectionLength = Math.Max(0, value);
+            ApplyRequestedSelection();
+        }
+    }
 
     public bool HasSelection => SelectionLength > 0;
 
     public void SetSelection(int start, int length)
     {
+        if (SelectionStart == start && SelectionLength == length)
+        {
+            return;
+        }
+
         var text = Text ?? string.Empty;
         start = Math.Clamp(start, 0, text.Length);
         length = Math.Clamp(length, 0, text.Length - start);
         _anchorIndex = start;
         _selectionIndex = start + length;
         _caretIndex = _selectionIndex;
+        if (!_applyingSelectionRequest)
+        {
+            _requestedSelectionStart = start;
+            _requestedSelectionLength = length;
+        }
         Invalidate();
     }
 
@@ -134,6 +164,12 @@ public class SelectableTextWidget : FormattedTextWidget
         base.UpdateValue(provider, item);
         _anchorIndex = _selectionIndex = _caretIndex = Math.Min(Text?.Length ?? 0, _caretIndex);
         Invalidate();
+    }
+
+    protected override void OnTextChanged(string? oldValue, string? newValue)
+    {
+        base.OnTextChanged(oldValue, newValue);
+        ApplyRequestedSelection();
     }
 
     public override void Draw(DrawingContext context)
@@ -209,12 +245,43 @@ public class SelectableTextWidget : FormattedTextWidget
 
         if (resetAnchor)
         {
-            _anchorIndex = index;
+           _anchorIndex = index;
         }
 
         _selectionIndex = index;
         _caretIndex = index;
+        if (!_applyingSelectionRequest)
+        {
+            _requestedSelectionStart = SelectionStart;
+            _requestedSelectionLength = SelectionLength;
+        }
         Invalidate();
+    }
+
+    private void ApplyRequestedSelection()
+    {
+        if (_applyingSelectionRequest)
+        {
+            return;
+        }
+
+        if (_requestedSelectionStart is null && _requestedSelectionLength is null)
+        {
+            return;
+        }
+
+        var start = _requestedSelectionStart ?? SelectionStart;
+        var length = _requestedSelectionLength ?? SelectionLength;
+
+        _applyingSelectionRequest = true;
+        try
+        {
+            SetSelection(start, length);
+        }
+        finally
+        {
+            _applyingSelectionRequest = false;
+        }
     }
 
     protected virtual void DrawSelection(DrawingContext context, FormattedText formatted, Point origin)

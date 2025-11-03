@@ -50,7 +50,7 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
         var totalSpacing = spacing * Math.Max(0, children.Count - 1);
         var contentWidth = Math.Max(0, inner.Width - totalSpacing);
         var remaining = contentWidth;
-        var flexibleCount = CountFlexible(children, vertical: false);
+        var flexibleCount = CountFlexible(children, vertical: false, availableCross: inner.Height);
 
         var currentX = inner.X;
         var availableHeight = inner.Height;
@@ -67,16 +67,34 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
             }
             else
             {
-                width = ResolveFlexible(remaining, ref flexibleCount);
+                var auto = child.GetAutoWidth(availableHeight);
+                if (!double.IsNaN(auto) && auto > 0)
+                {
+                    width = Math.Min(auto, remaining);
+                }
+                else
+                {
+                    width = ResolveFlexible(remaining, ref flexibleCount);
+                }
             }
 
             width = Math.Max(0, Math.Min(width, Math.Max(0, inner.Right - currentX)));
             remaining = Math.Max(0, remaining - width);
 
             var desiredHeight = child.DesiredHeight;
-            var height = !double.IsNaN(desiredHeight) && desiredHeight > 0
-                ? Math.Min(desiredHeight, availableHeight)
-                : availableHeight;
+            double height;
+
+            if (!double.IsNaN(desiredHeight) && desiredHeight > 0)
+            {
+                height = Math.Min(desiredHeight, availableHeight);
+            }
+            else
+            {
+                var auto = child.GetAutoHeight(double.IsNaN(width) || width <= 0 ? availableHeight : width);
+                height = !double.IsNaN(auto) && auto > 0
+                    ? Math.Min(auto, availableHeight)
+                    : availableHeight;
+            }
 
             height = Math.Max(0, Math.Min(height, availableHeight));
             var offsetY = inner.Y + Math.Max(0, (availableHeight - height) / 2);
@@ -96,7 +114,7 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
         var totalSpacing = spacing * Math.Max(0, children.Count - 1);
         var contentHeight = Math.Max(0, inner.Height - totalSpacing);
         var remaining = contentHeight;
-        var flexibleCount = CountFlexible(children, vertical: true);
+        var flexibleCount = CountFlexible(children, vertical: true, availableCross: inner.Width);
 
         var currentY = inner.Y;
         var availableWidth = inner.Width;
@@ -113,16 +131,34 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
             }
             else
             {
-                height = ResolveFlexible(remaining, ref flexibleCount);
+                var auto = child.GetAutoHeight(availableWidth);
+                if (!double.IsNaN(auto) && auto > 0)
+                {
+                    height = Math.Min(auto, remaining);
+                }
+                else
+                {
+                    height = ResolveFlexible(remaining, ref flexibleCount);
+                }
             }
 
             height = Math.Max(0, Math.Min(height, Math.Max(0, inner.Bottom - currentY)));
             remaining = Math.Max(0, remaining - height);
 
             var desiredWidth = child.DesiredWidth;
-            var width = !double.IsNaN(desiredWidth) && desiredWidth > 0
-                ? Math.Min(desiredWidth, availableWidth)
-                : availableWidth;
+            double width;
+
+            if (!double.IsNaN(desiredWidth) && desiredWidth > 0)
+            {
+                width = Math.Min(desiredWidth, availableWidth);
+            }
+            else
+            {
+                var auto = child.GetAutoWidth(height);
+                width = !double.IsNaN(auto) && auto > 0
+                    ? Math.Min(auto, availableWidth)
+                    : availableWidth;
+            }
 
             width = Math.Max(0, Math.Min(width, availableWidth));
             var offsetX = inner.X + Math.Max(0, (availableWidth - width) / 2);
@@ -136,13 +172,18 @@ internal sealed class StackLayoutAdapter : IPanelLayoutAdapter
         }
     }
 
-    private static int CountFlexible(IList<Widget> children, bool vertical)
+    private static int CountFlexible(IList<Widget> children, bool vertical, double availableCross)
     {
         var count = 0;
         foreach (var child in children)
         {
             var desired = vertical ? child.DesiredHeight : child.DesiredWidth;
-            if (double.IsNaN(desired) || desired <= 0)
+            var auto = vertical
+                ? child.GetAutoHeight(availableCross)
+                : child.GetAutoWidth(availableCross);
+
+            if ((double.IsNaN(desired) || desired <= 0)
+                && (double.IsNaN(auto) || auto <= 0))
             {
                 count++;
             }

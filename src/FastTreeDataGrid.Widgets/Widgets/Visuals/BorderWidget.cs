@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using Avalonia.Metadata;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
@@ -11,15 +12,26 @@ namespace FastTreeDataGrid.Control.Widgets;
 public class BorderWidget : SurfaceWidget
 {
     private Widget? _child;
+    private IImmutableBrush? _background;
+    private IImmutableBrush? _borderBrush;
 
     public Thickness Padding { get; set; } = new Thickness(0);
 
     public Thickness BorderThickness { get; set; } = new Thickness(0);
 
-    public ImmutableSolidColorBrush? Background { get; set; }
+    public IBrush? Background
+    {
+        get => _background;
+        set => _background = value?.ToImmutable();
+    }
 
-    public ImmutableSolidColorBrush? BorderBrush { get; set; }
+    public IBrush? BorderBrush
+    {
+        get => _borderBrush;
+        set => _borderBrush = value?.ToImmutable();
+    }
 
+    [Content]
     public Widget? Child
     {
         get => _child;
@@ -42,6 +54,26 @@ public class BorderWidget : SurfaceWidget
                 Children.Add(_child);
             }
         }
+    }
+
+    protected override Size MeasureCore(Size available)
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+
+        var innerWidth = Math.Max(0, available.Width - border.Left - border.Right - padding.Left - padding.Right);
+        var innerHeight = Math.Max(0, available.Height - border.Top - border.Bottom - padding.Top - padding.Bottom);
+
+        Size childSize = default;
+        if (_child is not null)
+        {
+            childSize = _child.Measure(new Size(innerWidth, innerHeight));
+        }
+
+        var width = childSize.Width + border.Left + border.Right + padding.Left + padding.Right;
+        var height = childSize.Height + border.Top + border.Bottom + padding.Top + padding.Bottom;
+
+        return new Size(width, height);
     }
 
     public override void Arrange(Rect bounds)
@@ -70,9 +102,39 @@ public class BorderWidget : SurfaceWidget
         _child?.Draw(context);
     }
 
+    public override double GetAutoWidth(double availableHeight)
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        var childAvailableHeight = Math.Max(0, availableHeight - border.Top - border.Bottom - padding.Top - padding.Bottom);
+
+        var childWidth = _child?.GetAutoWidth(childAvailableHeight) ?? 0;
+        if ((double.IsNaN(childWidth) || childWidth <= 0) && _child is not null)
+        {
+            childWidth = _child.DesiredWidth > 0 ? _child.DesiredWidth : 0;
+        }
+
+        return childWidth + border.Left + border.Right + padding.Left + padding.Right;
+    }
+
+    public override double GetAutoHeight(double availableWidth)
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        var childAvailableWidth = Math.Max(0, availableWidth - border.Left - border.Right - padding.Left - padding.Right);
+
+        var childHeight = _child?.GetAutoHeight(childAvailableWidth) ?? 0;
+        if ((double.IsNaN(childHeight) || childHeight <= 0) && _child is not null)
+        {
+            childHeight = _child.DesiredHeight > 0 ? _child.DesiredHeight : 0;
+        }
+
+        return childHeight + border.Top + border.Bottom + padding.Top + padding.Bottom;
+    }
+
     private void DrawBorder(DrawingContext context)
     {
-        var brush = Background;
+        var brush = _background;
         var pen = CreateBorderPen();
 
         if (brush is null && pen is null)
@@ -86,7 +148,7 @@ public class BorderWidget : SurfaceWidget
 
     private Pen? CreateBorderPen()
     {
-        if (BorderBrush is null)
+        if (_borderBrush is null)
         {
             return null;
         }
@@ -97,7 +159,7 @@ public class BorderWidget : SurfaceWidget
             return null;
         }
 
-        return new Pen(BorderBrush, thickness);
+        return new Pen(_borderBrush, thickness);
     }
 
     private static double GetAverage(Thickness thickness)

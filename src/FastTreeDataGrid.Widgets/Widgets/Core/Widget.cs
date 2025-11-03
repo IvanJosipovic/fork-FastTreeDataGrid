@@ -16,6 +16,7 @@ public abstract class Widget
     private bool _isPressed;
     private double _rotation;
     private Matrix _renderTransform = Matrix.Identity;
+    private Size _desiredSize = default;
     private static readonly object InstanceLock = new();
     private static readonly List<WeakReference<Widget>> Instances = new();
 
@@ -70,6 +71,8 @@ public abstract class Widget
     public bool ClipToBounds { get; set; } = true;
 
     public Rect Bounds { get; private set; }
+
+    public Size DesiredSize => _desiredSize;
 
     public Thickness Margin { get; set; }
 
@@ -131,6 +134,91 @@ public abstract class Widget
         X = adjusted.X;
         Y = adjusted.Y;
         UpdateRenderTransform();
+    }
+
+    public virtual Size Measure(Size available)
+    {
+        var margin = Margin;
+        var innerWidth = Math.Max(0, available.Width - margin.Left - margin.Right);
+        var innerHeight = Math.Max(0, available.Height - margin.Top - margin.Bottom);
+
+        var core = MeasureCore(new Size(innerWidth, innerHeight));
+
+        var desiredWidth = core.Width + margin.Left + margin.Right;
+        var desiredHeight = core.Height + margin.Top + margin.Bottom;
+
+        if (!double.IsPositiveInfinity(available.Width))
+        {
+            desiredWidth = Math.Min(desiredWidth, available.Width);
+        }
+
+        if (!double.IsPositiveInfinity(available.Height))
+        {
+            desiredHeight = Math.Min(desiredHeight, available.Height);
+        }
+
+        desiredWidth = Math.Max(0, desiredWidth);
+        desiredHeight = Math.Max(0, desiredHeight);
+
+        _desiredSize = new Size(desiredWidth, desiredHeight);
+        return _desiredSize;
+    }
+
+    protected virtual Size MeasureCore(Size available)
+    {
+        double width = 0;
+        if (!double.IsNaN(DesiredWidth) && DesiredWidth > 0)
+        {
+            width = double.IsPositiveInfinity(available.Width)
+                ? DesiredWidth
+                : Math.Min(DesiredWidth, available.Width);
+        }
+
+        double height = 0;
+        if (!double.IsNaN(DesiredHeight) && DesiredHeight > 0)
+        {
+            height = double.IsPositiveInfinity(available.Height)
+                ? DesiredHeight
+                : Math.Min(DesiredHeight, available.Height);
+        }
+
+        return new Size(Math.Max(0, width), Math.Max(0, height));
+    }
+
+    public virtual double GetAutoWidth(double availableHeight)
+    {
+        if (!double.IsNaN(DesiredWidth) && DesiredWidth > 0)
+        {
+            return DesiredWidth;
+        }
+
+        if (_desiredSize.Width > 0)
+        {
+            var margin = Margin;
+            return Math.Max(0, _desiredSize.Width - margin.Left - margin.Right);
+        }
+
+        var size = Measure(new Size(double.PositiveInfinity, availableHeight));
+        var marginWidth = Margin.Left + Margin.Right;
+        return Math.Max(0, size.Width - marginWidth);
+    }
+
+    public virtual double GetAutoHeight(double availableWidth)
+    {
+        if (!double.IsNaN(DesiredHeight) && DesiredHeight > 0)
+        {
+            return DesiredHeight;
+        }
+
+        if (_desiredSize.Height > 0)
+        {
+            var margin = Margin;
+            return Math.Max(0, _desiredSize.Height - margin.Top - margin.Bottom);
+        }
+
+        var size = Measure(new Size(availableWidth, double.PositiveInfinity));
+        var marginHeight = Margin.Top + Margin.Bottom;
+        return Math.Max(0, size.Height - marginHeight);
     }
 
     protected IDisposable? PushClip(DrawingContext context)

@@ -360,7 +360,14 @@ public sealed class ScrollBarWidget : TemplatedWidget
             thumbLength = Math.Max(palette.MinimumThumbLength, axisLength * (viewport / (range + viewport)));
         }
 
-        thumbLength = Math.Clamp(thumbLength, palette.MinimumThumbLength, axisLength);
+        if (axisLength < palette.MinimumThumbLength)
+        {
+            thumbLength = axisLength;
+        }
+        else
+        {
+            thumbLength = Math.Clamp(thumbLength, palette.MinimumThumbLength, axisLength);
+        }
         var percent = GetValuePercent(range);
         var travel = Math.Max(0, axisLength - thumbLength);
         var offset = travel * percent;
