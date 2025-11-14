@@ -7,6 +7,7 @@ namespace FastTreeDataGrid.Control.Infrastructure;
 
 internal static class FastTreeDataGridAvaloniaDispatcher
 {
+    #pragma warning disable CA2255 // Module initializers are intentional here to swap dispatcher when the control assembly loads.
     [ModuleInitializer]
     internal static void Initialize()
     {
@@ -15,6 +16,7 @@ internal static class FastTreeDataGridAvaloniaDispatcher
             FastTreeDataGridDispatcherProvider.Dispatcher = new AvaloniaDispatcher();
         }
     }
+    #pragma warning restore CA2255
 
     private sealed class AvaloniaDispatcher : IFastTreeDataGridDispatcher
     {

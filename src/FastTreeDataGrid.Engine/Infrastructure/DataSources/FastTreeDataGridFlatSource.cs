@@ -1152,16 +1152,16 @@ public sealed class FastTreeDataGridFlatSource<T> : IFastTreeDataGridSource, IFa
         AddNodeToGroup(child, node, descriptorIndex + 1);
     }
 
-    private static void InsertGroupView(List<GroupView> children, GroupView view, FastTreeDataGridGroupDescriptor descriptor)
+    private static void InsertGroupView(List<GroupView> children, GroupView view, FastTreeDataGridGroupDescriptor? descriptor)
     {
-        var comparer = descriptor.Comparer;
-        var direction = descriptor.SortDirection == FastTreeDataGridSortDirection.Descending ? -1 : 1;
-
-        if (children.Count == 0)
+        if (children.Count == 0 || descriptor is null)
         {
             children.Add(view);
             return;
         }
+
+        var comparer = descriptor.Comparer;
+        var direction = descriptor.SortDirection == FastTreeDataGridSortDirection.Descending ? -1 : 1;
 
         for (var i = 0; i < children.Count; i++)
         {

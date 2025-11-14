@@ -204,7 +204,11 @@ public sealed class FastTreeDataGridGroupingInteropTests
 
         public int Revenue { get; }
 
-        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated
+        {
+            add { }
+            remove { }
+        }
 
         public object? GetValue(object? item, string key)
         {

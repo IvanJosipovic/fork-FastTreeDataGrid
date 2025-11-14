@@ -4085,7 +4085,13 @@ public partial class FastTreeDataGrid : TemplatedControl
             rows.Add(rowInfo);
         }
 
-        _presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);
+        var presenter = _presenter;
+        if (presenter is null)
+        {
+            return;
+        }
+
+        presenter.UpdateContent(rows, totalWidth, totalHeight, _columnOffsets);
         if (rebuiltCells > 0)
         {
             FastTreeDataGridVirtualizationDiagnostics.CellsRebuilt.Add(rebuiltCells);
@@ -4443,20 +4449,20 @@ public partial class FastTreeDataGrid : TemplatedControl
             formatted = null;
             textOrigin = new Point(contentBounds.X, contentBounds.Y);
         }
-        else
+        else if (widget is Widget existingWidget)
         {
             // Reuse existing widget where possible; otherwise release and rebuild.
-            if (widget is null)
-            {
-                ReleaseExistingWidget();
-            }
-            widget.Key ??= column.ValueKey;
-            widget.Foreground ??= GetImmutableBrush(context.TextBrush);
-            widget.UpdateValue(row.ValueProvider, row.Item);
-            var arrangeBounds = widget is FastTreeDataGridGroupRowPresenter
+            existingWidget.Key ??= column.ValueKey;
+            existingWidget.Foreground ??= GetImmutableBrush(context.TextBrush);
+            existingWidget.UpdateValue(row.ValueProvider, row.Item);
+            var arrangeBounds = existingWidget is FastTreeDataGridGroupRowPresenter
                 ? bounds
                 : contentBounds;
-            widget.Arrange(arrangeBounds);
+            existingWidget.Arrange(arrangeBounds);
+        }
+        else
+        {
+            ReleaseExistingWidget();
         }
 
         var validationState = GetCellValidationState(row, column);
@@ -4615,7 +4621,8 @@ public partial class FastTreeDataGrid : TemplatedControl
         {
             var controlSelected = IsCellSelection ? rebuild.Cell.IsSelected : rowInfo.IsSelected;
             control.SetValue(SelectingItemsControl.IsSelectedProperty, controlSelected);
-            _presenter.UpdateControlLayout(rebuild.Cell, contentBounds);
+            var presenter = _presenter;
+            presenter?.UpdateControlLayout(rebuild.Cell, contentBounds);
             if (!Equals(control.DataContext, row.Item))
             {
                 control.DataContext = row.Item;
@@ -5233,7 +5240,7 @@ public partial class FastTreeDataGrid : TemplatedControl
             hitColumn = null;
             hitColumnIndex = -1;
         }
-        if (hitColumnIndex >= 0)
+        if (hitColumnIndex >= 0 && hitColumn is not null)
         {
             if (!TryHandleEditingPointerPress(rowInfo.RowIndex, hitColumn))
             {

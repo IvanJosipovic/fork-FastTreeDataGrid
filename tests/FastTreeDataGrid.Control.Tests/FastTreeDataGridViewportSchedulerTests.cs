@@ -53,9 +53,23 @@ public sealed class FastTreeDataGridViewportSchedulerTests
 
     private sealed class StubVirtualizationProvider : IFastTreeDataVirtualizationProvider
     {
-        public event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated;
-        public event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized;
-        public event EventHandler<FastTreeDataGridCountChangedEventArgs>? CountChanged;
+        public event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<FastTreeDataGridCountChangedEventArgs>? CountChanged
+        {
+            add { }
+            remove { }
+        }
 
         public bool SupportsMutations => false;
 

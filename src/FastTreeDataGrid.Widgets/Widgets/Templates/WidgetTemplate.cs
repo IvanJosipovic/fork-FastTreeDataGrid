@@ -26,22 +26,24 @@ public sealed class WidgetTemplate : IWidgetTemplate
     /// <inheritdoc />
     public Widget? Build()
     {
-        if (_content is null)
+        if (_content is not object content)
         {
             return null;
         }
 
-        if (_content is Func<Widget?> factory)
+        if (content is Func<Widget?> factory)
         {
             return factory();
         }
 
-        if (_content is Widget)
+        if (content is Widget)
         {
             throw new InvalidOperationException("WidgetTemplate cannot reuse a widget instance. Provide a template or use FuncWidgetTemplate instead.");
         }
 
-        var (result, _) = TemplateContent.Load<Widget>(_content);
+        #pragma warning disable CS8602 // TemplateContent.Load is safe because content is ensured non-null above.
+        var (result, _) = TemplateContent.Load<Widget>(content);
+        #pragma warning restore CS8602
         return result;
     }
 }

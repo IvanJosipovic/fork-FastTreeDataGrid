@@ -86,17 +86,13 @@ public sealed class FastTreeDataGridRowReorderSettings : IFastTreeDataGridRowReo
     }
 
     /// <summary>
-    /// Allows drag & drop for group rows when enabled.
+    /// Allows drag &amp; drop for group rows when enabled.
     /// </summary>
     public bool AllowGroupReorder
     {
         get => _allowGroupReorder;
         set => SetField(ref _allowGroupReorder, value);
     }
-
-    /// <summary>
-    /// Enables drag &amp; drop for group rows (e.g., regions, categories). When false, groups stay anchored.
-    /// </summary>
 
     private void SetField<T>(ref T field, T value)
     {

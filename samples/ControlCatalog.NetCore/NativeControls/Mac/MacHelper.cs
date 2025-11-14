@@ -20,11 +20,11 @@ internal class MacHelper
 
 internal class MacOSViewHandle : INativeControlHostDestroyableControlHandle
 {
-    private NSView _view;
+    private NSView? _view;
 
     public MacOSViewHandle(NSView view)
     {
-        _view = view;
+        _view = view ?? throw new ArgumentNullException(nameof(view));
     }
 
     public IntPtr Handle => _view?.Handle ?? IntPtr.Zero;
@@ -32,7 +32,7 @@ internal class MacOSViewHandle : INativeControlHostDestroyableControlHandle
 
     public void Destroy()
     {
-        _view.Dispose();
+        _view?.Dispose();
         _view = null;
     }
 }

@@ -289,7 +289,11 @@ public sealed class ColumnVirtualizationPerformanceTests
             _values = values;
         }
 
-        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated
+        {
+            add { }
+            remove { }
+        }
 
         public object? GetValue(object? item, string key)
         {

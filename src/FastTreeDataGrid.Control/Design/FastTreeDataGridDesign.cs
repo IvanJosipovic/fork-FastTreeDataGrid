@@ -164,8 +164,10 @@ public static class FastTreeDataGridDesign
             _rows = rows ?? throw new ArgumentNullException(nameof(rows));
         }
 
+        #pragma warning disable CS0067 // Design-time sample source does not raise change events.
         public event EventHandler? ResetRequested;
         public event EventHandler<FastTreeDataGridInvalidatedEventArgs>? Invalidated;
+        #pragma warning restore CS0067
         public event EventHandler<FastTreeDataGridRowMaterializedEventArgs>? RowMaterialized;
 
         public int RowCount => _rows.Count;
@@ -248,7 +250,9 @@ public static class FastTreeDataGridDesign
             _values = values;
         }
 
+        #pragma warning disable CS0067 // Sample provider values are immutable.
         public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+        #pragma warning restore CS0067
 
         public object? GetValue(object? item, string key)
         {

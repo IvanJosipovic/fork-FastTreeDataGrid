@@ -1,7 +1,7 @@
 namespace FastTreeDataGrid.Engine.Infrastructure;
 
 /// <summary>
-/// Specifies how the <see cref="Controls.FastTreeDataGrid"/> handles selection.
+/// Specifies how the FastTreeDataGrid control handles selection.
 /// </summary>
 public enum FastTreeDataGridSelectionMode
 {

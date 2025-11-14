@@ -162,7 +162,11 @@ public sealed class FastTreeDataGridGroupingLayoutTests
 
         public bool IsGroup => true;
 
-        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated;
+        public event EventHandler<ValueInvalidatedEventArgs>? ValueInvalidated
+        {
+            add { }
+            remove { }
+        }
 
         public object? GetValue(object? item, string key)
         {

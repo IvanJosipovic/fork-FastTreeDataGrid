@@ -509,6 +509,11 @@ public partial class FastTreeDataGrid
 
         public bool CommitEdit(FastTreeDataGridEditCommitTrigger trigger)
         {
+            if (_isShuttingDown)
+            {
+                return false;
+            }
+
             if (_session is not { } session)
             {
                 return false;
@@ -555,6 +560,11 @@ public partial class FastTreeDataGrid
 
         public void CancelEdit(FastTreeDataGridEditCancelReason reason)
         {
+            if (_isShuttingDown)
+            {
+                return;
+            }
+
             if (_session is not { } session)
             {
                 return;

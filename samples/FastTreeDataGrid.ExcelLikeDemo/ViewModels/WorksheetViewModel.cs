@@ -321,6 +321,11 @@ internal sealed class WorksheetVirtualizationSource : IFastTreeDataGridSource
 
     public Task InvalidateAsync(FastTreeDataGridInvalidationRequest request, System.Threading.CancellationToken cancellationToken)
     {
+        if (request.Kind == FastTreeDataGridInvalidationKind.Full)
+        {
+            ResetRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         Invalidated?.Invoke(this, new FastTreeDataGridInvalidatedEventArgs(request));
         return Task.CompletedTask;
     }

@@ -166,6 +166,7 @@ public sealed class SqliteVirtualizationSource : IFastTreeDataGridSource
             ResetRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        Invalidated?.Invoke(this, new FastTreeDataGridInvalidatedEventArgs(request));
         return Task.CompletedTask;
     }
 

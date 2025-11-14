@@ -1,12 +1,13 @@
 using System;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using FastTreeDataGrid.Engine.Infrastructure;
 
 namespace FastTreeDataGrid.Control.Widgets;
 
 /// <summary>
-/// Provides a lightweight templated widget similar to Avalonia's <see cref="Avalonia.Controls.TemplatedControl"/>.
+/// Provides a lightweight templated widget similar to Avalonia's templated controls.
 /// </summary>
 public abstract class TemplatedWidget : SurfaceWidget
 {

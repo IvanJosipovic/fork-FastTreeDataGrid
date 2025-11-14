@@ -19,12 +19,12 @@
     <PackageVersion Include="Avalonia.Win32" Version="11.3.4" />
     <PackageVersion Include="Avalonia.X11" Version="11.3.4" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.12" />
-    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.0.2" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.3.0" />
     <PackageVersion Include="Dotnet.Bundle" Version="0.9.13" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="8.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageVersion Include="Microsoft.PowerFx.Interpreter" Version="1.4.0" />
     <PackageVersion Include="MonoMac.NetStandard" Version="0.0.4" />
