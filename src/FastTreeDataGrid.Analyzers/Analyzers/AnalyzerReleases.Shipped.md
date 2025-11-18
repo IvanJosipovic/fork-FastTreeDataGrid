@@ -1,2 +1,0 @@
-# Analyzer release versions
-
