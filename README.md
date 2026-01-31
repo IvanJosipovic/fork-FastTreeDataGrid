@@ -1,3 +1,5 @@
+# Deprecated in favor of https://github.com/wieslawsoltes/ProDataGrid
+
 # FastTreeDataGrid
 
 FastTreeDataGrid is a high-performance tree data grid for Avalonia UI that renders hierarchical datasets directly onto a canvas-backed surface. The control pairs a pluggable FlatTreeDataGrid engine with an immediate-mode widget system so large trees stay responsive while delivering rich cell visuals.
